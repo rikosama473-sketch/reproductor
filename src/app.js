@@ -393,6 +393,16 @@ function retryCurrentPlayback() {
   const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true, forceReload: true });
 }
+
+// Route every resume through the request-token-aware player. Calling
+// audio.play() directly from a UI/system control can revive the previous
+// source while a newer selection is still preparing its engine.
+function resumeCurrentTrack() {
+  const track = currentTrack();
+  if (!track) return;
+  const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true });
+}
 function bindAudioEngineEvents(element) {
   const isActive = () => element === audio;
   element.addEventListener("timeupdate", () => { if (isActive()) { updatePlayer(); updateMediaSession(); } });
@@ -683,7 +693,7 @@ function updateMediaSession() {
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const handlers = {
-    play: async () => { try { if (audio === equalizedAudio) await ensureAudioProcessing(); await audio.play(); } catch { showPlaybackStatus("No se pudo reanudar desde los controles del sistema.", "error", true); } }, pause: () => audio.pause(), stop: () => audio.pause(),
+    play: () => resumeCurrentTrack(), pause: () => audio.pause(), stop: () => audio.pause(),
     previoustrack: () => $("#previous-button").click(), nexttrack: () => $("#next-button").click(),
     seekbackward: details => { audio.currentTime = Math.max(0, audio.currentTime - (details.seekOffset || 10)); },
     seekforward: details => { const step = details.seekOffset || 10; audio.currentTime = Number.isFinite(audio.duration) ? Math.min(audio.duration, audio.currentTime + step) : audio.currentTime + step; },
@@ -1016,6 +1026,9 @@ async function importFiles(fileList) {
   }
 }
 async function removeCurrent() {
+  // Invalidate any play()/AudioContext continuation that is still awaiting a
+  // result; otherwise it could restore the source after the user removes it.
+  playbackRequestId += 1;
   const track = currentTrack();
   if (!track) return;
   audio.pause();
@@ -1591,12 +1604,10 @@ function bindEvents() {
     $("#library-no-results").hidden = !(state.tracks.length > 0 && Boolean(state.query.trim()) && visibleLibraryTracks.length === 0);
     $("#library-meta").textContent = visibleLibraryTracks.length + (visibleLibraryTracks.length === 1 ? " canción" : " canciones");
   });
-  $("#play-button").addEventListener("click", async () => {
+  $("#play-button").addEventListener("click", () => {
     if (!currentTrack()) return;
-    if (audio.paused) {
-      try { if (audio === equalizedAudio) await ensureAudioProcessing(); await audio.play(); showPlaybackStatus(""); }
-      catch (error) { showPlaybackStatus(error.message || "No se pudo iniciar la reproducción.", "error", true); }
-    } else audio.pause();
+    if (audio.paused) resumeCurrentTrack();
+    else audio.pause();
     updatePlayer();
   });
   $("#previous-button").addEventListener("click", () => {
