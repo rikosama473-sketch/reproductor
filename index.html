@@ -49,6 +49,7 @@
         <div class="topbar-actions">
           <div class="connection-pill"><span class="connection-dot" id="connection-dot"></span><span id="connection-label">Conectado</span></div>
           <button class="button button-soft install-button" id="install-button" hidden>↓ Instalar app</button>
+          <button class="icon-button" id="settings-button" aria-label="Configuración de sonido y reproducción" title="Sonido y reproducción">⚙</button>
           <button class="avatar-button" id="about-button" aria-label="Acerca de Ritmo">R</button>
         </div>
       </header>
@@ -182,6 +183,12 @@
     </main>
   </div>
 
+  <div class="playback-status" id="playback-status" role="status" aria-live="polite" hidden>
+    <span class="playback-status-icon" aria-hidden="true">!</span><span class="playback-status-message" id="playback-status-message"></span>
+    <button class="button button-soft" id="playback-retry" type="button" hidden>Reintentar</button>
+    <button class="icon-button playback-status-close" id="playback-status-close" type="button" aria-label="Cerrar aviso">×</button>
+  </div>
+
   <div class="bottom-player" id="bottom-player">
     <div class="now-playing">
       <div class="cover-thumb cover-placeholder" id="player-cover"><span>♫</span></div>
@@ -205,6 +212,43 @@
   <input type="file" id="file-picker" accept="audio/*,.mp3,.m4a,.mp4,.aac,.wav,.wave,.ogg,.oga,.opus,.webm,.flac,.aiff,.aif,.alac,.wma,.ape,.mp2,.mid,.midi,.caf,.3gp,.amr" multiple hidden>
   <input type="file" id="folder-picker" accept="audio/*" webkitdirectory multiple hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="settings-dialog" class="app-dialog settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-top"><div class="brand-mark"><span>♫</span></div><button class="icon-button" id="close-settings" type="button" aria-label="Cerrar configuración">✕</button></div>
+    <div class="eyebrow">CONTROLES DEL REPRODUCTOR</div><h2 id="settings-title">Sonido y <span>reproducción.</span></h2>
+    <p class="dialog-muted">Los ajustes se guardan únicamente en este navegador. El ecualizador se aplica a archivos locales; las fuentes externas conservan su reproducción directa para evitar que las restricciones CORS las dejen mudas.</p>
+
+    <section class="settings-section">
+      <div class="settings-section-heading"><div><h3>Ecualizador</h3><p>Personalizá graves, voces y agudos de los archivos que importaste.</p></div>
+        <label class="settings-switch"><input type="checkbox" id="eq-enabled"><span>Activar</span></label>
+      </div>
+      <label class="eq-control" for="eq-bass"><span>Graves</span><output id="eq-bass-value">0 dB</output><input id="eq-bass" type="range" min="-12" max="12" step="1" value="0"></label>
+      <label class="eq-control" for="eq-mid"><span>Medios / voces</span><output id="eq-mid-value">0 dB</output><input id="eq-mid" type="range" min="-12" max="12" step="1" value="0"></label>
+      <label class="eq-control" for="eq-treble"><span>Agudos</span><output id="eq-treble-value">0 dB</output><input id="eq-treble" type="range" min="-12" max="12" step="1" value="0"></label>
+      <label class="settings-check"><input type="checkbox" id="limiter-toggle" checked><span><strong>Limitador suave</strong><small>Reduce picos que pueden causar distorsión; no sustituye un volumen seguro.</small></span></label>
+      <button class="button button-soft" id="eq-reset" type="button">Restablecer sonido</button>
+      <p class="settings-note" id="eq-status" role="status">El sonido original no se modifica.</p>
+    </section>
+
+    <section class="settings-section">
+      <h3>Reproducción y pantalla</h3>
+      <label class="settings-check"><input type="checkbox" id="keep-screen-awake"><span><strong>Mantener pantalla despierta</strong><small>Solicita al navegador que no apague la pantalla mientras Ritmo está visible. El sistema puede rechazarlo o revocarlo.</small></span></label>
+      <p class="settings-note" id="wake-lock-status" role="status">Desactivado.</p>
+      <div class="sleep-row"><label for="sleep-minutes">Temporizador para detener música</label><select id="sleep-minutes" class="form-input"><option value="0">Desactivado</option><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="45">45 minutos</option><option value="60">1 hora</option><option value="90">1 hora y media</option><option value="120">2 horas</option></select></div>
+      <label class="settings-check"><input type="checkbox" id="sleep-fade" checked><span><strong>Bajar el volumen gradualmente</strong><small>Suaviza los últimos segundos antes de detener la música.</small></span></label>
+      <div class="sleep-actions"><button class="button button-primary" id="sleep-start" type="button">Activar temporizador</button><button class="button button-soft" id="sleep-cancel" type="button">Cancelar</button></div>
+      <p class="settings-note" id="sleep-status" role="status">Temporizador desactivado.</p>
+    </section>
+
+    <section class="settings-section">
+      <h3>Permisos y diagnóstico</h3>
+      <p class="settings-note">Ritmo no necesita micrófono, contactos ni ubicación para reproducir música. El almacenamiento persistente depende de la decisión del navegador.</p>
+      <div class="settings-actions"><button class="button button-soft" id="request-storage-button" type="button">Solicitar almacenamiento persistente</button><button class="button button-soft" id="diagnostics-refresh" type="button">Actualizar diagnóstico</button></div>
+      <div id="storage-permission-status" class="settings-note" role="status">Comprobando almacenamiento…</div>
+      <div id="diagnostics-list" class="diagnostics-list" aria-live="polite"></div>
+    </section>
+    <button class="button button-primary dialog-close" id="close-settings-bottom" type="button">Listo</button>
+  </dialog>
+
   <dialog id="info-dialog" class="app-dialog"><div class="dialog-top"><div class="brand-mark"><span>R</span></div><button class="icon-button" id="close-info" aria-label="Cerrar">✕</button></div><div class="eyebrow">HECHO PARA ESCUCHAR</div><h2>Ritmo<span>.</span></h2><p>Un reproductor personal, ligero y centrado en tu privacidad. Tu biblioteca se almacena en este navegador; no se suben tus archivos a un servidor.</p><p class="dialog-muted">El funcionamiento offline requiere instalar o abrir la aplicación una vez con conexión. El navegador puede limitar el almacenamiento disponible y permitir que se borre desde sus ajustes.</p><button class="button button-primary dialog-close" id="close-info-bottom">Entendido</button></dialog>
   <script type="module" src="./src/app.js"></script>
 </body>
