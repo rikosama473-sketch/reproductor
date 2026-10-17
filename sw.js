@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v14";
+const CACHE_NAME = "ritmo-shell-v15";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -21,8 +21,15 @@ self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith((async () => {
-    const cached = await caches.match(request);
-    if (cached) return cached;
+    // These files have stable, un-hashed URLs. Prefer the network so fixes can
+    // reach clients even if a cache-version bump was accidentally omitted.
+    // Keep cache-first for image assets where an old copy is generally harmless.
+    const preferNetwork = request.mode === "navigate" ||
+      ["document", "script", "style", "manifest"].includes(request.destination);
+    if (!preferNetwork) {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+    }
     try {
       const response = await fetch(request);
       if (response && response.ok && (request.destination === "document" || request.destination === "script" || request.destination === "style" || request.destination === "image" || request.destination === "manifest")) {
@@ -34,6 +41,10 @@ self.addEventListener("fetch", event => {
       }
       return response;
     } catch {
+      // Network-first resources still fall back to the most recently cached
+      // copy on flaky/offline connections.
+      const cached = await caches.match(request);
+      if (cached) return cached;
       if (request.mode === "navigate") {
         const offlinePage = await caches.match("./index.html");
         if (offlinePage) return offlinePage;
