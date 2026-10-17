@@ -1213,9 +1213,27 @@ async function addArchiveFile(identifier, index, playNow = false) {
   if (playNow) await playTrack(track.id);
 }
 async function searchArchiveAudio(loadMore = false) {
+  const requestId = ++archiveSearchRequestId;
+  const isCurrentArchiveSearch = () => requestId === archiveSearchRequestId;
+  const button = $("#archive-search-button");
+  const loadButton = $("#archive-load-more");
   const query = loadMore ? state.archiveQuery : $("#archive-query").value.trim();
-  if (!query) { $("#archive-status").textContent = "Escribí un artista, género o título para buscar."; return; }
-  if (!navigator.onLine) { $("#archive-status").textContent = "El catálogo abierto necesita conexión. Tu biblioteca local sigue disponible offline."; return; }
+  if (!query) {
+    $("#archive-status").textContent = "Escribí un artista, género o título para buscar.";
+    button.disabled = false;
+    button.innerHTML = 'Buscar catálogo <span>→</span>';
+    loadButton.disabled = false;
+    loadButton.textContent = "Cargar más resultados ↓";
+    return;
+  }
+  if (!navigator.onLine) {
+    $("#archive-status").textContent = "El catálogo abierto necesita conexión. Tu biblioteca local sigue disponible offline.";
+    button.disabled = false;
+    button.innerHTML = 'Buscar catálogo <span>→</span>';
+    loadButton.disabled = false;
+    loadButton.textContent = "Cargar más resultados ↓";
+    return;
+  }
   if (!loadMore) {
     state.archiveQuery = query;
     state.archiveOffset = 0;
@@ -1225,8 +1243,7 @@ async function searchArchiveAudio(loadMore = false) {
     $("#archive-results").innerHTML = "";
     $("#archive-load-more").hidden = true;
   }
-  const button = $("#archive-search-button");
-  const loadButton = $("#archive-load-more");
+  const requestedOffset = state.archiveOffset;
   button.disabled = true;
   loadButton.disabled = true;
   if (!loadMore) button.textContent = "Buscando…";
@@ -1240,12 +1257,14 @@ async function searchArchiveAudio(loadMore = false) {
     url.searchParams.set("q", searchQuery);
     for (const field of ["identifier", "title", "creator", "year", "date", "mediatype", "licenseurl"]) url.searchParams.append("fl[]", field);
     url.searchParams.set("rows", String(ARCHIVE_PAGE_SIZE));
-    url.searchParams.set("start", String(state.archiveOffset));
+    url.searchParams.set("start", String(requestedOffset));
     url.searchParams.set("output", "json");
     url.searchParams.append("sort[]", "downloads desc");
     const response = await fetch(url.href, { mode: "cors", credentials: "omit", cache: "no-store" });
+    if (!isCurrentArchiveSearch()) return;
     if (!response.ok) throw new Error("Internet Archive respondió " + response.status + ".");
     const data = await response.json();
+    if (!isCurrentArchiveSearch()) return;
     if (data.responseHeader?.status !== 0 || !data.response) throw new Error("Internet Archive devolvió una respuesta de búsqueda no válida.");
     const docs = (Array.isArray(data.response.docs) ? data.response.docs : []).filter(item =>
       /^[A-Za-z0-9_-]{1,100}$/.test(String(item.identifier || "")) && String(item.mediatype || "audio") === "audio");
@@ -1258,13 +1277,17 @@ async function searchArchiveAudio(loadMore = false) {
       ? "Mostrando " + state.archiveResults.length + " de " + state.archiveTotal + " resultados que declaran una licencia Creative Commons. Abrí “Ver licencia y archivos” para comprobar los metadatos antes de añadir una pista."
       : "No se encontraron audios con licencia Creative Commons declarada para «" + query + "». Probá un término más general o abrí Internet Archive directamente.";
   } catch (error) {
-    $("#archive-status").textContent = (error.message || "No se pudo consultar Internet Archive.") +
-      " Podés abrir su búsqueda pública desde " + "https://archive.org/search?query=" + encodeURIComponent(query);
+    if (isCurrentArchiveSearch()) {
+      $("#archive-status").textContent = (error.message || "No se pudo consultar Internet Archive.") +
+        " Podés abrir su búsqueda pública desde " + "https://archive.org/search?query=" + encodeURIComponent(query);
+    }
   } finally {
-    button.disabled = false;
-    button.innerHTML = 'Buscar catálogo <span>→</span>';
-    loadButton.disabled = false;
-    loadButton.textContent = "Cargar más resultados ↓";
+    if (isCurrentArchiveSearch()) {
+      button.disabled = false;
+      button.innerHTML = 'Buscar catálogo <span>→</span>';
+      loadButton.disabled = false;
+      loadButton.textContent = "Cargar más resultados ↓";
+    }
   }
 }
 
