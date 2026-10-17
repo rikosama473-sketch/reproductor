@@ -1,5 +1,6 @@
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
 import { createYoutubeHistoryController } from "./youtube-history.js";
+import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -8,6 +9,15 @@ equalizedAudio.preload = "metadata";
 let audio = defaultAudio;
 let audioContext = null;
 let audioGraph = null;
+const audioOutputVolume = createAudioOutputVolumeController({
+  defaultAudio,
+  equalizedAudio,
+  getAudioGraph: () => audioGraph,
+  getAudioContext: () => audioContext
+});
+function setOutputVolume(value) {
+  return audioOutputVolume.setVolume(value);
+}
 let screenWakeLock = null;
 let playbackRequestId = 0;
 // Identifies a play() request that has not reached confirmed playback yet.
@@ -394,6 +404,7 @@ function applyAudioGraphPreferences() {
   audioGraph.compressor.threshold.setTargetAtTime(audioPrefs.limiter ? -8 : 0, now, 0.02);
   audioGraph.compressor.knee.setTargetAtTime(audioPrefs.limiter ? 8 : 0, now, 0.02);
   audioGraph.compressor.ratio.setTargetAtTime(audioPrefs.limiter ? 8 : 1, now, 0.02);
+  audioGraph.outputGain.gain.setTargetAtTime(audioPrefs.volume, now, 0.02);
 }
 async function ensureAudioProcessing() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -414,13 +425,16 @@ async function ensureAudioProcessing() {
     const compressor = audioContext.createDynamicsCompressor();
     compressor.attack.value = 0.003;
     compressor.release.value = 0.22;
+    const outputGain = audioContext.createGain();
     source.connect(bass);
     bass.connect(mid);
     mid.connect(treble);
     treble.connect(compressor);
-    compressor.connect(audioContext.destination);
-    audioGraph = { bass, mid, treble, compressor };
+    compressor.connect(outputGain);
+    outputGain.connect(audioContext.destination);
+    audioGraph = { bass, mid, treble, compressor, outputGain };
     applyAudioGraphPreferences();
+    setOutputVolume(audioPrefs.volume);
   }
   if (audioContext.state !== "running") await audioContext.resume();
   if (audioContext.state !== "running") throw new Error("El navegador mantuvo suspendido el motor de sonido.");
@@ -575,8 +589,7 @@ function startSleepTimer(minutes) {
   state.sleepEndsAt = null;
   if (state.sleepFadeTimer) { clearInterval(state.sleepFadeTimer); state.sleepFadeTimer = null; }
   const volume = Number($("#volume-bar").value);
-  defaultAudio.volume = volume;
-  equalizedAudio.volume = volume;
+  setOutputVolume(volume);
   if (!minutes) {
     $("#sleep-status").textContent = "Temporizador desactivado.";
     return;
@@ -594,8 +607,7 @@ function startSleepTimer(minutes) {
         // during the timer/fade isn't overwritten by an old captured value.
         const currentVolume = Number($("#volume-bar").value);
         const fadedVolume = currentVolume * Math.max(0, 1 - step / steps);
-        defaultAudio.volume = fadedVolume;
-        equalizedAudio.volume = fadedVolume;
+        setOutputVolume(fadedVolume);
         if (step >= steps) {
           clearInterval(state.sleepFadeTimer);
           state.sleepFadeTimer = null;
@@ -605,8 +617,7 @@ function startSleepTimer(minutes) {
           defaultAudio.pause();
           equalizedAudio.pause();
           const restoredVolume = Number($("#volume-bar").value);
-          defaultAudio.volume = restoredVolume;
-          equalizedAudio.volume = restoredVolume;
+          setOutputVolume(restoredVolume);
           stopYoutubePlayback();
           updatePlayer();
           updateMediaSession();
@@ -702,8 +713,7 @@ function toggleMute() {
     audioPrefs.volume = Math.max(0.01, Math.min(1, Number(audioPrefs.lastAudibleVolume) || 0.8));
   }
   slider.value = String(audioPrefs.volume);
-  defaultAudio.volume = audioPrefs.volume;
-  equalizedAudio.volume = audioPrefs.volume;
+  setOutputVolume(audioPrefs.volume);
   $("#expanded-volume-bar").value = String(audioPrefs.volume);
   saveAudioPreferences();
   updateMuteButton();
@@ -971,7 +981,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       previousEngine.load();
       audio = desiredEngine;
     }
-    audio.volume = Number($("#volume-bar").value);
+    setOutputVolume(Number($("#volume-bar").value));
     const url = trackURL(track);
     const resolvedURL = new URL(url, location.href).href;
     if (audio.src !== resolvedURL || options.forceReload) {
@@ -1704,8 +1714,7 @@ function updateYoutubeKeyStatus(message = "") {
 
 function bindEvents() {
   $("#volume-bar").value = String(audioPrefs.volume);
-  defaultAudio.volume = audioPrefs.volume;
-  equalizedAudio.volume = audioPrefs.volume;
+  setOutputVolume(audioPrefs.volume);
   if (audioPrefs.volume > 0.001) audioPrefs.lastAudibleVolume = audioPrefs.volume;
   document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
   document.querySelectorAll("[data-go-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.goView)));
@@ -1856,9 +1865,7 @@ function bindEvents() {
     audioPrefs.volume = volume;
     if (volume > 0.001) audioPrefs.lastAudibleVolume = volume;
     saveAudioPreferences();
-    audio.volume = volume;
-    defaultAudio.volume = volume;
-    equalizedAudio.volume = volume;
+    setOutputVolume(volume);
     $("#expanded-volume-bar").value = String(volume);
     updateMuteButton();
   });

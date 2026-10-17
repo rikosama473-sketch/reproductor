@@ -300,3 +300,29 @@ El control de silencio ya persistía el volumen y actualizaba los dos motores de
 ### Validación
 
 Se añadieron comprobaciones de regresión para el aviso de actualización, la exclusión del primer registro, la acción de recarga, la sincronización del volumen expandido y el número de caché. La validación automática no sustituye pruebas manuales en navegadores móviles.
+
+
+## Duodécima pasada — control de volumen en la cadena Web Audio (17 de octubre de 2026)
+
+### Hallazgo
+
+Ritmo enviaba el audio procesado al destino de Web Audio a través de filtros y un compresor, pero intentaba aplicar el volumen exclusivamente mediante `HTMLMediaElement.volume`. WebKit publicó en sus notas de Safari 27 una corrección para una incidencia donde ajustar esa propiedad no surtía efecto cuando el elemento estaba conectado a un `AudioContext`. No significa que todas las versiones de Safari necesariamente reproduzcan mal ni que el bug pertenezca a Ritmo: sí identifica un riesgo de compatibilidad que el diseño original no cubría y que afectaba el slider, silencio y fundido cuando estaba activo el ecualizador.
+
+### Solución
+
+- Se añadió un `GainNode` maestro al final de la cadena: ecualizador → compresor → ganancia de salida → destino.
+- El motor procesado deja `equalizedAudio.volume = 1` y aplica el valor solicitado al nodo de ganancia, evitando que los navegadores que sí soportan la propiedad nativa multipliquen el volumen dos veces.
+- El motor sin procesar conserva `HTMLMediaElement.volume`.
+- El slider principal, el reproductor expandido, silencio/restauración, el cambio de motor y el temporizador/fundido usan una única función que limita el volumen al intervalo 0–1.
+- Se añadió `src/audio-output-volume.js` con pruebas aisladas de salida nativa, salida procesada, silencio, valores fuera de rango y valores no numéricos. Se agregaron a CI y se precargan para uso offline con la versión `ritmo-shell-v14`.
+
+### Fuentes oficiales consultadas
+
+- WebKit, [News from WWDC26: WebKit in Safari 27 beta](https://webkit.org/blog/17967/news-from-wwdc26-webkit-in-safari-27-beta/), publicado el 8 de junio de 2026: registra entre las correcciones de HTML multimedia el caso de `HTMLMediaElement.volume` sin efecto al conectar el elemento a un `AudioContext`.
+- MDN, [AudioContext.createMediaElementSource()](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/createMediaElementSource): explica que el audio del elemento se redirige a la cadena de procesamiento del contexto.
+- MDN, [GainNode.gain](https://developer.mozilla.org/en-US/docs/Web/API/GainNode/gain): documenta el control de ganancia mediante `AudioParam`.
+- MDN, [Using the Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_Web_Audio_API): recomienda cambiar el nivel a través del parámetro de ganancia y usar interpolación de AudioParam para evitar cambios bruscos audibles.
+
+### Validación y límites
+
+Las pruebas de controlador verifican el valor encaminado a la ganancia de salida, el comportamiento del motor nativo y el mute/clamp. La CI también comprueba la sintaxis, la ubicación del nodo en el grafo y su inclusión en la shell offline. Todavía se recomienda una verificación manual del sonido en Safari/iOS, Firefox y Chromium con el ecualizador activado; las pruebas de Node no simulan la implementación real del motor multimedia del navegador.
