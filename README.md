@@ -61,3 +61,16 @@ Ritmo es gratuita, sin cuenta, sin suscripción, sin publicidad propia y sin tel
 Referencias técnicas: [YouTube Data API — search.list](https://developers.google.com/youtube/v3/docs/search/list), [YouTube IFrame Player API](https://developers.google.com/youtube/iframe_api_reference), [políticas para desarrolladores de YouTube](https://developers.google.com/youtube/terms/developer-policies-guide).
 
 Before embedding a search result, Ritmo also consults the official `videos.list` endpoint for `status.madeForKids` and `status.embeddable`. Only a result whose status was successfully checked, which is not designated Made for Kids and is embeddable, is offered in the integrated player. A video marked Made for Kids, an unembeddable video, or a video whose status could not be verified is opened directly in YouTube instead. This follows YouTube's [Made for Kids status guide](https://developers.google.com/youtube/data/guides/made_for_kids_status) and [developer policies](https://developers.google.com/youtube/terms/developer-policies-guide).
+
+
+## Historial, listas y uso móvil/offline
+
+IndexedDB v2 conserva los archivos importados, el historial de reproducciones y las listas de reproducción en este navegador/dispositivo. El historial guarda un registro por reproducción, no solo la fecha del último tema. Las búsquedas de YouTube completadas se guardan como metadatos de la última consulta para consultar esos resultados previamente vistos sin conexión; reproducir un video de YouTube sigue requiriendo internet. Listas, historial y biblioteca no se sincronizan entre dispositivos en esta versión.
+
+La reproducción local integra Media Session cuando el navegador lo soporta para exponer título, artista, progreso y controles de play/pausa, anterior/siguiente y búsqueda en los controles del sistema. La API tiene soporte desigual y el navegador/OS decide si permite reproducción en segundo plano con la pantalla bloqueada.
+
+La importación se procesa en lotes de 20, conserva los blobs originales sin recodificarlos y evita una transacción única gigante. El navegador decide la cuota real disponible. Los metadatos ID3v2 básicos (título, artista, álbum) se leen de archivos MP3; en otros formatos el título se infiere del nombre de archivo en esta versión.
+
+Formatos frecuentes en navegadores modernos incluyen MP3, AAC/M4A, WAV, Ogg Vorbis/Opus, WebM Opus y FLAC, dependiendo del navegador, sistema y códec. La interfaz informa `canPlayType()` para varios tipos. WMA, APE, AIFF y otros códecs poco comunes no están garantizados. No se falsifica compatibilidad ni se hace transcodificación local en esta versión.
+
+Las reproducciones de YouTube solo guardan metadatos del historial, nunca archivos de audio. La app usa el reproductor oficial, y ese contenido no está disponible sin conexión.

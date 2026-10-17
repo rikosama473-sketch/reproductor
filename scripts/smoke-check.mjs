@@ -31,3 +31,20 @@ assert.match(app, /status\.madeForKids/, "App must check the Made for Kids statu
 assert.match(app, /ritmoStatusVerified === true/, "Only checked videos may be embedded");
 assert.match(app, /data-yt-external/, "Unverified or child-directed videos must use external YouTube links");
 console.log("YouTube embedding status checks passed.");
+
+
+assert.match(storage, /const DB_VERSION = 2/, "Storage schema should upgrade without deleting existing tracks");
+assert.match(storage, /createObjectStore\(HISTORY/, "Storage should keep a persistent playback history");
+assert.match(storage, /createObjectStore\(PLAYLISTS/, "Storage should persist playlists");
+assert.match(app, /function renderHistory/, "The app should render recent playback history");
+assert.match(app, /function renderPlaylists/, "The app should render named playlists");
+assert.match(app, /function setupMediaSession/, "The app should expose mobile/system media controls");
+assert.match(app, /function renderFormatCapabilities/, "The app should report device audio format support");
+assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
+assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
+assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadata should be cacheable for offline discovery");
+assert.match(html, /id="history-view"/, "HTML must provide a history view");
+assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
+assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
+assert.match(sw, /ritmo-shell-v3/, "Service worker cache must refresh for the new shell");
+console.log("History, playlists, mobile controls, and offline format checks passed.");
