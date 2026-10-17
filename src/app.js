@@ -1360,9 +1360,26 @@ async function annotateYoutubeVideoStatus(items, key) {
   });
 }
 async function searchYoutube(pageToken = "") {
-  const query = $("#youtube-query").value.trim();
-  if (!query) { setYoutubeStatus("Escribí el nombre de una canción o artista para buscar.", "error"); return; }
-  state.youtubeQuery = query;
+  const requestId = ++youtubeSearchRequestId;
+  const isCurrentYoutubeSearch = () => requestId === youtubeSearchRequestId;
+  const button = $("#youtube-search-button");
+  const loadButton = $("#youtube-load-more");
+  // Load-more must continue the query that produced the current token, even if
+  // the user has typed a different phrase into the search field meanwhile.
+  const query = pageToken ? state.youtubeQuery : $("#youtube-query").value.trim();
+  if (!query) {
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+    button.disabled = false;
+    button.innerHTML = 'Buscar <span>→</span>';
+    setYoutubeStatus("Escribí el nombre de una canción o artista para buscar.", "error");
+    return;
+  }
+  if (!pageToken) {
+    state.youtubeQuery = query;
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+  }
   if (!navigator.onLine) {
     const cached = readYoutubeSearchCache();
     if (cached && cached.query.toLocaleLowerCase() === query.toLocaleLowerCase()) {
@@ -1375,6 +1392,10 @@ async function searchYoutube(pageToken = "") {
       $("#youtube-load-more").hidden = true;
       setYoutubeStatus("Sin conexión. Podés buscar en tu biblioteca local o volver a ver la última búsqueda guardada de YouTube.", "info");
     }
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+    button.disabled = false;
+    button.innerHTML = 'Buscar <span>→</span>';
     return;
   }
   const key = youtubeApiKey();
@@ -1382,10 +1403,16 @@ async function searchYoutube(pageToken = "") {
     setYoutubeStatus("La búsqueda integrada necesita una clave API personal. Podés guardarla en «Configurar búsqueda integrada» o abrir los resultados públicos de YouTube con el botón de arriba.", "info");
     $("#youtube-open-search").classList.add("needs-attention");
     $("#youtube-results").innerHTML = "";
-    $("#youtube-load-more").hidden = true;
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+    button.disabled = false;
+    button.innerHTML = 'Buscar <span>→</span>';
     return;
   }
-  const button = $("#youtube-search-button");
+  if (!pageToken) {
+    state.youtubeResults = [];
+    renderYoutubeResults([], false);
+  }
   button.disabled = true;
   button.textContent = "Buscando…";
   setYoutubeStatus("Buscando canciones y comprobando el estado de los videos…", "info");
@@ -1403,7 +1430,9 @@ async function searchYoutube(pageToken = "") {
     });
     if (pageToken) params.set("pageToken", pageToken);
     const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString());
+    if (!isCurrentYoutubeSearch()) return;
     const data = await response.json();
+    if (!isCurrentYoutubeSearch()) return;
     if (!response.ok || data.error) {
       const error = data.error || {};
       const reason = error.errors?.[0]?.reason || error.status || "";
@@ -1418,6 +1447,7 @@ async function searchYoutube(pageToken = "") {
       statusChecked = false;
       items = rawItems.map(item => ({ ...item, ritmoStatusVerified: false, ritmoMadeForKids: null, ritmoEmbeddable: false }));
     }
+    if (!isCurrentYoutubeSearch()) return;
     if (!pageToken) { state.youtubeResults = items; persistYoutubeSearchCache(query, items); }
     else { state.youtubeResults.push(...items); persistYoutubeSearchCache(query, state.youtubeResults); }
     state.youtubeNextPageToken = data.nextPageToken || null;
@@ -1432,10 +1462,12 @@ async function searchYoutube(pageToken = "") {
       setYoutubeStatus("No encontré resultados. Probá otro título o artista.", "info");
     }
   } catch (error) {
-    setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
+    if (isCurrentYoutubeSearch()) setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
   } finally {
-    button.disabled = false;
-    button.innerHTML = 'Buscar <span>→</span>';
+    if (isCurrentYoutubeSearch()) {
+      button.disabled = false;
+      button.innerHTML = 'Buscar <span>→</span>';
+    }
   }
 }
 function playYoutubeVideo(videoId, title = "Video de YouTube") {
