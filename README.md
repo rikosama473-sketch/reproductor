@@ -93,3 +93,12 @@ El botón de configuración permite modificar el sonido y comprobar qué APIs of
 ## Qué no se descarga desde YouTube
 
 La búsqueda, los metadatos y el reproductor incrustado usan las vías oficiales. Ritmo **no extrae ni guarda el audio de videos de YouTube**, ni bloquea los anuncios o habilita la reproducción en segundo plano por fuera de lo permitido por YouTube. Sin clave API, la búsqueda pública continúa disponible en una pestaña del navegador. Para música gratuita guardable offline, usá archivos propios o catálogos que autoricen claramente la descarga (por ejemplo, dominio público o licencias Creative Commons); conservá la atribución y revisá las condiciones de cada obra.
+
+
+## Música gratuita con licencia abierta
+
+La vista **Música online** incorpora búsqueda de audio en la API pública de Internet Archive. No requiere clave, registro ni suscripción: filtra resultados cuyo metadato declara una licencia Creative Commons. Antes de mostrar archivos, Ritmo consulta la ficha de metadatos, verifica que el elemento sea audio y que la licencia declarada apunte al dominio oficial creativecommons.org, y lista formatos de audio conocidos.
+
+Cada resultado enlaza a su ficha de origen y muestra la licencia declarada. Con **Agregar** se guarda una referencia de streaming en la biblioteca; **Reproducir** la añade y empieza a sonar. **Descargar original** abre el archivo servido por Internet Archive para que el navegador pueda descargarlo sin que Ritmo intente superar las restricciones CORS de los servidores de archivos. Después, importá el archivo descargado para usarlo de verdad sin conexión. Si un ítem no permite verificar licencia o archivos, Ritmo no ofrece sus pistas a través de esta integración.
+
+La búsqueda es un filtro de metadatos, no una garantía legal absoluta: verificá la licencia en la ficha de cada obra, respetá atribución, uso no comercial y restricciones de obras derivadas donde apliquen. La aplicación no almacena localmente las copias del catálogo automáticamente.
