@@ -5,6 +5,8 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const storage = fs.readFileSync(new URL("../src/storage.js", import.meta.url), "utf8");
 const sw = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
+const deployWorkflow = fs.readFileSync(new URL("../.github/workflows/deploy-pages.yml", import.meta.url), "utf8");
+const validateWorkflow = fs.readFileSync(new URL("../.github/workflows/validate.yml", import.meta.url), "utf8");
 
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const usedIds = new Set([...app.matchAll(/\$\("#([a-zA-Z0-9_-]+)"\)/g)].map(match => match[1]));
@@ -185,3 +187,10 @@ assert.match(app, /function resumeCurrentTrack\(\) \{[\s\S]*playTrack\(track\.id
 assert.match(app, /play: \(\) => resumeCurrentTrack\(\)/, "System media-session resume must use the request-aware player");
 assert.doesNotMatch(app, /if \(audio\.paused\) \{\s*try \{ if \(audio === equalizedAudio\) await ensureAudioProcessing\(\); await audio\.play\(\);/, "The play button must not bypass playback request guards");
 console.log("Fifth-pass regressions passed: service-worker cache invalidation, abortable writes and request-safe resume/removal.");
+
+assert.ok(validateWorkflow.includes("actions/checkout@v7"), "Validation should use a checkout action compatible with the retired Node 20 runtime");
+assert.ok(validateWorkflow.includes("actions/setup-node@v7"), "Validation should use setup-node's supported Node 24 runtime");
+assert.ok(deployWorkflow.includes("actions/checkout@v7"), "Deployment should use a checkout action compatible with the retired Node 20 runtime");
+assert.ok(deployWorkflow.includes("actions/configure-pages@v6"), "Pages configuration should use the supported Node 24 action");
+assert.ok(deployWorkflow.includes("actions/deploy-pages@v5"), "Pages deployment should use the supported Node 24 action");
+console.log("GitHub Actions Node 24 compatibility checks passed.");
