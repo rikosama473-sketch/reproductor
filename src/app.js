@@ -1,4 +1,4 @@
-import { getAllTracks, saveManyTracks, saveTrack, deleteTrack, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
+import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -175,12 +175,12 @@ function bindRenderedActions(root) {
     try {
       if (track.id === state.currentId) await removeCurrent();
       const objectUrl = state.objectUrls.get(track.id);
+      await deleteTrackAndPrunePlaylists(track.id);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       state.objectUrls.delete(track.id);
-      await deleteTrack(track.id);
       state.tracks = await getAllTracks();
-      state.playlists = (await getPlaylists()).map(list => ({ ...list, trackIds: list.trackIds.filter(trackId => trackId !== track.id) }));
-      for (const list of state.playlists) await savePlaylist(list);
+      state.playlists = await getPlaylists();
+      if (Array.isArray(state.queueIds)) state.queueIds = state.queueIds.filter(trackId => trackId !== track.id);
       render();
       toast("Se quitó de tu biblioteca.");
     } catch (error) { toast(error.message || "No se pudo eliminar la canción."); }
