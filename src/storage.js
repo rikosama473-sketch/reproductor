@@ -7,12 +7,22 @@ let databasePromise;
 
 function openDatabase() {
   if (databasePromise) return databasePromise;
-  databasePromise = new Promise((resolve, reject) => {
-    if (!("indexedDB" in globalThis)) {
-      reject(new Error("Este navegador no permite almacenamiento local persistente."));
+  if (!("indexedDB" in globalThis)) {
+    return Promise.reject(new Error("Este navegador no permite almacenamiento local persistente."));
+  }
+
+  let openingPromise;
+  let wasBlocked = false;
+  openingPromise = new Promise((resolve, reject) => {
+    let request;
+    try {
+      request = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (error) {
+      if (databasePromise === openingPromise) databasePromise = null;
+      reject(error);
       return;
     }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(TRACKS)) {
@@ -29,14 +39,37 @@ function openDatabase() {
         store.createIndex("updatedAt", "updatedAt", { unique: false });
       }
     };
+
     request.onsuccess = () => {
-      request.result.onversionchange = () => { request.result.close(); databasePromise = null; };
-      resolve(request.result);
+      const db = request.result;
+      // The request can still succeed after "blocked" was reported. Its promise
+      // has already been rejected, so close this late connection to avoid leaks.
+      if (wasBlocked) {
+        db.close();
+        if (databasePromise === openingPromise) databasePromise = null;
+        return;
+      }
+      db.onversionchange = () => {
+        db.close();
+        if (databasePromise === openingPromise) databasePromise = null;
+      };
+      resolve(db);
     };
-    request.onerror = () => { databasePromise = null; reject(request.error || new Error("No se pudo abrir la biblioteca.")); };
-    request.onblocked = () => reject(new Error("Cerrá otras pestañas de Ritmo y volvé a intentar."));
+
+    request.onerror = () => {
+      if (databasePromise === openingPromise) databasePromise = null;
+      reject(request.error || new Error("No se pudo abrir la biblioteca."));
+    };
+
+    request.onblocked = () => {
+      wasBlocked = true;
+      if (databasePromise === openingPromise) databasePromise = null;
+      reject(new Error("La biblioteca está siendo utilizada por otra pestaña. Cerrá las otras pestañas de Ritmo y volvé a intentar."));
+    };
   });
-  return databasePromise;
+
+  databasePromise = openingPromise;
+  return openingPromise;
 }
 
 function storeTransaction(storeName, mode, operation) {
