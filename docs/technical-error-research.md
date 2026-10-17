@@ -179,3 +179,25 @@ Esta revisión volvió a comprobar los cambios acumulados después de las pasada
 ### Validación y límites
 
 Se actualizaron las comprobaciones estructurales de versión, se añadieron comprobaciones para que la reanudación y la eliminación respeten los identificadores de solicitud, y se amplió el test de recuperación IndexedDB para exigir el aborto en una excepción síncrona después de una escritura simulada. La CI valida sintaxis y estas regresiones; no constituye una prueba completa de navegador ni sustituye a pruebas reales de reproducción y actualización en teléfonos.
+
+## Sexta pasada — compatibilidad de GitHub Actions tras retirar Node 20 (17 de octubre de 2026)
+
+Los logs del despliegue de la revisión anterior emitieron un aviso concreto: las referencias `actions/checkout@v4` y `actions/configure-pages@v5` todavía declaraban el runtime anterior. No fue la causa inmediata del fallo de publicación —`Configure GitHub Pages` se detuvo porque el sitio Pages no está habilitado—, pero dejar acciones obsoletas en un flujo central aumenta el riesgo de una futura incompatibilidad.
+
+| Hallazgo | Evidencia | Corrección |
+| --- | --- | --- |
+| El workflow de validación usaba releases antiguas de acciones de GitHub | Los checks usaban `checkout@v4` y `setup-node@v4`; el runtime Node 20 fue retirado de GitHub Actions el 23 de septiembre de 2026. | Actualizadas las acciones a `checkout@v7` y `setup-node@v7`, manteniendo Node.js 22 como la versión de ejecución de los smoke tests del proyecto. |
+| El workflow de despliegue tenía referencias antiguas de runtime | Los logs indicaron `checkout@v4` y `configure-pages@v5`; el paso de despliegue también utilizaba `deploy-pages@v4`. | Actualizadas a `checkout@v7`, `configure-pages@v6` y `deploy-pages@v5`, releases que usan Node 24 según sus metadatos/changelogs oficiales. |
+| GitHub Pages continúa sin publicarse | La acción oficial no pudo recuperar el sitio Pages (404 / Not Found) con `enablement: false`. El token predeterminado no activa el sitio cuando Pages todavía no está configurado. | No se introdujo un token con permisos ampliados ni se modificó el contenido para ocultar el error. Sigue requiriendo habilitar **Settings → Pages → Build and deployment → Source: GitHub Actions**; actualizar los runtimes de Actions no corrige esa configuración por sí solo. |
+
+### Fuentes oficiales
+
+- GitHub Changelog, [Node 20 is no longer available in GitHub Actions](https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-in-github-actions/), publicado el 23 de septiembre de 2026: ordena actualizar a versiones de las acciones que soporten Node 24.
+- GitHub, [actions/checkout — changelog de releases](https://github.com/actions/checkout/blob/main/CHANGELOG.md): las releases modernas migraron el runtime a Node 24.
+- GitHub, [actions/setup-node releases](https://github.com/actions/setup-node/releases): la rama v7 es la release actual del 8 de octubre de 2026 y conserva la configuración de versión de Node solicitada por el workflow.
+- GitHub, [actions/configure-pages releases](https://github.com/actions/configure-pages/releases): la versión v6 actualiza el runtime a Node 24.
+- GitHub, [actions/deploy-pages releases](https://github.com/actions/deploy-pages/releases): la versión v5 actualiza el runtime a Node 24.
+
+### Validación
+
+Se actualizaron las dos definiciones YAML de Actions y se añadieron smoke checks para que las versiones de checkout, setup-node, configure-pages y deploy-pages no vuelvan silenciosamente a las referencias previas. La validación del JavaScript sigue ejecutándose con Node 22 de forma intencionada; esto es distinto del runtime de Node usado internamente por las acciones de GitHub. La publicación seguirá marcada como fallida hasta habilitar Pages en la configuración del repositorio.
