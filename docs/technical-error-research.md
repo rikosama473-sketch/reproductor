@@ -156,3 +156,26 @@ Esta pasada contrastó el patrón de interrupción de reproducción documentado 
 ### Validación y límites
 
 Se añadieron comprobaciones de regresión estructurales para los identificadores de solicitud, los controles posteriores a `await`, la protección de los bloques `finally` y la consulta usada por la paginación. Las pruebas automatizadas pueden verificar que la protección esté presente, pero no simulan toda la variabilidad de la red ni certifican la reproducción física en iOS. El fallo de audio silencioso reportado para algunas PWA sigue pendiente de reproducirse en un dispositivo Apple real.
+
+## Quinta pasada — actualización de caché, transacciones fallidas y reproducción pendiente (17 de octubre de 2026)
+
+Esta revisión volvió a comprobar los cambios acumulados después de las pasadas anteriores, en lugar de evaluar cada commit de forma aislada. Encontró dos errores de estado y un defecto de actualización de la PWA.
+
+| Hallazgo | Causa comprobada en el código | Corrección |
+| --- | --- | --- |
+| Instalaciones de Ritmo podían seguir usando JavaScript antiguo | El service worker mantenía `ritmo-shell-v7`, versión introducida antes de los cambios posteriores de las pasadas tercera y cuarta. Su estrategia busca la caché antes de la red; como el código del propio worker no había cambiado desde entonces, un cambio aislado en `app.js` o `storage.js` no desencadenaba la instalación de un worker nuevo. | Subida la caché del shell a `ritmo-shell-v8` y actualizados los checks. Esto provoca una instalación nueva del worker y limpieza de la caché anterior al activar la nueva versión. |
+| Un callback de almacenamiento podía fallar después de encolar una escritura | `storeTransaction()` rechazaba la promesa cuando el callback de operación lanzaba una excepción sin abortar la transacción. Si el callback hubiera encolado una operación antes de lanzar, IndexedDB todavía podía intentar completarla. | Ahora se colocan los manejadores antes de ejecutar el callback y, ante una excepción síncrona, se llama a `tx.abort()` antes de rechazar la operación. Se añadió una prueba simulada que verifica que se solicita el aborto cuando ya se había intentado encolar la escritura. |
+| Una reproducción pendiente podía sobrevivir a la eliminación de su pista | `removeCurrent()` detenía el elemento y eliminaba su fuente, pero no invalidaba el identificador de solicitud. Una continuación asíncrona de una llamada previa a `playTrack()` podía intentar seguir después de limpiar el estado. | `removeCurrent()` incrementa ahora el identificador de reproducción y vuelve obsoletas las continuaciones previas. |
+| Reanudar desde los controles podía saltarse el control de concurrencia | El botón principal y Media Session llamaban directamente a `audio.play()`. Si el motor aún estaba preparando otra pista, esta vía podía volver a iniciar el elemento anterior sin pasar por la protección de solicitudes. | Se unificó la reanudación en `resumeCurrentTrack()`, que vuelve a resolver la pista seleccionada y ejecuta `playTrack()` con el control de solicitudes vigente. |
+
+### Fuentes públicas consultadas
+
+- Chrome Developers, [DOMException — The play() request was interrupted](https://developer.chrome.com/blog/play-request-was-interrupted/): explica que `play()` es asíncrono y que cambiar la fuente, llamar a `load()` o pausar puede interrumpirlo; la interfaz debe manejar las promesas reales, no suponer que la reproducción empezó.
+- Google Chrome Developers, [Service worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle/): explica cómo el navegador comprueba cambios del script del worker, activa nuevas versiones y limpia cachés antiguas durante `activate`.
+- Google Chrome Developers, [Handling service worker updates with immediacy](https://developer.chrome.com/docs/workbox/handling-service-worker-updates/): documenta los efectos de un worker nuevo que espera a páginas antiguas y las alternativas de actualización de la aplicación.
+- MDN, [IDBTransaction](https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction): describe el aborto de transacciones IndexedDB y el rollback de sus cambios frente a errores.
+- MDN, [Using IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB): referencia para agrupar escrituras relacionadas en transacciones y evitar estados parcialmente guardados.
+
+### Validación y límites
+
+Se actualizaron las comprobaciones estructurales de versión, se añadieron comprobaciones para que la reanudación y la eliminación respeten los identificadores de solicitud, y se amplió el test de recuperación IndexedDB para exigir el aborto en una excepción síncrona después de una escritura simulada. La CI valida sintaxis y estas regresiones; no constituye una prueba completa de navegador ni sustituye a pruebas reales de reproducción y actualización en teléfonos.

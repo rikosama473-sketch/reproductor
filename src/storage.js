@@ -78,13 +78,25 @@ function openDatabase() {
 
 function storeTransaction(storeName, mode, operation) {
   return openDatabase().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, mode);
-    const store = tx.objectStore(storeName);
+    let tx;
     let request;
-    try { request = operation(store); } catch (error) { reject(error); return; }
-    tx.oncomplete = () => resolve(request && request.result !== undefined ? request.result : request);
-    tx.onerror = () => reject(tx.error || new Error("Falló una operación de almacenamiento."));
-    tx.onabort = () => reject(tx.error || new Error("La operación se canceló."));
+    try {
+      tx = db.transaction(storeName, mode);
+      const store = tx.objectStore(storeName);
+      // Attach transaction handlers before queuing requests so failures are
+      // observed even when setup itself throws synchronously.
+      tx.oncomplete = () => resolve(request && request.result !== undefined ? request.result : request);
+      tx.onerror = () => reject(tx.error || new Error("Falló una operación de almacenamiento."));
+      tx.onabort = () => reject(tx.error || new Error("La operación se canceló."));
+      request = operation(store);
+    } catch (error) {
+      // A helper callback can throw after it has already queued a write. Abort
+      // the transaction to prevent those earlier requests from committing.
+      if (tx) {
+        try { tx.abort(); } catch {}
+      }
+      reject(error);
+    }
   }));
 }
 function getAllFromStore(storeName, sortKey, descending = true) {
