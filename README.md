@@ -50,3 +50,12 @@ Sin cuenta, analítica ni telemetría en esta versión. La tipografía web puede
 ## Licencia
 
 Pendiente de elegir antes de publicar una distribución formal.
+## Búsqueda musical de YouTube
+
+Ritmo permite buscar videos musicales desde su interfaz usando la **YouTube Data API v3**. La búsqueda integrada requiere una clave personal de Google Cloud que el usuario introduce en la configuración online; se guarda en el almacenamiento local del navegador, no en el repositorio ni en un servidor de Ritmo. La API tiene cuota gratuita limitada y su disponibilidad depende de que la clave y el proyecto estén configurados correctamente. La clave de una aplicación web no es secreta frente a quien usa el navegador: restringila por sitio web y a YouTube Data API v3 en Google Cloud.
+
+Sin una clave, el botón **Abrir búsqueda en YouTube** continúa disponible y abre los resultados públicos en el navegador. Los videos se reproducen exclusivamente a través del reproductor oficial de YouTube; Ritmo no descarga ni extrae sus streams.
+
+Ritmo es gratuita, sin cuenta, sin suscripción, sin publicidad propia y sin telemetría. No bloquea ni suprime los anuncios servidos por YouTube dentro de su reproductor insertado: las políticas de YouTube para clientes API prohíben restringir la reproducción de anuncios. Para aplicar Brave Shields, el usuario debe abrir YouTube en el navegador Brave con sus protecciones activadas. Una página web no puede activar esas protecciones de forma remota.
+
+Referencias técnicas: [YouTube Data API — search.list](https://developers.google.com/youtube/v3/docs/search/list), [YouTube IFrame Player API](https://developers.google.com/youtube/iframe_api_reference), [políticas para desarrolladores de YouTube](https://developers.google.com/youtube/terms/developer-policies-guide).

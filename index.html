@@ -115,6 +115,42 @@
 
         <section class="view-panel" id="online-view" hidden>
           <div class="page-intro"><div><div class="eyebrow">CONECTÁ CON EL MUNDO</div><h1>Sonidos <em>online.</em></h1><p>Agregá una fuente de audio que ya tengas permiso para escuchar.</p></div><div class="online-globe">⌁</div></div>
+          <section class="youtube-search-section">
+            <div class="youtube-section-heading">
+              <div class="youtube-heading-icon">▶</div>
+              <div class="youtube-heading-copy"><div class="eyebrow">DESCUBRÍ TU PRÓXIMA CANCIÓN</div><h2>Buscar en <span>YouTube.</span></h2><p>Buscá canciones, videoclips, sesiones en vivo y mixes desde Ritmo.</p></div>
+              <span class="free-pill"><span>✓</span> Gratis</span>
+            </div>
+            <form id="youtube-search-form" class="youtube-search-form">
+              <span class="youtube-search-icon">⌕</span>
+              <input id="youtube-query" type="search" autocomplete="off" maxlength="180" placeholder="Buscá una canción, artista, OST o mix…" aria-label="Buscar música en YouTube" required>
+              <button type="submit" class="button button-primary" id="youtube-search-button">Buscar <span>→</span></button>
+            </form>
+            <div class="youtube-shortcuts">
+              <button type="button" id="youtube-open-search" class="text-button">Abrir búsqueda en YouTube ↗</button>
+              <span>Sin clave API podés buscar en YouTube directamente.</span>
+            </div>
+            <div id="youtube-status" class="youtube-status" role="status" aria-live="polite">La búsqueda integrada usa la API oficial de YouTube. También podés abrir la búsqueda pública sin configurar nada.</div>
+            <div id="youtube-results" class="youtube-results"></div>
+            <button type="button" id="youtube-load-more" class="button button-soft youtube-load-more" hidden>Cargar más resultados ↓</button>
+            <div id="youtube-player-wrap" class="youtube-player-wrap" hidden>
+              <div class="youtube-player-header"><div><span class="section-kicker">REPRODUCIENDO DESDE YOUTUBE</span><strong id="youtube-current-title">Video seleccionado</strong></div><a id="youtube-current-link" class="text-button" target="_blank" rel="noopener" href="https://www.youtube.com/">Abrir en YouTube ↗</a></div>
+              <div class="youtube-player-frame"><iframe id="youtube-iframe" title="Reproductor oficial de YouTube" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+              <p class="youtube-player-note">Ritmo no inserta anuncios propios ni cobra por reproducir. YouTube controla su reproductor y puede mostrar sus anuncios habituales; Ritmo no los bloquea dentro del video.</p>
+            </div>
+            <details class="youtube-api-settings" id="youtube-api-details">
+              <summary>Configurar búsqueda integrada (opcional)</summary>
+              <p>Para ver resultados dentro de Ritmo, usá tu propia clave de <strong>YouTube Data API v3</strong>. Se guarda solo en este navegador y no se sube a un servidor de Ritmo. La API tiene una cuota gratuita limitada.</p>
+              <form id="youtube-key-form" class="youtube-key-form">
+                <label for="youtube-api-key">Clave API</label>
+                <input id="youtube-api-key" class="form-input" type="password" autocomplete="off" spellcheck="false" placeholder="Pegá tu clave de Google Cloud">
+                <div class="youtube-key-actions"><button class="button button-primary" type="submit">Guardar clave</button><button class="button button-soft" id="youtube-key-clear" type="button">Borrar clave</button><a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">Crear clave ↗</a></div>
+                <p id="youtube-key-status" class="form-message" role="status"></p>
+              </form>
+            </details>
+            <div class="youtube-ad-note"><span>◈</span><p><strong>Sin suscripciones ni anuncios de Ritmo.</strong> Para usar las protecciones ant anuncios de Brave, abrí YouTube en Brave con Shields activado. Una web no puede activar Shields por su cuenta ni suprimir legalmente los anuncios del reproductor incrustado.</p></div>
+          </section>
+
           <div class="online-card">
             <div class="online-card-top"><div class="source-symbol">↗</div><div><h2>Agregar enlace de audio</h2><p>Usá una URL directa a un archivo o stream de audio (MP3, OGG, WAV, M4A, AAC). No se admiten páginas de descarga ni enlaces de YouTube en este campo.</p></div></div>
             <form id="url-form" class="url-form"><label for="stream-title">Nombre para mostrar <span>(opcional)</span></label><input id="stream-title" class="form-input" maxlength="120" placeholder="Ej. Mi radio favorita"><label for="stream-url">URL de audio o radio <span>https://…</span></label><input id="stream-url" class="form-input" type="url" required placeholder="https://dominio.com/audio.mp3" autocomplete="url"><div class="url-form-bottom"><span class="form-hint">Las fuentes deben ser accesibles y compatibles con tu navegador.</span><button class="button button-primary" type="submit">Guardar fuente <span>→</span></button></div><p class="form-message" id="url-message" role="status"></p></form>

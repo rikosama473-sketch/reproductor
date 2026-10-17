@@ -17,3 +17,11 @@ assert.match(storage, /createObjectStore/, "Storage must create its IndexedDB ob
 assert.match(sw, /addAll\(APP_SHELL\)/, "Service worker must cache the app shell");
 assert.match(app, /data-delete/, "Library must expose delete actions for imported entries");
 console.log("Ritmo smoke checks passed: " + ids.size + " HTML IDs, " + usedIds.size + " app selectors.");
+
+assert.match(html, /id="youtube-search-form"/, "The online page must include the YouTube search form");
+assert.match(html, /id="youtube-iframe"/, "The online page must include the official YouTube iframe player");
+assert.match(app, /youtube\/v3\/search/, "Integrated YouTube results must use the official Data API");
+assert.match(app, /youtube\.com\/embed\//, "Playback must use the official YouTube embedded player");
+assert.match(app, /YOUTUBE_KEY_STORAGE/, "The optional API key must be stored locally by the user");
+assert.match(app, /youtube\.com\/results\?search_query=/, "Search without an API key must have an external YouTube fallback");
+console.log("YouTube integration smoke checks passed.");
