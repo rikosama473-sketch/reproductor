@@ -61,6 +61,10 @@ function metadataForFile(file) {
   const split = clean.split(" - ");
   return { title: split.length > 1 ? split.slice(1).join(" - ").trim() : clean, artist: split.length > 1 ? split[0].trim() : "Artista desconocido" };
 }
+function importedFileFingerprint(fileOrTrack) {
+  const path = String(fileOrTrack.webkitRelativePath || fileOrTrack.sourcePath || fileOrTrack.name || "").replace(/\\/g, "/");
+  return path + "|" + fileOrTrack.size + "|" + fileOrTrack.lastModified;
+}
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
 function isLocal(track) { return track?.kind === "file" && track.blob instanceof Blob; }
@@ -78,6 +82,16 @@ function trackURL(track) {
     return state.objectUrls.get(track.id);
   }
   return track.url;
+}
+
+// Only the currently selected local track needs a live object URL. Revoking
+// inactive URLs releases their backing Blob references in long listening sessions.
+function releaseUnusedObjectURLs(activeTrackId = null) {
+  for (const [trackId, objectUrl] of state.objectUrls) {
+    if (trackId === activeTrackId) continue;
+    try { URL.revokeObjectURL(objectUrl); } catch {}
+    state.objectUrls.delete(trackId);
+  }
 }
 function normalizeAudioURL(raw) {
   let parsed;
@@ -749,6 +763,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       audio.src = url;
       audio.load();
     }
+    releaseUnusedObjectURLs(isLocal(track) ? track.id : null);
     if (Number.isFinite(options.resumeAt) && options.resumeAt > 0) {
       const targetEngine = audio;
       const restorePosition = () => {
@@ -919,10 +934,10 @@ async function downloadStreamOffline(trackId) {
 async function importFiles(fileList) {
   const files = [...fileList].filter(file => file.type.startsWith("audio/") || /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file.name));
   if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
-  const existing = new Set(state.tracks.filter(track => isLocal(track)).map(track => track.name + "|" + track.size + "|" + track.lastModified));
+  const existing = new Set(state.tracks.filter(track => isLocal(track)).map(importedFileFingerprint));
   const uniqueFiles = [];
   for (const file of files) {
-    const fingerprint = file.name + "|" + file.size + "|" + file.lastModified;
+    const fingerprint = importedFileFingerprint(file);
     if (!existing.has(fingerprint)) { existing.add(fingerprint); uniqueFiles.push(file); }
   }
   if (!uniqueFiles.length) { toast("Esos archivos ya están en tu biblioteca."); return; }
@@ -934,7 +949,7 @@ async function importFiles(fileList) {
     try {
       const tracks = await Promise.all(batch.map(async file => {
         const meta = await readMp3Tags(file);
-        return { id: id(), kind: "file", name: file.name, title: meta.title, artist: meta.artist, album: meta.album || "",
+        return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "",
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           blob: file, favorite: false, addedAt: Date.now() + saved, duration: 0, lastPlayedAt: 0 };
       }));
@@ -958,10 +973,8 @@ async function removeCurrent() {
   if (!track) return;
   audio.pause();
   audio.removeAttribute("src");
-  if (isLocal(track) && state.objectUrls.has(track.id)) {
-    URL.revokeObjectURL(state.objectUrls.get(track.id));
-    state.objectUrls.delete(track.id);
-  }
+  audio.load();
+  releaseUnusedObjectURLs(null);
   state.currentId = null;
   updatePlayer();
 }
@@ -1369,6 +1382,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   audio.pause();
   audio.removeAttribute("src");
   audio.load();
+  releaseUnusedObjectURLs(null);
   state.currentId = null;
   state.queueIds = null;
   updatePlayer();
@@ -1503,8 +1517,6 @@ function bindEvents() {
     updateMuteButton();
   });
   $("#volume-mute-button").addEventListener("click", toggleMute);
-  defaultAudio.volume = 0.8;
-  equalizedAudio.volume = 0.8;
   bindAudioEngineEvents(defaultAudio);
   bindAudioEngineEvents(equalizedAudio);
   document.addEventListener("visibilitychange", () => {
