@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const java = await readFile(new URL("../native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
+const prep = await readFile(new URL("./prepare-android-native.mjs", import.meta.url), "utf8");
+const workflow = await readFile(new URL("../.github/workflows/android-apk.yml", import.meta.url), "utf8");
+assert.match(html, /data-scan-device-music/, "Falta el botón para buscar música en Android");
+assert.match(app, /function scanDeviceMusic/, "Falta el flujo de escaneo MediaStore");
+assert.match(app, /requestAudioPermission\(\)/, "El escaneo debe pedir permiso de audio");
+assert.match(app, /pickAudioFiles\(\)/, "La importación debe abrir el selector nativo");
+assert.match(app, /convertFileSrc\(track\.nativePath\)/, "La ruta local debe poder reproducirse en WebView");
+assert.match(java, /READ_MEDIA_AUDIO/, "Android 13+ debe usar el permiso de audio");
+assert.match(java, /READ_EXTERNAL_STORAGE/, "Android 12 y anteriores deben usar el permiso heredado");
+assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo debe consultar MediaStore");
+assert.match(java, /ACTION_OPEN_DOCUMENT/, "La importación debe abrir carpetas y seleccionar archivos");
+assert.match(java, /copyToPrivateCache/, "Proveedores sin ruta directa deben poder leerse");
+assert.match(prep, /registerPlugin\(RitmoMusicLibraryPlugin\.class\)/, "El build debe registrar el plugin");
+assert.match(workflow, /prepare-android-native\.mjs/, "CI debe preparar el puente antes de compilar");
+console.log("Android music discovery checks passed.");
