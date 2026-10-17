@@ -123,8 +123,8 @@ function bindRenderedActions(root) {
       state.objectUrls.delete(track.id);
       await deleteTrack(track.id);
       state.tracks = await getAllTracks();
-    state.history = await getHistory(250);
-    state.playlists = await getPlaylists();
+      state.playlists = (await getPlaylists()).map(list => ({ ...list, trackIds: list.trackIds.filter(trackId => trackId !== track.id) }));
+      for (const list of state.playlists) await savePlaylist(list);
       render();
       toast("Se quitó de tu biblioteca.");
     } catch (error) { toast(error.message || "No se pudo eliminar la canción."); }
@@ -223,6 +223,26 @@ function renderPlaylists() {
   const tracksRoot = $("#playlist-detail-tracks");
   tracksRoot.dataset.playlistContext = selected.id;
   tracksRoot.innerHTML = tracks.map((track, index) => trackRow(track, index)).join("");
+  tracksRoot.querySelectorAll("[data-track-row]").forEach(row => {
+    const actions = row.querySelector(".track-actions");
+    if (!actions) return;
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "row-icon delete-track";
+    removeButton.textContent = "−";
+    removeButton.title = "Quitar de esta lista";
+    removeButton.setAttribute("aria-label", "Quitar canción de esta lista");
+    removeButton.addEventListener("click", async event => {
+      event.stopPropagation();
+      const list = state.playlists.find(item => item.id === state.currentPlaylistId);
+      if (!list) return;
+      list.trackIds = list.trackIds.filter(trackId => trackId !== row.dataset.trackRow);
+      list.updatedAt = Date.now();
+      try { await savePlaylist(list); state.playlists = await getPlaylists(); renderPlaylists(); toast("Canción quitada de la lista."); }
+      catch (error) { toast(error.message || "No se pudo actualizar la lista."); }
+    });
+    actions.prepend(removeButton);
+  });
   bindRenderedActions(tracksRoot);
   $("#playlist-detail-empty").hidden = tracks.length > 0;
   $("#playlist-play-all").disabled = !tracks.length;
@@ -710,6 +730,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   frame.src = "https://www.youtube.com/embed/" + encodeURIComponent(videoId) + "?autoplay=1&playsinline=1&rel=0&enablejsapi=1" + origin;
   audio.pause();
   audio.removeAttribute("src");
+  audio.load();
   state.currentId = null;
   state.queueIds = null;
   updatePlayer();
