@@ -22,6 +22,8 @@
         <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span> Inicio</button>
         <button class="nav-item" data-view="library"><span class="nav-icon">▤</span> Mi biblioteca <span class="nav-count" id="library-count">0</span></button>
         <button class="nav-item" data-view="favorites"><span class="nav-icon">♡</span> Favoritos</button>
+        <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> Historial <span class="nav-count" id="history-count">0</span></button>
+        <button class="nav-item" data-view="playlists"><span class="nav-icon">☷</span> Mis listas</button>
         <button class="nav-item" data-view="offline"><span class="nav-icon">⇩</span> Disponible sin conexión</button>
         <button class="nav-item" data-view="online"><span class="nav-icon">⌁</span> Añadir música online</button>
       </nav>
@@ -106,9 +108,28 @@
           <div id="favorites-empty" class="empty-state"><div class="empty-visual"><span>♡</span><i>✦</i></div><h3>Guardá lo que te mueve</h3><p>Tocá el corazón de cualquier canción para encontrarla acá.</p><button class="button button-soft" data-go-view="library">Ir a mi biblioteca</button></div>
         </section>
 
+        <section class="view-panel" id="history-view" hidden>
+          <div class="page-intro"><div><div class="eyebrow">LO QUE ESTUVISTE ESCUCHANDO</div><h1>Tu <em>historial.</em></h1><p>Últimas reproducciones de este dispositivo, con acceso rápido para volver a escuchar.</p></div><button class="button button-soft" id="clear-history-button">Limpiar historial</button></div>
+          <div id="history-tracks" class="history-list"></div>
+          <div id="history-empty" class="empty-state"><div class="empty-visual"><span>◷</span><i>✦</i></div><h3>Acá aparecerá tu música reciente</h3><p>Cuando reproduzcas un archivo local, un stream o un video compatible, Ritmo lo agregará al historial de este dispositivo.</p><button class="button button-soft" data-go-view="library">Abrir biblioteca</button></div>
+        </section>
+
+        <section class="view-panel" id="playlists-view" hidden>
+          <div class="page-intro"><div><div class="eyebrow">ARMÁ TU PROPIA BANDA SONORA</div><h1>Mis <em>listas.</em></h1><p>Organizá archivos y fuentes de tu biblioteca en listas que permanecen guardadas en este dispositivo.</p></div></div>
+          <form id="playlist-create-form" class="playlist-create-form"><label for="playlist-name">Nueva lista</label><input id="playlist-name" class="form-input" required maxlength="80" placeholder="Ej. Música para escribir"><button class="button button-primary" type="submit">＋ Crear lista</button></form>
+          <div id="playlists-list" class="playlists-grid"></div>
+          <div id="playlists-empty" class="empty-state"><div class="empty-visual"><span>☷</span><i>✦</i></div><h3>Tu primera lista empieza acá</h3><p>Creá una lista y agregá canciones desde la biblioteca con el botón de lista en cada pista.</p></div>
+          <section id="playlist-detail" class="playlist-detail" hidden>
+            <div class="playlist-detail-heading"><button class="button button-soft" id="playlist-back-button">← Todas las listas</button><div><span class="section-kicker">TU SELECCIÓN</span><h2 id="playlist-detail-title">Lista</h2><p id="playlist-detail-count"></p></div><button class="button button-primary" id="playlist-play-all">▶ Reproducir lista</button></div>
+            <div id="playlist-detail-tracks" class="track-list"></div>
+            <div id="playlist-detail-empty" class="empty-state compact-empty"><h3>Esta lista todavía está vacía</h3><p>Desde Mi biblioteca, tocá el ícono ☷ junto a una canción para agregarla.</p><button class="button button-soft" data-go-view="library">Ir a mi biblioteca</button></div>
+          </section>
+        </section>
+
         <section class="view-panel" id="offline-view" hidden>
           <div class="page-intro"><div><div class="eyebrow">LISTO PARA DESPEGAR</div><h1>Sin <em>conexión.</em></h1><p>Archivos guardados en este dispositivo: disponibles sin internet.</p></div><span class="offline-badge"><span></span> MODO OFFLINE</span></div>
           <div class="offline-note"><span>⇩</span><p><strong>Una distinción importante:</strong> los archivos que importás se guardan localmente. Los enlaces de streaming necesitan internet y no se descargan automáticamente.</p></div>
+          <div class="format-support-panel"><div><span class="section-kicker">COMPATIBILIDAD DE AUDIO</span><h3>Formatos en este navegador</h3><p>La compatibilidad depende del navegador, del sistema y del códec concreto. Ritmo detecta lo que este dispositivo declara poder reproducir.</p></div><div id="format-capabilities" class="format-capabilities"></div><p class="format-limit-note">Los archivos se guardan sin recodificarlos. Si un códec no está soportado, convertí el archivo a MP3, AAC/M4A, WAV, Ogg/Opus o FLAC compatible con tu navegador.</p></div>
           <div id="offline-tracks" class="track-list"></div>
           <div id="offline-empty" class="empty-state"><div class="empty-visual"><span>⇩</span><i>✦</i></div><h3>Tu música, incluso sin señal</h3><p>Importá archivos de audio para almacenarlos en el navegador y escucharlos offline.</p><button class="button button-primary" id="offline-import">Importar archivos</button></div>
         </section>
@@ -181,7 +202,7 @@
   </div>
 
   <audio id="audio-engine" preload="metadata"></audio>
-  <input type="file" id="file-picker" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.aiff,.wma" multiple hidden>
+  <input type="file" id="file-picker" accept="audio/*,.mp3,.m4a,.mp4,.aac,.wav,.wave,.ogg,.oga,.opus,.webm,.flac,.aiff,.aif,.alac,.wma,.ape,.mp2,.mid,.midi,.caf,.3gp,.amr" multiple hidden>
   <input type="file" id="folder-picker" accept="audio/*" webkitdirectory multiple hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <dialog id="info-dialog" class="app-dialog"><div class="dialog-top"><div class="brand-mark"><span>R</span></div><button class="icon-button" id="close-info" aria-label="Cerrar">✕</button></div><div class="eyebrow">HECHO PARA ESCUCHAR</div><h2>Ritmo<span>.</span></h2><p>Un reproductor personal, ligero y centrado en tu privacidad. Tu biblioteca se almacena en este navegador; no se suben tus archivos a un servidor.</p><p class="dialog-muted">El funcionamiento offline requiere instalar o abrir la aplicación una vez con conexión. El navegador puede limitar el almacenamiento disponible y permitir que se borre desde sus ajustes.</p><button class="button button-primary dialog-close" id="close-info-bottom">Entendido</button></dialog>
