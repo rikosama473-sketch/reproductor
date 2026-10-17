@@ -46,3 +46,17 @@ La primera ejecución de Actions falló en `Set up Android SDK`: el log mostró 
 ### Seguimiento de la misma incidencia
 
 La ejecución posterior [39068069529](https://github.com/rikosama473-sketch/reproductor/actions/runs/39068069529) demostró que la separación por comas tampoco es interpretada por la acción: el log literal dice `Failed to find package 'platform-tools,platforms;android-36,build-tools;36.0.0'`. El workflow ya no usa el input `packages`; invoca a `sdkmanager` directamente con dos argumentos separados. El resultado de la próxima ejecución determinará si el problema quedó resuelto.
+
+
+## Corrección de importación y biblioteca Android
+
+La primera APK solo utilizaba un `<input type="file">` HTML dentro del WebView. Además, `folder-picker` no estaba enlazado a ningún botón y no existía una consulta nativa a la biblioteca multimedia del dispositivo. Por eso no podía descubrir automáticamente los MP3 ya guardados.
+
+La solución incorpora `native/android/RitmoMusicLibraryPlugin.java` y lo registra en cada proyecto Android generado por `scripts/prepare-android-native.mjs`:
+
+- **Buscar música del teléfono** solicita `READ_MEDIA_AUDIO` en Android 13+ y `READ_EXTERNAL_STORAGE` hasta Android 12; consulta `MediaStore.Audio.Media` y añade metadatos/URI de pistas indexadas.
+- **Importar archivos** abre `ACTION_OPEN_DOCUMENT`; el usuario puede navegar por carpetas y seleccionar varios archivos de audio. Después Ritmo importa sus bytes a IndexedDB para permitir escucha sin conexión.
+- Las canciones descubiertas mediante MediaStore conservan su URI. En la reproducción, Ritmo resuelve una ruta local; si un proveedor de documentos no proporciona ruta directa, el puente nativo copia el archivo a la caché privada de la app.
+- El escaneo depende de que Android indexe el audio y de que el usuario conceda el permiso. Para audios no indexados, ubicaciones USB/red o proveedores externos se puede usar el selector de archivos.
+
+Android distingue correctamente ambas operaciones: los documentos escogidos por el usuario mediante Storage Access Framework no requieren permiso general, mientras que enumerar la biblioteca de audio de otras aplicaciones usa un permiso de medios granular. Fuentes: [Android: acceso a documentos y archivos](https://developer.android.com/training/data-storage/shared/documents-files?hl=es-419), [Android: acceso a medios compartidos](https://developer.android.com/training/data-storage/shared/media?hl=es), [Android 13: permisos de medios granulares](https://developer.android.com/about/versions/13/behavior-changes-13?hl=es-419), [Capawesome File Picker: documentación y correcciones recientes](https://github.com/capawesome-team/capacitor-plugins/tree/main/packages/file-picker).
