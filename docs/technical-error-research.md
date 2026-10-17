@@ -201,3 +201,25 @@ Los logs del despliegue de la revisión anterior emitieron un aviso concreto: la
 ### Validación
 
 Se actualizaron las dos definiciones YAML de Actions y se añadieron smoke checks para que las versiones de checkout, setup-node, configure-pages y deploy-pages no vuelvan silenciosamente a las referencias previas. La validación del JavaScript sigue ejecutándose con Node 22 de forma intencionada; esto es distinto del runtime de Node usado internamente por las acciones de GitHub. La publicación seguirá marcada como fallida hasta habilitar Pages en la configuración del repositorio.
+
+## Séptima pasada — cancelación de intención de reproducción pendiente (17 de octubre de 2026)
+
+Esta revisión tomó como punto de partida los informes de Chrome sobre promesas asíncronas de `play()` y el historial del issue WHATWG/HTML #996. El código aún tenía un borde reproducible: el botón principal decidía si estaba en pausa mirando solo `audio.paused`. Durante la espera del ecualizador o antes de que se resolviera `audio.play()`, el elemento puede seguir pausado aunque exista una reproducción solicitada. Un segundo toque podía iniciar otra solicitud en lugar de cancelar la primera. De forma similar, el temporizador de sueño podía llamar a `pause()` cuando el audio aún no había empezado, sin invalidar la continuación asíncrona.
+
+| Hallazgo | Solución implementada |
+| --- | --- |
+| El control de pausa no distinguía entre “pausado” y “play solicitado, todavía pendiente” | Se añadió `pendingPlaybackRequestId`. La solicitud se marca pendiente antes de iniciar cualquier preparación asíncrona y se limpia al confirmarse el inicio o fallar la promesa actual. Un toque en el botón mientras la solicitud está pendiente la cancela. |
+| Una pausa explícita no invalidaba continuaciones de la solicitud actual | Se centralizó en `pauseCurrentTrack()` la invalidación del identificador y la pausa del motor activo. Los controles Media Session (play/pause/stop) usan el mismo camino. |
+| El temporizador podía dejar vivo un inicio de reproducción asíncrono | Al completar el fade se invalida el intento pendiente antes de pausar ambos motores; al finalizar sin fade se usa igualmente el helper de pausa con cancelación. |
+| La repetición de una pista usaba una llamada `element.play()` directa | La repetición vuelve a entrar por `resumeCurrentTrack()`, que usa el control de solicitudes vigente. |
+
+### Fuentes públicas de ingeniería
+
+- Chrome for Developers, [DOMException: Se interrumpió la solicitud play()](https://developer.chrome.com/blog/play-request-was-interrupted?hl=es): describe que `play()` es asíncrono y puede ser interrumpido por `pause()`, `load()` o un cambio de fuente; recomienda manejar el resultado de la promesa.
+- WHATWG HTML, [issue #996 — pause() followed by play() will reject the play() promise](https://github.com/whatwg/html/issues/996): documenta la carrera entre tareas que rechazan y resuelven promesas de reproducción.
+- MDN, [HTMLMediaElement.pause()](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/pause): confirma que `pause()` no tiene efecto cuando el elemento ya está pausado; por eso no basta para cancelar la intención lógica de una reproducción que aún no empezó.
+- MDN, [Media Session API](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API): explica que los controles del sistema invocan manejadores definidos por la página, que deben mantener sincronizado el estado real del reproductor.
+
+### Validación y límites
+
+Se añadieron smoke checks para que el botón principal, los controles del sistema, la repetición y el temporizador utilicen la misma cancelación de solicitudes. Estas pruebas verifican que estén los guardas, pero no simulan todas las temporizaciones internas de todos los navegadores. El audio que queda silencioso en iOS después de volver del fondo sigue necesitando prueba con un dispositivo real, tal como muestran los casos públicos de Howler.js sobre iOS: https://github.com/goldfire/howler.js/issues/1753 y https://github.com/goldfire/howler.js/issues/1743.
