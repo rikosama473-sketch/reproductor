@@ -130,3 +130,29 @@ Se encontraron dos clases más de fallos funcionales al revisar qué ocurre cuan
 ### Validación
 
 Se ampliaron los smoke checks para detectar si las ediciones de favoritos y listas incluyen rollback en caso de error de persistencia y si el temporizador lee el volumen actualizado tanto durante el fundido como al terminar. Son pruebas de regresión estructurales; los casos de presión de cuota y reproducción prolongada todavía conviene verificarlos manualmente en navegadores/dispositivos reales.
+
+
+## Cuarta pasada — investigación externa y carreras asíncronas (17 de octubre de 2026)
+
+Esta pasada contrastó el patrón de interrupción de reproducción documentado por Chrome Developers y errores reportados en proyectos de reproductores. Se encontraron tres problemas aplicables en Ritmo:
+
+| Hallazgo | Cómo podía ocurrir | Corrección |
+| --- | --- | --- |
+| Una solicitud de reproducción antigua podía terminar después de seleccionar otra pista | `HTMLMediaElement.play()` devuelve una promesa que puede tardar en resolverse; cambiar `src`, llamar `load()` o pausar mientras queda pendiente puede interrumpirla. Al alternar rápidamente pistas, una promesa obsoleta podía limpiar el aviso, mostrar error o continuar actualizando el estado después de la nueva selección. | Cada operación nativa de reproducción recibe un identificador de solicitud. Después de los `await` relevantes y dentro de `catch` se comprueba que sigue siendo la solicitud actual. Iniciar un video de YouTube invalida cualquier solicitud de audio nativo que aún esté pendiente. Las reproducciones que sí llegaron a iniciarse pueden quedar registradas, pero la operación obsoleta no vuelve a representar el reproductor. |
+| Una búsqueda vieja de YouTube podía pisar una nueva | La búsqueda realiza dos pasos de red: buscar videos y consultar su estado de incrustación. Una respuesta lenta del término A podía regresar cuando el usuario ya había lanzado el término B y reemplazar las tarjetas, el token de paginación o el estado de búsqueda. | Se asoció un identificador a cada solicitud y se descartan resultados/cambios visuales obsoletos después de los `await`. Los bloques `finally` solo reactivan botones si pertenecen a la búsqueda vigente. |
+| La paginación de YouTube podía mezclar el texto nuevo con un token viejo | La función de cargar más tomaba el texto que estuviera actualmente en el campo de búsqueda, aunque el token perteneciera a una consulta anterior. | Cargar más utiliza `state.youtubeQuery`, es decir, la consulta que generó el token. Una búsqueda nueva borra el token anterior y oculta el control de paginación mientras se actualizan los resultados. |
+| La búsqueda de Internet Archive podía reemplazar resultados más recientes | También es una operación de red asíncrona que actualiza listas, total y desplazamiento de paginación después de varias promesas. Una llamada anterior podía finalizar después de una búsqueda más reciente. | Se agregó un identificador de solicitud actual, captura explícita del desplazamiento de página y protección en resultados, errores y `finally`; una solicitud antigua ya no puede cambiar los resultados ni desbloquear los controles de otra solicitud. |
+
+
+| Eliminar una pista y limpiar sus listas no era atómico | La UI borraba el registro de la pista en una transacción, luego leía todas las listas y las guardaba una por una. Si una escritura fallaba, la canción podía estar eliminada mientras algunas listas persistían con una referencia vieja. | Añadida `deleteTrackAndPrunePlaylists()`, que elimina la pista y recorre/actualiza listas en una sola transacción `readwrite` sobre ambos almacenes. Si falla una operación, la transacción puede abortar el conjunto en lugar de dejar una limpieza parcial. La UI también elimina el ID de la cola en memoria. |
+
+### Fuentes externas revisadas
+
+- Chrome Developers, [DOMException — The play() request was interrupted](https://developer.chrome.com/blog/play-request-was-interrupted/), artículo técnico actualizado el 6 de mayo de 2021: explica que `play()` es asíncrono y que `pause()`, `load()` o cambiar la fuente pueden interrumpir la promesa; recomienda gestionar sus resoluciones/rechazos y sincronizar la interfaz con el resultado real.
+- Video.js, [Issue #3474 — Issue with async play() in Chrome](https://github.com/videojs/video.js/issues/3474): reporte histórico sobre errores de `play()` al cambiar la posición o interrumpir el medio mientras la promesa está pendiente. Se utilizó como ejemplo del patrón de concurrencia, no como prueba de un defecto interno idéntico en Video.js y Ritmo.
+- Howler.js, [Issue #1753 — Audio not playing after returning from background on iOS Chrome and a possible solution](https://github.com/goldfire/howler.js/issues/1753), 23 de febrero de 2025: un desarrollador documenta que en iOS Chrome el audio puede quedar en silencio al volver del segundo plano y propone reanudar el contexto cuando el estado esté suspendido/interrumpido. Esta compatibilidad sigue dependiendo del navegador y del dispositivo; no afirmamos que el problema de iOS esté resuelto.
+- MDN, [BaseAudioContext.state](https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/state#resuming_interrupted_play_states_in_ios_safari): describe el estado `interrupted` y el patrón para intentar recuperar la reproducción en Safari móvil.
+
+### Validación y límites
+
+Se añadieron comprobaciones de regresión estructurales para los identificadores de solicitud, los controles posteriores a `await`, la protección de los bloques `finally` y la consulta usada por la paginación. Las pruebas automatizadas pueden verificar que la protección esté presente, pero no simulan toda la variabilidad de la red ni certifican la reproducción física en iOS. El fallo de audio silencioso reportado para algunas PWA sigue pendiente de reproducirse en un dispositivo Apple real.

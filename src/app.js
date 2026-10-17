@@ -1,4 +1,4 @@
-import { getAllTracks, saveManyTracks, saveTrack, deleteTrack, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
+import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -8,6 +8,9 @@ let audio = defaultAudio;
 let audioContext = null;
 let audioGraph = null;
 let screenWakeLock = null;
+let playbackRequestId = 0;
+let youtubeSearchRequestId = 0;
+let archiveSearchRequestId = 0;
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
 const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
@@ -172,12 +175,12 @@ function bindRenderedActions(root) {
     try {
       if (track.id === state.currentId) await removeCurrent();
       const objectUrl = state.objectUrls.get(track.id);
+      await deleteTrackAndPrunePlaylists(track.id);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       state.objectUrls.delete(track.id);
-      await deleteTrack(track.id);
       state.tracks = await getAllTracks();
-      state.playlists = (await getPlaylists()).map(list => ({ ...list, trackIds: list.trackIds.filter(trackId => trackId !== track.id) }));
-      for (const list of state.playlists) await savePlaylist(list);
+      state.playlists = await getPlaylists();
+      if (Array.isArray(state.queueIds)) state.queueIds = state.queueIds.filter(trackId => trackId !== track.id);
       render();
       toast("Se quitó de tu biblioteca.");
     } catch (error) { toast(error.message || "No se pudo eliminar la canción."); }
@@ -767,6 +770,8 @@ function showView(view) {
 async function playTrack(trackId, autoplay = true, options = {}) {
   const track = getTrack(trackId);
   if (!track) return;
+  const requestId = ++playbackRequestId;
+  const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
   if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
@@ -774,8 +779,11 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   try {
     let desiredEngine = isLocal(track) && audioPrefs.equalizerEnabled ? equalizedAudio : defaultAudio;
     if (desiredEngine === equalizedAudio) {
-      try { await ensureAudioProcessing(); }
-      catch (error) {
+      try {
+        await ensureAudioProcessing();
+        if (!isCurrentPlaybackRequest()) return;
+      } catch (error) {
+        if (!isCurrentPlaybackRequest()) return;
         audioPrefs.equalizerEnabled = false;
         saveAudioPreferences();
         syncSettingsUI();
@@ -783,6 +791,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         toast(error.message || "Ecualizador no disponible; se usará el audio original.");
       }
     }
+    if (!isCurrentPlaybackRequest()) return;
     if (desiredEngine !== audio) {
       const previousEngine = audio;
       previousEngine.pause();
@@ -807,6 +816,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
     }
     if (autoplay) await audio.play();
+    if (!isCurrentPlaybackRequest()) return;
     showPlaybackStatus("");
     if (autoplay && !options.skipHistory) {
       track.lastPlayedAt = Date.now();
@@ -815,12 +825,15 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         await addHistoryEntry({ id: id(), trackId: track.id, kind: track.kind, title: track.title,
           artist: track.artist || "Artista desconocido", album: track.album || "", playedAt: Date.now(),
           source: isLocal(track) ? "Archivo local" : "Stream online" });
-        state.history = await getHistory(250);
+        const refreshedHistory = await getHistory(250);
+        if (isCurrentPlaybackRequest()) state.history = refreshedHistory;
       } catch {}
     }
+    if (!isCurrentPlaybackRequest()) return;
     render();
     updatePlayer();
   } catch (error) {
+    if (!isCurrentPlaybackRequest()) return;
     const extension = (track.name || track.url || "").split(/[?#]/)[0].split(".").pop()?.toUpperCase();
     const message = error?.name === "NotAllowedError"
       ? "El navegador bloqueó el inicio automático. Tocá Reproducir para habilitar el audio."
@@ -1200,9 +1213,27 @@ async function addArchiveFile(identifier, index, playNow = false) {
   if (playNow) await playTrack(track.id);
 }
 async function searchArchiveAudio(loadMore = false) {
+  const requestId = ++archiveSearchRequestId;
+  const isCurrentArchiveSearch = () => requestId === archiveSearchRequestId;
+  const button = $("#archive-search-button");
+  const loadButton = $("#archive-load-more");
   const query = loadMore ? state.archiveQuery : $("#archive-query").value.trim();
-  if (!query) { $("#archive-status").textContent = "Escribí un artista, género o título para buscar."; return; }
-  if (!navigator.onLine) { $("#archive-status").textContent = "El catálogo abierto necesita conexión. Tu biblioteca local sigue disponible offline."; return; }
+  if (!query) {
+    $("#archive-status").textContent = "Escribí un artista, género o título para buscar.";
+    button.disabled = false;
+    button.innerHTML = 'Buscar catálogo <span>→</span>';
+    loadButton.disabled = false;
+    loadButton.textContent = "Cargar más resultados ↓";
+    return;
+  }
+  if (!navigator.onLine) {
+    $("#archive-status").textContent = "El catálogo abierto necesita conexión. Tu biblioteca local sigue disponible offline.";
+    button.disabled = false;
+    button.innerHTML = 'Buscar catálogo <span>→</span>';
+    loadButton.disabled = false;
+    loadButton.textContent = "Cargar más resultados ↓";
+    return;
+  }
   if (!loadMore) {
     state.archiveQuery = query;
     state.archiveOffset = 0;
@@ -1212,8 +1243,7 @@ async function searchArchiveAudio(loadMore = false) {
     $("#archive-results").innerHTML = "";
     $("#archive-load-more").hidden = true;
   }
-  const button = $("#archive-search-button");
-  const loadButton = $("#archive-load-more");
+  const requestedOffset = state.archiveOffset;
   button.disabled = true;
   loadButton.disabled = true;
   if (!loadMore) button.textContent = "Buscando…";
@@ -1227,12 +1257,14 @@ async function searchArchiveAudio(loadMore = false) {
     url.searchParams.set("q", searchQuery);
     for (const field of ["identifier", "title", "creator", "year", "date", "mediatype", "licenseurl"]) url.searchParams.append("fl[]", field);
     url.searchParams.set("rows", String(ARCHIVE_PAGE_SIZE));
-    url.searchParams.set("start", String(state.archiveOffset));
+    url.searchParams.set("start", String(requestedOffset));
     url.searchParams.set("output", "json");
     url.searchParams.append("sort[]", "downloads desc");
     const response = await fetch(url.href, { mode: "cors", credentials: "omit", cache: "no-store" });
+    if (!isCurrentArchiveSearch()) return;
     if (!response.ok) throw new Error("Internet Archive respondió " + response.status + ".");
     const data = await response.json();
+    if (!isCurrentArchiveSearch()) return;
     if (data.responseHeader?.status !== 0 || !data.response) throw new Error("Internet Archive devolvió una respuesta de búsqueda no válida.");
     const docs = (Array.isArray(data.response.docs) ? data.response.docs : []).filter(item =>
       /^[A-Za-z0-9_-]{1,100}$/.test(String(item.identifier || "")) && String(item.mediatype || "audio") === "audio");
@@ -1245,13 +1277,17 @@ async function searchArchiveAudio(loadMore = false) {
       ? "Mostrando " + state.archiveResults.length + " de " + state.archiveTotal + " resultados que declaran una licencia Creative Commons. Abrí “Ver licencia y archivos” para comprobar los metadatos antes de añadir una pista."
       : "No se encontraron audios con licencia Creative Commons declarada para «" + query + "». Probá un término más general o abrí Internet Archive directamente.";
   } catch (error) {
-    $("#archive-status").textContent = (error.message || "No se pudo consultar Internet Archive.") +
-      " Podés abrir su búsqueda pública desde " + "https://archive.org/search?query=" + encodeURIComponent(query);
+    if (isCurrentArchiveSearch()) {
+      $("#archive-status").textContent = (error.message || "No se pudo consultar Internet Archive.") +
+        " Podés abrir su búsqueda pública desde " + "https://archive.org/search?query=" + encodeURIComponent(query);
+    }
   } finally {
-    button.disabled = false;
-    button.innerHTML = 'Buscar catálogo <span>→</span>';
-    loadButton.disabled = false;
-    loadButton.textContent = "Cargar más resultados ↓";
+    if (isCurrentArchiveSearch()) {
+      button.disabled = false;
+      button.innerHTML = 'Buscar catálogo <span>→</span>';
+      loadButton.disabled = false;
+      loadButton.textContent = "Cargar más resultados ↓";
+    }
   }
 }
 
@@ -1324,9 +1360,26 @@ async function annotateYoutubeVideoStatus(items, key) {
   });
 }
 async function searchYoutube(pageToken = "") {
-  const query = $("#youtube-query").value.trim();
-  if (!query) { setYoutubeStatus("Escribí el nombre de una canción o artista para buscar.", "error"); return; }
-  state.youtubeQuery = query;
+  const requestId = ++youtubeSearchRequestId;
+  const isCurrentYoutubeSearch = () => requestId === youtubeSearchRequestId;
+  const button = $("#youtube-search-button");
+  const loadButton = $("#youtube-load-more");
+  // Load-more must continue the query that produced the current token, even if
+  // the user has typed a different phrase into the search field meanwhile.
+  const query = pageToken ? state.youtubeQuery : $("#youtube-query").value.trim();
+  if (!query) {
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+    button.disabled = false;
+    button.innerHTML = 'Buscar <span>→</span>';
+    setYoutubeStatus("Escribí el nombre de una canción o artista para buscar.", "error");
+    return;
+  }
+  if (!pageToken) {
+    state.youtubeQuery = query;
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+  }
   if (!navigator.onLine) {
     const cached = readYoutubeSearchCache();
     if (cached && cached.query.toLocaleLowerCase() === query.toLocaleLowerCase()) {
@@ -1339,6 +1392,10 @@ async function searchYoutube(pageToken = "") {
       $("#youtube-load-more").hidden = true;
       setYoutubeStatus("Sin conexión. Podés buscar en tu biblioteca local o volver a ver la última búsqueda guardada de YouTube.", "info");
     }
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+    button.disabled = false;
+    button.innerHTML = 'Buscar <span>→</span>';
     return;
   }
   const key = youtubeApiKey();
@@ -1346,10 +1403,16 @@ async function searchYoutube(pageToken = "") {
     setYoutubeStatus("La búsqueda integrada necesita una clave API personal. Podés guardarla en «Configurar búsqueda integrada» o abrir los resultados públicos de YouTube con el botón de arriba.", "info");
     $("#youtube-open-search").classList.add("needs-attention");
     $("#youtube-results").innerHTML = "";
-    $("#youtube-load-more").hidden = true;
+    state.youtubeNextPageToken = null;
+    loadButton.hidden = true;
+    button.disabled = false;
+    button.innerHTML = 'Buscar <span>→</span>';
     return;
   }
-  const button = $("#youtube-search-button");
+  if (!pageToken) {
+    state.youtubeResults = [];
+    renderYoutubeResults([], false);
+  }
   button.disabled = true;
   button.textContent = "Buscando…";
   setYoutubeStatus("Buscando canciones y comprobando el estado de los videos…", "info");
@@ -1367,7 +1430,9 @@ async function searchYoutube(pageToken = "") {
     });
     if (pageToken) params.set("pageToken", pageToken);
     const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString());
+    if (!isCurrentYoutubeSearch()) return;
     const data = await response.json();
+    if (!isCurrentYoutubeSearch()) return;
     if (!response.ok || data.error) {
       const error = data.error || {};
       const reason = error.errors?.[0]?.reason || error.status || "";
@@ -1382,6 +1447,7 @@ async function searchYoutube(pageToken = "") {
       statusChecked = false;
       items = rawItems.map(item => ({ ...item, ritmoStatusVerified: false, ritmoMadeForKids: null, ritmoEmbeddable: false }));
     }
+    if (!isCurrentYoutubeSearch()) return;
     if (!pageToken) { state.youtubeResults = items; persistYoutubeSearchCache(query, items); }
     else { state.youtubeResults.push(...items); persistYoutubeSearchCache(query, state.youtubeResults); }
     state.youtubeNextPageToken = data.nextPageToken || null;
@@ -1396,10 +1462,12 @@ async function searchYoutube(pageToken = "") {
       setYoutubeStatus("No encontré resultados. Probá otro título o artista.", "info");
     }
   } catch (error) {
-    setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
+    if (isCurrentYoutubeSearch()) setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
   } finally {
-    button.disabled = false;
-    button.innerHTML = 'Buscar <span>→</span>';
+    if (isCurrentYoutubeSearch()) {
+      button.disabled = false;
+      button.innerHTML = 'Buscar <span>→</span>';
+    }
   }
 }
 function playYoutubeVideo(videoId, title = "Video de YouTube") {
@@ -1408,6 +1476,8 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
     toast("El enlace de YouTube no contiene un ID de video válido.");
     return;
   }
+  // Selecting a YouTube video supersedes any native-audio request still awaiting play().
+  playbackRequestId += 1;
   const frame = $("#youtube-iframe");
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
