@@ -4,6 +4,9 @@ const requests = [];
 let lateConnectionClosed = false;
 let transactionAborted = false;
 let attemptedQueuedWrite = false;
+let putCallCount = 0;
+let failPutOnCall = 1;
+let successfullyQueuedWrites = 0;
 
 const fakeDb = {
   objectStoreNames: { contains: () => true },
@@ -25,10 +28,14 @@ const fakeDb = {
             return request;
           },
           put() {
-            // Model a write request being queued before a later synchronous
-            // setup error is raised by the transaction callback.
-            attemptedQueuedWrite = true;
-            throw new Error("simulated synchronous write failure");
+            putCallCount += 1;
+            if (putCallCount === failPutOnCall) {
+              // Model a later put() throwing after earlier requests were queued.
+              attemptedQueuedWrite = true;
+              throw new Error("simulated synchronous write failure");
+            }
+            successfullyQueuedWrites += 1;
+            return {};
           }
         };
       }
@@ -87,4 +94,19 @@ await assert.rejects(
 );
 assert.equal(attemptedQueuedWrite, true, "the test should simulate a queued write before the later exception");
 assert.equal(transactionAborted, true, "the transaction must abort so a queued write cannot commit after setup fails");
-console.log("IndexedDB blocked-open recovery and synchronous-write rollback tests passed.");
+
+// A bulk import must also roll back when a later put() fails synchronously.
+transactionAborted = false;
+attemptedQueuedWrite = false;
+putCallCount = 0;
+failPutOnCall = 2;
+successfullyQueuedWrites = 0;
+await assert.rejects(
+  storage.saveManyTracks([{ id: "first-in-batch" }, { id: "invalid-in-batch" }]),
+  /simulated synchronous write failure/,
+  "bulk import should surface a synchronous put() failure"
+);
+assert.equal(successfullyQueuedWrites, 1, "the scenario must queue an earlier write before the second put() fails");
+assert.equal(attemptedQueuedWrite, true, "the second put() should fail after the first write was queued");
+assert.equal(transactionAborted, true, "bulk import must abort instead of committing a partial batch");
+console.log("IndexedDB blocked-open recovery, single-write rollback, and atomic bulk-import rollback tests passed.");
