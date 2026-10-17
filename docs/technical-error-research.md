@@ -223,3 +223,24 @@ Esta revisión tomó como punto de partida los informes de Chrome sobre promesas
 ### Validación y límites
 
 Se añadieron smoke checks para que el botón principal, los controles del sistema, la repetición y el temporizador utilicen la misma cancelación de solicitudes. Estas pruebas verifican que estén los guardas, pero no simulan todas las temporizaciones internas de todos los navegadores. El audio que queda silencioso en iOS después de volver del fondo sigue necesitando prueba con un dispositivo real, tal como muestran los casos públicos de Howler.js sobre iOS: https://github.com/goldfire/howler.js/issues/1753 y https://github.com/goldfire/howler.js/issues/1743.
+
+## Octava pasada — historial de YouTube basado en reproducción confirmada (17 de octubre de 2026)
+
+Esta revisión encontró que playYoutubeVideo() escribía una entrada en el historial inmediatamente después de asignar la URL del iframe. Ese punto solo confirma que se seleccionó el video; no demuestra que el embed empezara. La reproducción puede bloquearse por políticas del navegador, fallar por restricciones del video o no arrancar por un error de red. El historial acababa mezclando selecciones con reproducciones reales.
+
+| Hallazgo | Corrección aplicada |
+| --- | --- |
+| El historial decía que el video se reprodujo antes de recibir confirmación del reproductor | Se dejó de escribir el historial al seleccionar. Ahora se observa el evento YT.PlayerState.PLAYING del YouTube IFrame Player API y se persiste el registro solo cuando el video actual coincide con la sesión seleccionada. |
+| Eventos retrasados de un video anterior podían contaminar la selección nueva | Cada selección recibe una sesión. Un evento que no corresponde al ID activo se descarta y al salir de la vista se invalida la sesión. |
+| Una misma sesión podía disparar varios eventos PLAYING tras buffering/reanudación | El controlador marca la sesión como registrada antes de iniciar la operación de almacenamiento, evitando duplicados por eventos repetidos. |
+| La integración de eventos no debía romper el arranque del iframe | La aplicación establece la URL del reproductor oficial inmediatamente desde el clic del usuario y carga la API de eventos de forma asíncrona. Si la API no está disponible, el iframe directo sigue funcionando, pero no se inventa una entrada de historial sin confirmación. |
+
+### Fuentes públicas consultadas
+
+- Google for Developers, [YouTube IFrame Player API Reference](https://developers.google.com/youtube/iframe_api_reference): documenta onStateChange, el valor 1/PLAYING, la lectura de datos del video y cómo adjuntar la API a un iframe existente.
+- Chrome for Developers, [Autoplay policy in Chrome](https://developer.chrome.com/blog/autoplay/): advierte que los desarrolladores no deben asumir que el video empezó y deben reflejar el estado real, porque una política del navegador puede impedir la reproducción.
+- Chrome for Developers, [The play() request was interrupted](https://developer.chrome.com/blog/play-request-was-interrupted/): explica por qué una petición de reproducción puede rechazarse o interrumpirse de forma asíncrona; el patrón general refuerza que “seleccionado” y “reproduciendo” no son estados equivalentes.
+
+### Pruebas y límites
+
+Se agregó un controlador aislado con pruebas para impedir entradas al seleccionar, ignorar IDs distintos, registrar una sola vez tras PLAYING, descartar eventos atrasados y cancelar al salir del reproductor. Los checks se conectaron al workflow y el cache shell subió a ritmo-shell-v9 para que la PWA descargue el nuevo módulo. La validación automatizada verifica la lógica y la integración; no sustituye una prueba manual en navegador con videos bloqueados/no disponibles ni permite garantizar el comportamiento de la red o de las políticas de autoplay de cada dispositivo.
