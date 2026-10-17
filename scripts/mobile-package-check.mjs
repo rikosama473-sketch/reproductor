@@ -16,18 +16,27 @@ assert.equal(cap.server?.androidScheme, "https", "Packaged Android assets need a
 
 const html = await readFile(path.join(root, "www/index.html"), "utf8");
 const sw = await readFile(path.join(root, "www/sw.js"), "utf8");
+const capacitorTag = '<script src="./capacitor.js"></script>';
+const appTag = '<script type="module" src="./src/app.js"></script>';
+assert.ok(html.indexOf(capacitorTag) >= 0 && html.indexOf(capacitorTag) < html.indexOf(appTag),
+  "Capacitor runtime must load before the app module");
 assert.match(html, /src=["']\.\/src\/app\.js["']/, "Bundled HTML must load the real app module");
 assert.match(html, /id=["']file-picker["']/, "Android UI must retain its audio file picker");
 assert.match(html, /data-scan-device-music/, "Android UI must expose whole-device music scanning");
+
+const capacitorRuntime = await readFile(path.join(root, "www/capacitor.js"), "utf8");
+assert.match(capacitorRuntime, /nativePromise/, "Packaged Capacitor runtime must expose nativePromise");
+assert.match(capacitorRuntime, /getPlatform/, "Packaged Capacitor runtime must expose getPlatform");
+
 const nativePlugin = await readFile(path.join(root, "native/android/RitmoMusicLibraryPlugin.java"), "utf8");
 assert.match(nativePlugin, /READ_MEDIA_AUDIO/, "Android must request granular audio permission");
 assert.match(nativePlugin, /MediaStore\.Audio\.Media/, "Native plugin must query the audio media store");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT/, "Native plugin must open the system document picker");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT_TREE/, "Native plugin must support selecting music folders");
 assert.match(nativePlugin, /listAudioFromTree/, "Native plugin must recursively inspect a selected folder tree");
-assert.match(sw, /ritmo-shell-v19/, "Android package should contain the latest offline shell");
-for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "src/app.js", "src/storage.js", "assets/icon.svg"]) {
+assert.match(sw, /ritmo-shell-v20/, "Android package should contain the refreshed offline shell");
+for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "assets/icon.svg"]) {
   const info = await stat(path.join(root, "www", name)).catch(() => null);
   assert.ok(info?.isFile(), "Missing mobile asset: " + name);
 }
-console.log("Android packaging checks passed: app ID, pinned Capacitor version, HTTPS local origin, file picker, v17 shell, and required assets.");
+console.log("Android packaging checks passed: the real Capacitor runtime loads before app.js and native music/folder access is packaged.");
