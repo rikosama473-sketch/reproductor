@@ -151,3 +151,10 @@ assert.match(app, /fileOrTrack\.webkitRelativePath \|\| fileOrTrack\.sourcePath/
 assert.match(app, /sourcePath: file\.webkitRelativePath \|\| file\.name/, "Imported tracks should persist their relative source path");
 console.log("Second-pass regressions passed: persisted volume, object-URL lifecycle, and folder-import identity.");
 
+assert.match(app, /const previousFavorite = track\.favorite;\s*track\.favorite = !previousFavorite;\s*try \{\s*await saveTrack\(track\);/, "Favorite edits should preserve a rollback value before persisting");
+assert.match(app, /catch \(error\) \{\s*track\.favorite = previousFavorite;\s*render\(\);\s*updatePlayerFavorite\(\);/, "A failed favorite write must restore the previously persisted value in memory and UI");
+assert.match(app, /list\.trackIds = previousTrackIds;\s*list\.updatedAt = previousUpdatedAt;\s*renderPlaylists\(\);/, "Failed playlist writes must restore both membership and modification timestamp");
+assert.match(app, /const currentVolume = Number\(\$\("#volume-bar"\)\.value\);\s*const fadedVolume = currentVolume \* Math\.max\(0, 1 - step \/ steps\)/, "The sleep fade must use the current slider value instead of a stale volume captured when the timer started");
+assert.match(app, /const restoredVolume = Number\(\$\("#volume-bar"\)\.value\);\s*defaultAudio\.volume = restoredVolume;\s*equalizedAudio\.volume = restoredVolume;/, "Sleep-timer completion must preserve any volume change made while it was running");
+console.log("Third-pass regressions passed: failed-storage rollback for favorites/playlists and live volume during sleep timer.");
+
