@@ -162,3 +162,16 @@ assert.match(app, /library-no-results/, "The app should show a distinct empty st
 assert.match(app, /visibleLibraryTracks\.length === 0/, "No-match state should only appear when a non-empty library query has zero results");
 console.log("Third-pass regressions passed: failed-storage rollback, live sleep-timer volume, and empty library search state.");
 
+assert.match(app, /let playbackRequestId = 0;[\s\S]*let youtubeSearchRequestId = 0;[\s\S]*let archiveSearchRequestId = 0;/, "Async playback and both online searches must track the latest request");
+assert.match(app, /async function playTrack\(trackId, autoplay = true, options = \{\}\) \{[\s\S]*const isCurrentPlaybackRequest = \(\) => requestId === playbackRequestId;/, "Playback requests need a unique identity");
+assert.match(app, /if \(autoplay\) await audio\.play\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;/, "A superseded play() promise must not update the newer track state");
+assert.match(app, /function playYoutubeVideo[\s\S]*playbackRequestId \+= 1;/, "Starting YouTube playback must invalidate pending native-audio requests");
+assert.match(app, /const query = pageToken \? state\.youtubeQuery : \$\("#youtube-query"\)\.value\.trim\(\);/, "YouTube pagination must use the query that created its page token");
+assert.match(app, /const isCurrentYoutubeSearch = \(\) => requestId === youtubeSearchRequestId;/, "YouTube search responses must be associated with the latest request");
+assert.match(app, /if \(!isCurrentYoutubeSearch\(\)\) return;/, "Stale YouTube responses must not overwrite newer results");
+assert.match(app, /const isCurrentArchiveSearch = \(\) => requestId === archiveSearchRequestId;/, "Internet Archive searches must be associated with the latest request");
+assert.match(app, /if \(!isCurrentArchiveSearch\(\)\) return;/, "Stale archive responses must not overwrite newer results");
+assert.match(app, /if \(isCurrentYoutubeSearch\(\)\) \{\s*button\.disabled = false;/, "Older YouTube search finally blocks must not unlock a newer active search");
+assert.match(app, /if \(isCurrentArchiveSearch\(\)\) \{\s*button\.disabled = false;/, "Older archive search finally blocks must not unlock a newer active search");
+console.log("Fourth-pass regressions passed: async audio switching and latest-query-wins for YouTube/Internet Archive.");
+
