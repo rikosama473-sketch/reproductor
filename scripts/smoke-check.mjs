@@ -173,5 +173,9 @@ assert.match(app, /const isCurrentArchiveSearch = \(\) => requestId === archiveS
 assert.match(app, /if \(!isCurrentArchiveSearch\(\)\) return;/, "Stale archive responses must not overwrite newer results");
 assert.match(app, /if \(isCurrentYoutubeSearch\(\)\) \{\s*button\.disabled = false;/, "Older YouTube search finally blocks must not unlock a newer active search");
 assert.match(app, /if \(isCurrentArchiveSearch\(\)\) \{\s*button\.disabled = false;/, "Older archive search finally blocks must not unlock a newer active search");
-console.log("Fourth-pass regressions passed: async audio switching and latest-query-wins for YouTube/Internet Archive.");
+assert.match(storage, /export async function deleteTrackAndPrunePlaylists\(trackId\) \{[\s\S]*db\.transaction\(\[TRACKS, PLAYLISTS\], "readwrite"\)/, "Deleting a track and pruning playlists should share one atomic IndexedDB transaction");
+assert.match(storage, /trackIds: trackIds\.filter\(id => id !== trackId\)/, "Atomic track deletion should remove the deleted ID from every affected playlist");
+assert.match(app, /await deleteTrackAndPrunePlaylists\(track\.id\)/, "The library UI should use the atomic delete-and-prune operation");
+assert.doesNotMatch(app, /await deleteTrack\(track\.id\)[\s\S]*for \(const list of state\.playlists\) await savePlaylist\(list\)/, "Track deletion should not update playlists in separate transactions");
+console.log("Fourth-pass regressions passed: async audio switching, latest-query-wins, and atomic deletion from playlists.");
 
