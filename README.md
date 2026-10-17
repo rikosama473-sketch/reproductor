@@ -11,6 +11,12 @@ Ritmo es una aplicación web progresiva (PWA), sin framework ni dependencias de 
 - PWA instalable, shell cacheado mediante Service Worker y biblioteca local disponible sin internet después de importar los archivos.
 - Interfaz responsive para escritorio, móvil y tablet; atajos de teclado básicos.
 
+## Publicar la versión online
+
+El workflow `.github/workflows/deploy-pages.yml` publica el sitio estático en GitHub Pages cuando los cambios llegan a `main`. En la primera publicación, si el repositorio no tiene Pages habilitado, abrí **Settings → Pages** y seleccioná **GitHub Actions** como fuente de publicación; luego ejecutá el workflow `Deploy Ritmo to GitHub Pages` desde la pestaña Actions.
+
+La URL esperada para este repositorio es https://rikosama473-sketch.github.io/reproductor/ una vez que Pages haya terminado de publicar correctamente.
+
 ## Ejecutar localmente
 
 Los Service Workers requieren un contexto seguro. Para probar localmente, iniciá un servidor estático en la raíz:
