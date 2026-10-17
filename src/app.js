@@ -1160,6 +1160,8 @@ async function searchArchiveAudio(loadMore = false) {
     state.archiveTotal = 0;
     state.archiveResults = [];
     state.archiveFileCache.clear();
+    $("#archive-results").innerHTML = "";
+    $("#archive-load-more").hidden = true;
   }
   const button = $("#archive-search-button");
   const loadButton = $("#archive-load-more");
