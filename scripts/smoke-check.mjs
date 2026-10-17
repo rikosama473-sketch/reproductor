@@ -147,7 +147,7 @@ assert.match(sw, /const offlinePage = await caches\.match\("\.\/index\.html"\)/,
 console.log("Service-worker cache lifetime and storage-error checks passed.");
 
 assert.doesNotMatch(app, /defaultAudio\.volume = 0\.8;\s*equalizedAudio\.volume = 0\.8;/, "Startup must not overwrite the saved volume or mute preference");
-assert.match(app, /defaultAudio\.volume = audioPrefs\.volume/, "The native audio element should use the persisted volume preference");
+assert.match(app, /setOutputVolume\(audioPrefs\.volume\)/, "Startup should apply the persisted volume through the shared engine-aware controller");
 assert.match(app, /function releaseUnusedObjectURLs/, "The player should release object URLs for tracks that are no longer active");
 assert.match(app, /releaseUnusedObjectURLs\(isLocal\(track\) \? track\.id : null\)/, "Track changes should retain a blob URL only for the active local track");
 assert.match(app, /function importedFileFingerprint/, "Import deduplication should use a reusable path-aware fingerprint");
@@ -159,7 +159,7 @@ assert.match(app, /const previousFavorite = track\.favorite;\s*track\.favorite =
 assert.match(app, /catch \(error\) \{\s*track\.favorite = previousFavorite;\s*render\(\);\s*updatePlayerFavorite\(\);/, "A failed favorite write must restore the previously persisted value in memory and UI");
 assert.match(app, /list\.trackIds = previousTrackIds;\s*list\.updatedAt = previousUpdatedAt;\s*renderPlaylists\(\);/, "Failed playlist writes must restore both membership and modification timestamp");
 assert.match(app, /const currentVolume = Number\(\$\("#volume-bar"\)\.value\);\s*const fadedVolume = currentVolume \* Math\.max\(0, 1 - step \/ steps\)/, "The sleep fade must use the current slider value instead of a stale volume captured when the timer started");
-assert.match(app, /const restoredVolume = Number\(\$\("#volume-bar"\)\.value\);\s*defaultAudio\.volume = restoredVolume;\s*equalizedAudio\.volume = restoredVolume;/, "Sleep-timer completion must preserve any volume change made while it was running");
+assert.match(app, /const restoredVolume = Number\(\$\("#volume-bar"\)\.value\);\s*setOutputVolume\(restoredVolume\);/, "Sleep-timer completion must restore any volume change made while it was running through both output engines");
 assert.match(app, /const visibleLibraryTracks = sortedForView\("library"\);/, "Library rendering should reuse the filtered track list when deciding empty-state visibility");
 assert.match(app, /library-no-results/, "The app should show a distinct empty state when the library search has no matches");
 assert.match(app, /visibleLibraryTracks\.length === 0/, "No-match state should only appear when a non-empty library query has zero results");
