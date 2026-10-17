@@ -46,7 +46,7 @@ assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadat
 assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
-assert.match(sw, /ritmo-shell-v4/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v5/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
 
@@ -71,7 +71,7 @@ assert.match(app, /async function downloadStreamOffline/, "Direct audio URLs sho
 assert.match(app, /MAX_DOWNLOAD_BYTES = 150 \* 1024 \* 1024/, "Offline saving must enforce a bounded download size");
 assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must respect browser CORS and avoid sending credentials");
 assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
-assert.match(sw, /ritmo-shell-v4/, "Service-worker cache must refresh after playback settings are added");
+assert.match(sw, /ritmo-shell-v5/, "Service-worker cache must refresh after playback settings are added");
 console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
 
 
@@ -92,3 +92,19 @@ console.log("Editable queue and persistent mute control smoke checks passed.");
 assert.match(app, /if \(!\$\("#youtube-player-wrap"\)\.hidden\) stopYoutubePlayback\(\)/, "Starting local/URL audio must stop an active YouTube iframe to prevent overlapping audio");
 assert.match(app, /function playYoutubeVideo[\s\S]*?renderQueue\(\);/, "Starting YouTube should refresh queue status");
 console.log("YouTube/native audio source transition checks passed.");
+
+
+assert.match(html, /id="archive-search-form"/, "Online music view should expose open-license audio search");
+assert.match(html, /id="archive-query"/, "Open-license search needs a user query");
+assert.match(html, /id="archive-results"/, "Open-license search needs result cards");
+assert.match(html, /id="archive-load-more"/, "Open-license search should support pagination");
+assert.match(app, /https:\/\/archive\.org\/advancedsearch\.php/, "Open-license catalog should use Internet Archive's public search API");
+assert.match(app, /licenseurl:http\*creativecommons\.org\*/, "Open-license query must filter for declared Creative Commons licensing");
+assert.match(app, /https:\/\/archive\.org\/metadata\//, "Each open-license result must verify metadata before listing tracks");
+assert.match(app, /function inspectArchiveItem/, "Catalog results must inspect license and files before offering them");
+assert.match(app, /creativecommons\.org/, "The app must verify the declared Creative Commons license host");
+assert.match(app, /function addArchiveFile/, "Catalog tracks should be addable to the local library as remote sources");
+assert.match(app, /function archiveFileURL/, "Catalog file actions must link to the original archive host");
+assert.match(app, /Descargar original/, "Catalog should provide the source's original-file link, not bypass its delivery rules");
+assert.match(sw, /ritmo-shell-v5/, "Service-worker cache should refresh after adding the open-license catalog");
+console.log("Internet Archive open-license search, metadata verification and original-file link smoke checks passed.");
