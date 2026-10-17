@@ -113,6 +113,49 @@ export async function saveManyTracks(tracks) {
 }
 export async function deleteTrack(trackId) { return storeTransaction(TRACKS, "readwrite", store => store.delete(trackId)); }
 
+// Delete a track and remove its ID from every playlist in one readwrite
+// transaction. If any playlist update fails, IndexedDB aborts the whole change
+// instead of leaving partially-cleaned references behind.
+export async function deleteTrackAndPrunePlaylists(trackId) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([TRACKS, PLAYLISTS], "readwrite");
+    const tracksStore = tx.objectStore(TRACKS);
+    const playlistsStore = tx.objectStore(PLAYLISTS);
+    let operationError = null;
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error || new Error("No se pudo eliminar la canción y actualizar sus listas."));
+    tx.onabort = () => reject(operationError || tx.error || new Error("Se canceló la eliminación de la canción."));
+
+    try {
+      tracksStore.delete(trackId);
+      const cursorRequest = playlistsStore.openCursor();
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) return;
+        const playlist = cursor.value;
+        const trackIds = Array.isArray(playlist.trackIds) ? playlist.trackIds : [];
+        if (trackIds.includes(trackId)) {
+          cursor.update({
+            ...playlist,
+            trackIds: trackIds.filter(id => id !== trackId),
+            updatedAt: Date.now()
+          });
+        }
+        cursor.continue();
+      };
+      cursorRequest.onerror = () => {
+        operationError = cursorRequest.error || new Error("No se pudieron revisar las listas.");
+        try { tx.abort(); } catch {}
+      };
+    } catch (error) {
+      operationError = error;
+      try { tx.abort(); } catch { reject(error); }
+    }
+  });
+}
+
 export async function getHistory(limit = 100) {
   const records = await getAllFromStore(HISTORY, "playedAt", true);
   return records.slice(0, Math.max(0, Math.min(Number(limit) || 100, 5000)));
