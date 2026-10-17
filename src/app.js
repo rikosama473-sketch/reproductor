@@ -224,8 +224,10 @@ function renderHistory() {
   root.querySelectorAll("[data-play]").forEach(button => button.addEventListener("click", () => playTrack(button.dataset.play)));
   root.querySelectorAll("[data-history-youtube]").forEach(button => button.addEventListener("click", () => {
     if (!navigator.onLine) { toast("Este video necesita internet. Su ficha permanece disponible en el historial offline."); return; }
-    if (button.dataset.historyEmbeddable === "true" && button.dataset.historyKids !== "true") playYoutubeVideo(button.dataset.historyYoutube, button.dataset.historyTitle || "Video de YouTube");
-    else openExternal(youtubeVideoURL(button.dataset.historyYoutube));
+    if (button.dataset.historyEmbeddable === "true" && button.dataset.historyKids !== "true") {
+      showView("online");
+      playYoutubeVideo(button.dataset.historyYoutube, button.dataset.historyTitle || "Video de YouTube");
+    } else openExternal(youtubeVideoURL(button.dataset.historyYoutube));
   }));
 }
 function renderPlaylists() {
