@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "Ritmo — Reproductor musical",
+  "short_name": "Ritmo",
+  "description": "Tu biblioteca musical personal, con reproducción local y modo offline.",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#11131a",
+  "theme_color": "#11131a",
+  "orientation": "any",
+  "icons": [
+    { "src": "./assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
