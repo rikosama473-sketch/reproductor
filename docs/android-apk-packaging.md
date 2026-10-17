@@ -34,3 +34,10 @@ Para distribuir actualizaciones sin esa limitación, crear un APK de lanzamiento
 - Android Developers, [firmar aplicaciones desde la línea de comandos](https://developer.android.com/build/building-cmdline?hl=es#sign_cmdline): referencia sobre apksigner y las claves privadas de lanzamiento.
 
 El build automatizado comprueba el ensamblado y la firma, pero no sustituye las pruebas de dispositivo ni la firma de distribución.
+
+
+## Incidencia CI: paquetes Android interpretados como un solo argumento
+
+La primera ejecución de Actions falló en `Set up Android SDK`: el log mostró que `sdkmanager` recibió una cadena con saltos de línea y respondió `Failed to find package 'platform-tools platforms;android-36 build-tools;36.0.0'`. La compilación ni siquiera había llegado a instalar Node dependencies, por lo que no era un fallo de Capacitor ni del código de Ritmo.
+
+**Solución:** la entrada `packages` de `android-actions/setup-android` se convirtió a su formato delimitado por comas: `platform-tools,platforms;android-36,build-tools;36.0.0`. El siguiente run debe confirmar la instalación de cada paquete por separado antes de validar el APK.

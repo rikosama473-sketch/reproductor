@@ -445,3 +445,24 @@ La aplicación estaba publicada como PWA, pero no contenía proyecto Android ni 
 ### Validación y límites
 
 La suite de CI comprueba la configuración, recursos, shell offline y sintaxis; el workflow Android además debe construir e inspeccionar el APK para que exista un artefacto descargable. La firma de depuración es adecuada para pruebas, no una clave de lanzamiento persistente. La reproducción en background y los selectores multimedia aún requieren pruebas en hardware Android real.
+
+
+## Fallo de CI corregido — lista de paquetes del SDK Android (17 de octubre de 2026)
+
+### Síntoma reproducido
+
+El primer run de `Build Ritmo Android APK` falló en el paso `Set up Android SDK`. El log de la acción mostraba que `sdkmanager` intentaba buscar la cadena `platform-tools\nplatforms;android-36\nbuild-tools;36.0.0` como si fuera el nombre de un solo paquete, y devolvía `Failed to find package`. Las etapas de instalación npm, Capacitor y Gradle se omitieron; todavía no se había intentado compilar el APK.
+
+### Corrección
+
+Se cambió el input `packages` del paso `android-actions/setup-android@v4` a la lista delimitada por comas que consume la acción: `platform-tools,platforms;android-36,build-tools;36.0.0`. Se anotó el incidente en la guía Android para que futuros cambios de workflow mantengan el formato correcto.
+
+### Evidencia y referencias
+
+- [Log de la ejecución fallida](https://github.com/rikosama473-sketch/reproductor/actions/runs/39068002380): confirma fallo en la instalación del SDK antes de la compilación.
+- [android-actions/setup-android](https://github.com/android-actions/setup-android): documentación del setup del SDK usada para configurar `sdkmanager`.
+- [Android Developers — compilar desde la línea de comandos](https://developer.android.com/build/building-cmdline?hl=es): referencia oficial para instalación/compilación y el paso posterior `assembleDebug`.
+
+### Estado
+
+La corrección se registra en el commit siguiente. Solo el próximo resultado de Actions puede confirmar si el SDK quedó correctamente instalado y si se genera el APK.
