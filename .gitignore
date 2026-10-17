@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Ritmo Android / Capacitor build outputs
+/node_modules/
+/www/
+/android/
+/.gradle/
+*.jks
+/keystore.properties

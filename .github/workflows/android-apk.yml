@@ -1,0 +1,99 @@
+name: Build Ritmo Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ritmo-android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build and verify Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main revision
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: |
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+
+      - name: Install pinned Capacitor dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare web assets
+        run: npm run prepare:web
+
+      - name: Generate native Android project
+        run: npx cap add android
+
+      - name: Synchronize Capacitor project
+        run: npx cap sync android
+
+      - name: Set unique app version for this build
+        env:
+          RITMO_VERSION_CODE: ${{ github.run_number }}
+          RITMO_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: node scripts/configure-android.mjs
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Verify APK signature and create checksum
+        env:
+          RITMO_VERSION_CODE: ${{ github.run_number }}
+          RITMO_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Ritmo-android-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose dist/Ritmo-android-debug.apk
+          sha256sum dist/Ritmo-android-debug.apk > dist/Ritmo-android-debug.apk.sha256
+          node --input-type=module <<'NODE'
+          import { writeFile } from "node:fs/promises";
+          const metadata = {
+            app: "Ritmo",
+            applicationId: "com.rikosama473.ritmo",
+            commit: process.env.GITHUB_SHA,
+            workflowRun: process.env.GITHUB_RUN_NUMBER,
+            versionCode: Number(process.env.RITMO_VERSION_CODE),
+            versionName: process.env.RITMO_VERSION_NAME,
+            buildType: "debug",
+            signing: "Android debug signing; not a Play Store release key"
+          };
+          await writeFile("dist/build-info.json", JSON.stringify(metadata, null, 2) + "\n");
+          NODE
+
+      - name: Upload installable APK and verification files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ritmo-APK-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            dist/Ritmo-android-debug.apk
+            dist/Ritmo-android-debug.apk.sha256
+            dist/build-info.json
+          if-no-files-found: error
+          retention-days: 30

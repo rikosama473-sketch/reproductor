@@ -421,3 +421,27 @@ La integración comprobaba si el video aparecía como incrustable en la YouTube 
 ### Validación y límites
 
 La nueva prueba comprueba que cada código conocido tiene un diagnóstico accionable y que la aplicación conecta los eventos al mensaje. CI sigue siendo una prueba automatizada, no una garantía de que cada video o combinación de navegador esté disponible; la comprobación final del reproductor depende de YouTube y de las restricciones aplicables a cada video.
+
+
+## Revisión adicional — empaquetado Android reproducible (17 de octubre de 2026)
+
+### Hallazgo
+
+La aplicación estaba publicada como PWA, pero no contenía proyecto Android ni un flujo que produjera un APK. Por ello, no existía un archivo Android instalable en el repositorio que se pudiera llamar “la APK actualizada”.
+
+### Solución aplicada
+
+- Se añadió una configuración Capacitor con versiones de Core, Android y CLI alineadas en 8.5.3, versión estable consultada en el registro oficial.
+- Se incorporó una rutina que genera una carpeta `www/` limpia desde los archivos web de `main` y verifica que los módulos de la app y todos los recursos declarados por el service worker estén presentes. Esto evita empaquetar una copia parcial o un shell offline con referencias rotas.
+- Un workflow para `main` genera el proyecto Android en un runner, compila mediante `assembleDebug`, verifica la firma con `apksigner`, genera una suma SHA-256 y publica el APK como artefacto.
+- El empaquetado fija un origen local HTTPS, evita contenido mixto y aumenta versionCode/versionName con cada ejecución del flujo.
+
+### Fuentes consultadas
+
+- Capacitor, [guía de instalación](https://capacitorjs.com/docs/getting-started) y [entorno soportado](https://capacitorjs.com/docs/getting-started/environment-setup).
+- Ionic Capacitor, [notas de la versión 8.5.3](https://github.com/ionic-team/capacitor/releases) y [changelog de Android](https://github.com/ionic-team/capacitor/blob/main/android/CHANGELOG.md).
+- Android Developers, [build de APK de depuración y firma](https://developer.android.com/build/building-cmdline?hl=es).
+
+### Validación y límites
+
+La suite de CI comprueba la configuración, recursos, shell offline y sintaxis; el workflow Android además debe construir e inspeccionar el APK para que exista un artefacto descargable. La firma de depuración es adecuada para pruebas, no una clave de lanzamiento persistente. La reproducción en background y los selectores multimedia aún requieren pruebas en hardware Android real.

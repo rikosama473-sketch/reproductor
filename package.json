@@ -1,0 +1,21 @@
+{
+  "name": "ritmo-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Empaquetado Android del reproductor musical Ritmo",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare:web": "node scripts/prepare-mobile.mjs",
+    "android:init": "npm run prepare:web && npx cap add android",
+    "android:sync": "npm run prepare:web && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

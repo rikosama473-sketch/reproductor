@@ -102,3 +102,16 @@ La vista **Música online** incorpora búsqueda de audio en la API pública de I
 Cada resultado enlaza a su ficha de origen y muestra la licencia declarada. Con **Agregar** se guarda una referencia de streaming en la biblioteca; **Reproducir** la añade y empieza a sonar. **Descargar original** abre el archivo servido por Internet Archive para que el navegador pueda descargarlo sin que Ritmo intente superar las restricciones CORS de los servidores de archivos. Después, importá el archivo descargado para usarlo de verdad sin conexión. Si un ítem no permite verificar licencia o archivos, Ritmo no ofrece sus pistas a través de esta integración.
 
 La búsqueda es un filtro de metadatos, no una garantía legal absoluta: verificá la licencia en la ficha de cada obra, respetá atribución, uso no comercial y restricciones de obras derivadas donde apliquen. La aplicación no almacena localmente las copias del catálogo automáticamente.
+
+
+## APK para Android
+
+Ritmo también puede empaquetarse como aplicación Android con Capacitor. Cada cambio enviado a `main` ejecuta el workflow **Build Ritmo Android APK**, que compila un APK de depuración, verifica su firma y publica el archivo más una suma SHA-256 en el artefacto de esa ejecución.
+
+- **Descargar la APK más reciente:** abrí [Actions → Build Ritmo Android APK](https://github.com/rikosama473-sketch/reproductor/actions/workflows/android-apk.yml?query=branch%3Amain), entrá en la última ejecución correcta de `main` y descargá el artefacto `Ritmo-APK-…`.
+- La app incluye los archivos web del commit y puede funcionar sin conexión después de importar música local. Las búsquedas por internet y fuentes online siguen necesitando conexión.
+- Es una APK de depuración firmada automáticamente por las herramientas Android, pensada para instalación personal y pruebas. **No es una publicación de Google Play ni una firma de lanzamiento permanente**; no uses esta firma como clave de distribución. Según el certificado de depuración de cada runner, una nueva APK podría exigir desinstalar la anterior antes de instalarla; desinstalar la app puede borrar sus archivos locales.
+- Para preparar el proyecto nativo en tu máquina: instalá Node.js 22 o superior, JDK 21 y el Android SDK (API 36); luego ejecutá `npm install`, `npm run android:init` (solo la primera vez) y `npm run android:sync`. En `android/`, ejecutá `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`).
+- Para distribuir actualizaciones sin perder instalaciones existentes o publicar en Play Console hace falta configurar una clave privada de lanzamiento y protegerla como secreto del entorno de compilación. No debe guardarse en este repositorio público.
+
+Detalles y fuentes del empaquetado: [docs/android-apk-packaging.md](docs/android-apk-packaging.md).
