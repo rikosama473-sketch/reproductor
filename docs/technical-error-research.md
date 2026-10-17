@@ -326,3 +326,29 @@ Ritmo enviaba el audio procesado al destino de Web Audio a través de filtros y 
 ### Validación y límites
 
 Las pruebas de controlador verifican el valor encaminado a la ganancia de salida, el comportamiento del motor nativo y el mute/clamp. La CI también comprueba la sintaxis, la ubicación del nodo en el grafo y su inclusión en la shell offline. Todavía se recomienda una verificación manual del sonido en Safari/iOS, Firefox y Chromium con el ecualizador activado; las pruebas de Node no simulan la implementación real del motor multimedia del navegador.
+
+
+## Revisión adicional — caché obsoleta para el shell y los archivos JS/CSS (17 de octubre de 2026)
+
+### Hallazgo reproducible
+
+El service worker anterior consultaba `caches.match(request)` antes de la red para todas las solicitudes GET del mismo origen. Eso incluye la navegación a `index.html` y los archivos `src/app.js`, `src/storage.js` y hojas de estilo, todos con URL estable y sin hash de contenido. Aunque los cambios recientes suelen incrementar el nombre de caché, un olvido de ese incremento podía dejar una página online con HTML/JavaScript antiguo indefinidamente, porque el caché respondía antes de consultar la red.
+
+### Corrección
+
+- Las navegaciones y las solicitudes `document`, `script`, `style` y `manifest` usan ahora **network-first**.
+- Si la red responde, se devuelve el recurso actual y se actualiza la caché en segundo plano del evento.
+- Si falla la red, se devuelve la entrada cacheada; las navegaciones a rutas profundas también pueden volver al `index.html` de la shell offline.
+- Las imágenes siguen siendo cache-first para evitar viajes de red innecesarios con recursos visuales.
+- Se añadió una prueba que ejecuta el propio listener `fetch` de `sw.js` bajo un entorno Service Worker simulado. Comprueba documento nuevo sobre caché antigua, JS nuevo, fallback offline, ruta profunda y estrategia cache-first de imágenes.
+- Se actualizó el shell a `ritmo-shell-v15` y la prueba está integrada en GitHub Actions.
+
+### Fuentes de ingeniería consultadas
+
+- Google Chrome for Developers, [Expectations around service worker deployment](https://developer.chrome.com/docs/workbox/service-worker-deployment?authuser=1046689488): advierte que una estrategia cache-first para archivos estáticos con URL sin versionar puede seguir entregando `app.js` antiguo, y propone usar una estrategia que consulte la red o utilizar recursos con hash.
+- Google Chrome for Developers, [Caching strategies overview](https://developer.chrome.com/docs/workbox/caching-strategies-overview/): compara cache-first y network-first y describe network-first como un patrón apropiado para documentos/markup cuando importa la frescura.
+- GoogleChrome, [Modern Web Guidance: performance](https://github.com/GoogleChrome/modern-web-guidance/blob/main/skills/modern-web-guidance/guides/performance/performance.md): recomienda NetworkFirst para documentos HTML y CacheFirst para recursos estáticos inmutables versionados.
+
+### Límites de la validación
+
+La nueva prueba comprueba el listener real con APIs simuladas de Service Worker/Cache Storage; no es una prueba end-to-end en DevTools ni una auditoría de latencia en una red móvil. La configuración de GitHub Pages sigue siendo independiente: las validaciones de código pasan, pero publicar requiere que Pages esté habilitado y configurado en Actions.
