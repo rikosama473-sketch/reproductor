@@ -715,6 +715,7 @@ function showView(view) {
 async function playTrack(trackId, autoplay = true, options = {}) {
   const track = getTrack(trackId);
   if (!track) return;
+  if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
   state.currentId = track.id;
@@ -1183,6 +1184,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   addHistoryEntry({ id: id(), kind: "youtube", videoId, title, artist: "YouTube", playedAt: Date.now(), embeddable: true, madeForKids: false, source: "YouTube" })
     .then(() => getHistory(250)).then(history => { state.history = history; renderHistory(); }).catch(() => {});
   $("#youtube-player-wrap").hidden = false;
+  renderQueue();
   $("#youtube-player-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 function updateYoutubeKeyStatus(message = "") {

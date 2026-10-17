@@ -87,3 +87,8 @@ assert.match(app, /data-queue-remove/, "Queue items should be removable without 
 assert.match(app, /function toggleMute/, "Mute should remember the previous audible volume");
 assert.match(app, /lastAudibleVolume/, "The previous audible volume should be preserved between mute toggles");
 console.log("Editable queue and persistent mute control smoke checks passed.");
+
+
+assert.match(app, /if \(!\$\("#youtube-player-wrap"\)\.hidden\) stopYoutubePlayback\(\)/, "Starting local/URL audio must stop an active YouTube iframe to prevent overlapping audio");
+assert.match(app, /function playYoutubeVideo[\s\S]*?renderQueue\(\);/, "Starting YouTube should refresh queue status");
+console.log("YouTube/native audio source transition checks passed.");
