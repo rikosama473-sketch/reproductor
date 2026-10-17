@@ -8,6 +8,9 @@ let audio = defaultAudio;
 let audioContext = null;
 let audioGraph = null;
 let screenWakeLock = null;
+let playbackRequestId = 0;
+let youtubeSearchRequestId = 0;
+let archiveSearchRequestId = 0;
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
 const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
@@ -767,6 +770,8 @@ function showView(view) {
 async function playTrack(trackId, autoplay = true, options = {}) {
   const track = getTrack(trackId);
   if (!track) return;
+  const requestId = ++playbackRequestId;
+  const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
   if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
@@ -774,8 +779,11 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   try {
     let desiredEngine = isLocal(track) && audioPrefs.equalizerEnabled ? equalizedAudio : defaultAudio;
     if (desiredEngine === equalizedAudio) {
-      try { await ensureAudioProcessing(); }
-      catch (error) {
+      try {
+        await ensureAudioProcessing();
+        if (!isCurrentPlaybackRequest()) return;
+      } catch (error) {
+        if (!isCurrentPlaybackRequest()) return;
         audioPrefs.equalizerEnabled = false;
         saveAudioPreferences();
         syncSettingsUI();
@@ -783,6 +791,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         toast(error.message || "Ecualizador no disponible; se usará el audio original.");
       }
     }
+    if (!isCurrentPlaybackRequest()) return;
     if (desiredEngine !== audio) {
       const previousEngine = audio;
       previousEngine.pause();
@@ -807,6 +816,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
     }
     if (autoplay) await audio.play();
+    if (!isCurrentPlaybackRequest()) return;
     showPlaybackStatus("");
     if (autoplay && !options.skipHistory) {
       track.lastPlayedAt = Date.now();
@@ -815,12 +825,15 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         await addHistoryEntry({ id: id(), trackId: track.id, kind: track.kind, title: track.title,
           artist: track.artist || "Artista desconocido", album: track.album || "", playedAt: Date.now(),
           source: isLocal(track) ? "Archivo local" : "Stream online" });
-        state.history = await getHistory(250);
+        const refreshedHistory = await getHistory(250);
+        if (isCurrentPlaybackRequest()) state.history = refreshedHistory;
       } catch {}
     }
+    if (!isCurrentPlaybackRequest()) return;
     render();
     updatePlayer();
   } catch (error) {
+    if (!isCurrentPlaybackRequest()) return;
     const extension = (track.name || track.url || "").split(/[?#]/)[0].split(".").pop()?.toUpperCase();
     const message = error?.name === "NotAllowedError"
       ? "El navegador bloqueó el inicio automático. Tocá Reproducir para habilitar el audio."
@@ -1408,6 +1421,8 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
     toast("El enlace de YouTube no contiene un ID de video válido.");
     return;
   }
+  // Selecting a YouTube video supersedes any native-audio request still awaiting play().
+  playbackRequestId += 1;
   const frame = $("#youtube-iframe");
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
