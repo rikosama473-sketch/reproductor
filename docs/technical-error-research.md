@@ -352,3 +352,24 @@ El service worker anterior consultaba `caches.match(request)` antes de la red pa
 ### Límites de la validación
 
 La nueva prueba comprueba el listener real con APIs simuladas de Service Worker/Cache Storage; no es una prueba end-to-end en DevTools ni una auditoría de latencia en una red móvil. La configuración de GitHub Pages sigue siendo independiente: las validaciones de código pasan, pero publicar requiere que Pages esté habilitado y configurado en Actions.
+
+## Revisión adicional — el límite cero del historial se convertía en el valor predeterminado (17 de octubre de 2026)
+
+### Hallazgo reproducible
+
+`getHistory(limit)` normalizaba el límite mediante `Number(limit) || 100`. En JavaScript, el operador `||` sustituye cualquier valor *falsy*, incluido el número válido `0`; por eso `getHistory(0)` devolvía hasta 100 registros en vez de una lista vacía. Esto rompe el contrato intuitivo de un límite de cero y puede sorprender a cualquier pantalla o función que quiera pedir expresamente cero resultados.
+
+### Corrección aplicada
+
+- Se distingue un argumento ausente o `null` del número cero.
+- Se truncan los límites fraccionarios, los límites negativos se restringen a cero y el máximo sigue limitado a 5.000.
+- Se añadieron regresiones automatizadas para cero, límite positivo, valor fraccionario, argumento omitido, `null` y valor negativo.
+- La prueba nueva se ejecuta en el workflow de validación del repositorio.
+
+### Referencia pública consultada
+
+- MDN, [Operador de coalescencia nula (??)](https://developer.mozilla.org/es/docs/Web/JavaScript/Reference/Operators/Nullish_coalescing): explica que `||` usa el segundo operando para todos los valores falsy, incluido `0`, mientras que `??` solo lo hace con `null` o `undefined`. La solución conserva explícitamente cero como límite válido y aplica el valor predeterminado solo a argumento ausente/nulo o numéricamente no finito.
+
+### Validación y límites
+
+La prueba usa un IndexedDB simulado para verificar el resultado real de `getHistory`; no depende de datos del navegador del usuario. La suite sigue sin reemplazar pruebas manuales de toda la aplicación en navegadores y dispositivos reales.
