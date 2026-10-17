@@ -1,4 +1,5 @@
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
+import { createYoutubeHistoryController } from "./youtube-history.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -47,6 +48,13 @@ function escapeHTML(value) {
 function id() {
   return globalThis.crypto?.randomUUID ? crypto.randomUUID() : "track-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 }
+const youtubeHistory = createYoutubeHistoryController({
+  addHistoryEntry,
+  getHistory,
+  createId: id,
+  now: () => Date.now(),
+  onHistoryUpdated: history => { state.history = history; renderHistory(); }
+});
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const m = Math.floor(seconds / 60);
@@ -778,9 +786,70 @@ function updateConnection() {
   $("#connection-label").textContent = online ? "Conectado" : "Sin conexión";
   $("#connection-dot").classList.toggle("offline", !online);
 }
+let youtubePlayer = null;
+let youtubePlayerApiPromise = null;
+
+function recordConfirmedYoutubePlayback(event) {
+  if (!window.YT || event.data !== window.YT.PlayerState.PLAYING) return;
+  const player = event.target;
+  if (typeof player?.getPlayerState === "function" && player.getPlayerState() !== window.YT.PlayerState.PLAYING) return;
+  youtubeHistory.recordPlaying(player?.getVideoData?.()?.video_id);
+}
+
+function attachYoutubePlayer(frame) {
+  if (youtubePlayer || !window.YT?.Player || !frame) return;
+  try {
+    youtubePlayer = new window.YT.Player(frame, {
+      events: {
+        onReady: event => {
+          const iframe = event.target.getIframe();
+          iframe.title = "Reproductor oficial de YouTube";
+          iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+          iframe.setAttribute("allowfullscreen", "");
+          if (event.target.getPlayerState() === window.YT.PlayerState.PLAYING) {
+            youtubeHistory.recordPlaying(event.target.getVideoData()?.video_id);
+          }
+        },
+        onStateChange: recordConfirmedYoutubePlayback
+      }
+    });
+  } catch {
+    // Direct iframe playback remains available even if the optional event API fails.
+    youtubePlayer = null;
+  }
+}
+
+function ensureYoutubePlayerApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (youtubePlayerApiPromise) return youtubePlayerApiPromise;
+
+  youtubePlayerApiPromise = new Promise((resolve, reject) => {
+    const previousReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      try { if (typeof previousReady === "function") previousReady(); } catch {}
+      resolve(window.YT);
+    };
+    let script = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+    }
+    script.addEventListener("error", () => {
+      youtubePlayerApiPromise = null;
+      reject(new Error("No se pudo cargar la API de eventos de YouTube."));
+    }, { once: true });
+    if (!script.isConnected) document.head.appendChild(script);
+  });
+  return youtubePlayerApiPromise;
+}
+
 function stopYoutubePlayback() {
+  youtubeHistory.cancel();
   const frame = $("#youtube-iframe");
-  if (frame && frame.src && frame.src.includes("youtube.com/embed/")) {
+  if (youtubePlayer) {
+    try { youtubePlayer.stopVideo(); } catch {}
+  } else if (frame && frame.src && frame.src.includes("youtube.com/embed/")) {
     frame.src = "about:blank";
   }
   const wrap = $("#youtube-player-wrap");
@@ -1514,10 +1583,30 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   // Selecting a YouTube video supersedes any native-audio request still awaiting play().
   cancelPendingPlaybackIntent();
   const frame = $("#youtube-iframe");
+  const sessionId = youtubeHistory.select(videoId, title);
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
   const origin = location.origin && location.origin !== "null" ? "&origin=" + encodeURIComponent(location.origin) : "";
-  frame.src = "https://www.youtube.com/embed/" + encodeURIComponent(videoId) + "?autoplay=1&playsinline=1&rel=0&enablejsapi=1" + origin;
+  const embedURL = "https://www.youtube.com/embed/" + encodeURIComponent(videoId) + "?autoplay=1&playsinline=1&rel=0&enablejsapi=1" + origin;
+  if (youtubePlayer) {
+    try {
+      youtubePlayer.loadVideoById(videoId);
+    } catch {
+      youtubePlayer = null;
+      frame.src = embedURL;
+    }
+  } else {
+    // Start the official embed immediately from the user's click. The API attaches
+    // asynchronously to observe the actual PLAYING state, without delaying autoplay.
+    frame.src = embedURL;
+    ensureYoutubePlayerApi().then(() => {
+      if (youtubeHistory.getCurrentSession()?.sessionId !== sessionId) return;
+      attachYoutubePlayer(frame);
+    }).catch(() => {
+      // Playback remains available through the iframe; without state events we do not
+      // claim that the selected video was actually played in the history.
+    });
+  }
   audio.pause();
   audio.removeAttribute("src");
   audio.load();
@@ -1525,8 +1614,6 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   state.currentId = null;
   state.queueIds = null;
   updatePlayer();
-  addHistoryEntry({ id: id(), kind: "youtube", videoId, title, artist: "YouTube", playedAt: Date.now(), embeddable: true, madeForKids: false, source: "YouTube" })
-    .then(() => getHistory(250)).then(history => { state.history = history; renderHistory(); }).catch(() => {});
   $("#youtube-player-wrap").hidden = false;
   renderQueue();
   $("#youtube-player-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
