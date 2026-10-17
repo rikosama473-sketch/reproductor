@@ -73,3 +73,17 @@ assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must re
 assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
 assert.match(sw, /ritmo-shell-v4/, "Service-worker cache must refresh after playback settings are added");
 console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
+
+
+assert.match(html, /id="queue-dialog"/, "Queue button should open a dedicated editable queue");
+assert.match(html, /id="queue-items"/, "Queue dialog should render the active queue");
+assert.match(html, /id="queue-from-library"/, "Queue should be resettable to library order");
+assert.match(html, /id="volume-mute-button"/, "Player should expose a dedicated mute/unmute action");
+assert.match(app, /function activeQueueIds/, "The queue should distinguish library order from an explicit empty/custom queue");
+assert.match(app, /function renderQueue/, "The queue UI should expose actual queued tracks and order controls");
+assert.match(app, /data-queue-up/, "Queue items should be reorderable");
+assert.match(app, /data-queue-down/, "Queue items should be reorderable in both directions");
+assert.match(app, /data-queue-remove/, "Queue items should be removable without deleting library files");
+assert.match(app, /function toggleMute/, "Mute should remember the previous audible volume");
+assert.match(app, /lastAudibleVolume/, "The previous audible volume should be preserved between mute toggles");
+console.log("Editable queue and persistent mute control smoke checks passed.");
