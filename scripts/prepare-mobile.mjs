@@ -1,4 +1,4 @@
-import { cp, copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { cp, copyFile, mkdir, readdir, rm, stat, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,8 +23,36 @@ for (const name of directories) {
   await cp(source, path.join(webDir, name), { recursive: true });
 }
 
+// Vanilla ES modules do not bundle @capacitor/core. The native bridge runtime
+// must be copied into the packaged site and loaded before src/app.js.
+const runtimeSource = path.join(root, "node_modules", "@capacitor", "core", "dist", "capacitor.js");
+const runtimeInfo = await stat(runtimeSource).catch(() => null);
+if (!runtimeInfo?.isFile()) {
+  throw new Error("Falta @capacitor/core/dist/capacitor.js. Ejecutá npm install antes de preparar Android.");
+}
+const runtimeText = await readFile(runtimeSource, "utf8");
+if (!runtimeText.includes("nativePromise") || !runtimeText.includes("getPlatform")) {
+  throw new Error("El runtime de Capacitor no expone las API del puente esperadas.");
+}
+await copyFile(runtimeSource, path.join(webDir, "capacitor.js"));
+
+const appScriptTag = '<script type="module" src="./src/app.js"></script>';
+const capacitorScriptTag = '<script src="./capacitor.js"></script>';
+let html = await readFile(path.join(webDir, "index.html"), "utf8");
+const appTagCount = html.split(appScriptTag).length - 1;
+if (appTagCount !== 1) {
+  throw new Error("index.html debe incluir exactamente una etiqueta del módulo ./src/app.js.");
+}
+if (!html.includes(capacitorScriptTag)) {
+  html = html.replace(appScriptTag, capacitorScriptTag + "\n  " + appScriptTag);
+}
+if (html.indexOf(capacitorScriptTag) < 0 || html.indexOf(capacitorScriptTag) > html.indexOf(appScriptTag)) {
+  throw new Error("capacitor.js debe cargarse antes de src/app.js para inicializar el puente nativo.");
+}
+await writeFile(path.join(webDir, "index.html"), html, "utf8");
+
 const requiredFiles = [
-  "index.html", "styles.css", "sw.js", "manifest.webmanifest",
+  "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
   "src/app.js", "src/storage.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js",
   "src/youtube-player-errors.js", "assets/icon.svg"
@@ -34,7 +62,7 @@ for (const name of requiredFiles) {
   if (!info?.isFile()) throw new Error("El paquete web no contiene " + name);
 }
 
-const sw = await (await import("node:fs/promises")).readFile(path.join(webDir, "sw.js"), "utf8");
+const sw = await readFile(path.join(webDir, "sw.js"), "utf8");
 const shellBlock = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
 if (!shellBlock) throw new Error("No se encontró APP_SHELL en sw.js.");
 const entries = [...shellBlock[1].matchAll(/["']\.\/([^"']*)["']/g)]
@@ -46,4 +74,6 @@ for (const entry of entries) {
 }
 
 const topLevel = await readdir(webDir);
-console.log("Paquete web para Android preparado en www/: " + requiredFiles.length + " archivos críticos y " + entries.length + " recursos del shell offline verificados. " + topLevel.length + " entradas principales.");
+console.log("Paquete Android preparado: runtime de Capacitor incluido y cargado antes de app.js; " +
+  requiredFiles.length + " archivos críticos y " + entries.length + " recursos offline verificados. " +
+  topLevel.length + " entradas principales.");
