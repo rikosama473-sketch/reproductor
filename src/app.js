@@ -350,16 +350,50 @@ function renderYoutubeResults(items, append = false) {
     const title = snippet.title || "Video de YouTube";
     const channel = snippet.channelTitle || "Canal de YouTube";
     const published = snippet.publishedAt ? new Date(snippet.publishedAt).toLocaleDateString("es-AR") : "";
+    const canEmbed = item.ritmoStatusVerified === true && item.ritmoMadeForKids === false && item.ritmoEmbeddable === true;
+    const thumbnailAction = canEmbed
+      ? 'data-yt-play="' + escapeHTML(videoId) + '" data-yt-title="' + escapeHTML(title) + '"'
+      : 'data-yt-external="' + escapeHTML(videoId) + '"';
+    const playAction = canEmbed
+      ? '<button class="button button-primary" type="button" data-yt-play="' + escapeHTML(videoId) + '" data-yt-title="' + escapeHTML(title) + '">▶ Reproducir aquí</button>'
+      : '<button class="button button-soft" type="button" data-yt-external="' + escapeHTML(videoId) + '">' + (item.ritmoMadeForKids === true ? 'Abrir contenido infantil en YouTube ↗' : 'Abrir en YouTube ↗') + '</button>';
+    const statusNote = item.ritmoStatusVerified !== true
+      ? '<div class="youtube-result-safety">No se pudo verificar si se puede incrustar</div>'
+      : item.ritmoMadeForKids === true
+        ? '<div class="youtube-result-safety">Abrir en YouTube para cuidar la privacidad infantil</div>'
+        : !item.ritmoEmbeddable ? '<div class="youtube-result-safety">Este video solo se abre en YouTube</div>' : '';
     return '<article class="youtube-result">' +
-      '<button class="youtube-thumbnail" type="button" data-yt-play="' + escapeHTML(videoId) + '" data-yt-title="' + escapeHTML(title) + '" aria-label="Reproducir ' + escapeHTML(title) + '">' +
-      (thumbnail ? '<img loading="lazy" src="' + escapeHTML(thumbnail) + '" alt="">' : '<span>▶</span>') + '<span class="yt-play-overlay">▶</span></button>' +
+      '<button class="youtube-thumbnail" type="button" ' + thumbnailAction + ' aria-label="' + (canEmbed ? 'Reproducir ' : 'Abrir ') + escapeHTML(title) + '">' +
+      (thumbnail ? '<img loading="lazy" src="' + escapeHTML(thumbnail) + '" alt="">' : '<span>▶</span>') + '<span class="yt-play-overlay">' + (canEmbed ? '▶' : '↗') + '</span></button>' +
       '<div class="youtube-result-copy"><div class="youtube-result-channel">' + escapeHTML(channel) + '</div><strong>' + escapeHTML(title) + '</strong>' +
       '<p>' + escapeHTML(snippet.description || "Sin descripción disponible.") + '</p><div class="youtube-result-meta">' + escapeHTML(published) + '</div>' +
-      '<div class="youtube-result-actions"><button class="button button-primary" type="button" data-yt-play="' + escapeHTML(videoId) + '" data-yt-title="' + escapeHTML(title) + '">▶ Reproducir aquí</button><a class="button button-soft" href="' + escapeHTML(youtubeVideoURL(videoId)) + '" target="_blank" rel="noopener">Abrir en YouTube ↗</a></div></div></article>';
+      statusNote + '<div class="youtube-result-actions">' + playAction + '<a class="button button-soft" href="' + escapeHTML(youtubeVideoURL(videoId)) + '" target="_blank" rel="noopener noreferrer">Ver en YouTube ↗</a></div></div></article>';
   }).join("");
   if (!append) root.innerHTML = "";
   if (cards) root.insertAdjacentHTML("beforeend", cards);
-  if (!root.children.length && !$("#youtube-player-wrap").hidden) return;
+}
+async function annotateYoutubeVideoStatus(items, key) {
+  const ids = (items || []).map(item => item.id?.videoId).filter(value => /^[A-Za-z0-9_-]{11}$/.test(value || ""));
+  if (!ids.length) return [];
+  const params = new URLSearchParams({ part: "status", id: ids.join(","), key });
+  const response = await fetch("https://www.googleapis.com/youtube/v3/videos?" + params.toString());
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    const error = data.error || {};
+    const reason = error.errors?.[0]?.reason || error.status || "";
+    throw new Error(readableYoutubeApiError(reason, error.message));
+  }
+  const statusById = new Map((data.items || []).map(video => [video.id, video.status]));
+  return (items || []).map(item => {
+    const status = statusById.get(item.id?.videoId);
+    const checked = Boolean(status && typeof status.madeForKids === "boolean" && typeof status.embeddable === "boolean");
+    return {
+      ...item,
+      ritmoStatusVerified: checked,
+      ritmoMadeForKids: checked ? status.madeForKids : null,
+      ritmoEmbeddable: checked && status.embeddable === true
+    };
+  });
 }
 async function searchYoutube(pageToken = "") {
   const query = $("#youtube-query").value.trim();
@@ -376,7 +410,7 @@ async function searchYoutube(pageToken = "") {
   const button = $("#youtube-search-button");
   button.disabled = true;
   button.textContent = "Buscando…";
-  setYoutubeStatus("Buscando en YouTube…", "info");
+  setYoutubeStatus("Buscando canciones y comprobando el estado de los videos…", "info");
   try {
     const params = new URLSearchParams({
       part: "snippet",
@@ -397,14 +431,28 @@ async function searchYoutube(pageToken = "") {
       const reason = error.errors?.[0]?.reason || error.status || "";
       throw new Error(readableYoutubeApiError(reason, error.message));
     }
-    const items = Array.isArray(data.items) ? data.items : [];
+    const rawItems = Array.isArray(data.items) ? data.items : [];
+    let items = rawItems;
+    let statusChecked = true;
+    try {
+      items = await annotateYoutubeVideoStatus(rawItems, key);
+    } catch {
+      statusChecked = false;
+      items = rawItems.map(item => ({ ...item, ritmoStatusVerified: false, ritmoMadeForKids: null, ritmoEmbeddable: false }));
+    }
     if (!pageToken) state.youtubeResults = items;
     else state.youtubeResults.push(...items);
     state.youtubeNextPageToken = data.nextPageToken || null;
     renderYoutubeResults(items, Boolean(pageToken));
     $("#youtube-load-more").hidden = !state.youtubeNextPageToken;
     $("#youtube-open-search").classList.remove("needs-attention");
-    setYoutubeStatus(items.length ? "Encontré " + items.length + " resultados nuevos para «" + query + "»." : "No encontré resultados. Probá otro título o artista.", items.length ? "success" : "info");
+    if (!statusChecked && items.length) {
+      setYoutubeStatus("Encontré resultados, pero no pude verificar los permisos de incrustación. Por seguridad, se abren directamente en YouTube.", "error");
+    } else if (items.length) {
+      setYoutubeStatus("Encontré " + items.length + " resultados nuevos para «" + query + "». Algunos videos solo se abrirán directamente en YouTube según su estado y disponibilidad.", "success");
+    } else {
+      setYoutubeStatus("No encontré resultados. Probá otro título o artista.", "info");
+    }
   } catch (error) {
     setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
   } finally {
@@ -454,6 +502,11 @@ function bindEvents() {
   });
   $("#youtube-load-more").addEventListener("click", () => { if (state.youtubeNextPageToken) searchYoutube(state.youtubeNextPageToken); });
   $("#youtube-results").addEventListener("click", event => {
+    const external = event.target.closest("[data-yt-external]");
+    if (external) {
+      openExternal(youtubeVideoURL(external.dataset.ytExternal));
+      return;
+    }
     const button = event.target.closest("[data-yt-play]");
     if (button) playYoutubeVideo(button.dataset.ytPlay, button.dataset.ytTitle || "Video de YouTube");
   });

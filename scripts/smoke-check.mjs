@@ -25,3 +25,9 @@ assert.match(app, /youtube\.com\/embed\//, "Playback must use the official YouTu
 assert.match(app, /YOUTUBE_KEY_STORAGE/, "The optional API key must be stored locally by the user");
 assert.match(app, /youtube\.com\/results\?search_query=/, "Search without an API key must have an external YouTube fallback");
 console.log("YouTube integration smoke checks passed.");
+
+assert.match(app, /youtube\/v3\/videos/, "App must check video status before embedding search results");
+assert.match(app, /status\.madeForKids/, "App must check the Made for Kids status of a video");
+assert.match(app, /ritmoStatusVerified === true/, "Only checked videos may be embedded");
+assert.match(app, /data-yt-external/, "Unverified or child-directed videos must use external YouTube links");
+console.log("YouTube embedding status checks passed.");
