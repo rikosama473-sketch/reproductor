@@ -1,6 +1,7 @@
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
 import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
+import { clearMediaSession } from "./media-session-state.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -757,7 +758,7 @@ async function clearPlaybackHistory() {
 function updateMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const track = currentTrack();
-  if (!track) { try { navigator.mediaSession.playbackState = "none"; } catch {} return; }
+  if (!track) { clearMediaSession(navigator.mediaSession, state); return; }
   if (state.mediaSessionTrackId !== track.id && "MediaMetadata" in window) {
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -1211,6 +1212,7 @@ async function removeCurrent() {
   releaseUnusedObjectURLs(null);
   state.currentId = null;
   updatePlayer();
+  updateMediaSession();
 }
 async function addStream(event) {
   event.preventDefault();
@@ -1697,6 +1699,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   state.currentId = null;
   state.queueIds = null;
   updatePlayer();
+  updateMediaSession();
   $("#youtube-player-wrap").hidden = false;
   renderQueue();
   $("#youtube-player-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
