@@ -109,3 +109,24 @@ Esta segunda auditoría encontró tres fallos adicionales de la aplicación y un
 ### Validación
 
 Se añadieron comprobaciones de regresión al smoke check para asegurar que el volumen guardado no vuelva a sobrescribirse, las URLs de objetos inactivas se limpien y las importaciones por carpeta distingan archivos homónimos. Estas comprobaciones son de código/estructura; no sustituyen una prueba manual en Safari/iOS ni una sesión de escucha real.
+
+
+## Tercera pasada — 17 de octubre de 2026
+
+Se encontraron dos clases más de fallos funcionales al revisar qué ocurre cuando el almacenamiento rechaza una escritura y cuando el usuario cambia el volumen con el temporizador ya iniciado.
+
+| Hallazgo | Cómo se manifestaba | Corrección aplicada |
+| --- | --- | --- |
+| Favoritos optimistas después de un fallo de almacenamiento | Las vistas de biblioteca y el reproductor cambiaban `track.favorite` antes de `saveTrack()`. Si IndexedDB rechazaba la escritura, el estado en memoria no volvía al valor guardado y la interfaz podía mostrar un favorito que se perdería al recargar. | Se conserva el valor anterior y se restaura tanto el estado en memoria como la interfaz cuando falla la escritura. |
+| Cambios de listas no se revertían al fallar IndexedDB | Agregar o quitar una pista modificaba `list.trackIds` antes de `savePlaylist()`. En caso de error, los siguientes intentos usaban la lista modificada en memoria aunque nunca se hubiera guardado. | Se guarda una copia previa de la lista y su marca de modificación; ante el error, ambos se restauran y se vuelve a representar la vista. |
+| La búsqueda vacía de la biblioteca no mostraba ayuda | Cuando la biblioteca ya tenía canciones, una búsqueda sin coincidencias escondía el único estado vacío. El usuario veía una lista en blanco sin saber si no había resultados. | Añadido `library-no-results` separado de la invitación a importar música y ajustada su visibilidad para distinguir biblioteca vacía de consulta sin coincidencias. |
+| El temporizador de apagado sobrescribía un volumen más reciente | El cierre gradual conservaba en una variable el volumen leído al iniciar el temporizador. Un cambio hecho por el usuario mientras el temporizador esperaba, o durante el fundido, se perdía al bajar o restaurar el volumen. | Cada paso del fundido lee el control de volumen actual y, al detener la música, restaura ese mismo valor vigente, no el capturado al principio. |
+
+### Fuentes consultadas
+
+- MDN, [IDBTransaction](https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction): una transacción puede abortar por errores de E/S o por cuota excedida; el estado de la interfaz no debe dar por guardado un cambio rechazado.
+- MDN, [HTMLMediaElement.volume](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/volume): documenta que el volumen del medio se controla mediante un valor entre 0 y 1. La lógica del fundido debe respetar el volumen que el usuario tiene seleccionado actualmente.
+
+### Validación
+
+Se ampliaron los smoke checks para detectar si las ediciones de favoritos y listas incluyen rollback en caso de error de persistencia y si el temporizador lee el volumen actualizado tanto durante el fundido como al terminar. Son pruebas de regresión estructurales; los casos de presión de cuota y reproducción prolongada todavía conviene verificarlos manualmente en navegadores/dispositivos reales.
