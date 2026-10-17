@@ -1,10 +1,35 @@
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrack, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
 
 const $ = selector => document.querySelector(selector);
-const audio = $("#audio-engine");
+const defaultAudio = $("#audio-engine");
+const equalizedAudio = new Audio();
+equalizedAudio.preload = "metadata";
+let audio = defaultAudio;
+let audioContext = null;
+let audioGraph = null;
+let screenWakeLock = null;
+const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true };
+function loadAudioPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
+    return {
+      ...DEFAULT_AUDIO_PREFS,
+      ...(saved && typeof saved === "object" ? saved : {}),
+      bass: Math.max(-12, Math.min(12, Number(saved?.bass) || 0)),
+      mid: Math.max(-12, Math.min(12, Number(saved?.mid) || 0)),
+      treble: Math.max(-12, Math.min(12, Number(saved?.treble) || 0)),
+      equalizerEnabled: saved?.equalizerEnabled === true,
+      limiter: saved?.limiter !== false,
+      keepScreenAwake: saved?.keepScreenAwake === true,
+      fadeOutAtEnd: saved?.fadeOutAtEnd !== false
+    };
+  } catch { return { ...DEFAULT_AUDIO_PREFS }; }
+}
+const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
-const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", mediaSessionTrackId: null };
+const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", mediaSessionTrackId: null };
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online" };
 
