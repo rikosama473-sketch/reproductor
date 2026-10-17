@@ -46,6 +46,9 @@ jobs:
       - name: Generate native Android project
         run: npx cap add android
 
+      - name: Install native audio library bridge and Android permissions
+        run: node scripts/prepare-android-native.mjs
+
       - name: Synchronize Capacitor project
         run: npx cap sync android
 
