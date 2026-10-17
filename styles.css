@@ -111,3 +111,51 @@
  .queue-footer{flex-direction:column}
  .queue-footer .button{width:100%}
 }
+
+/* Catálogo de audio con licencias abiertas */
+.open-audio-section{margin:30px 0 26px;padding:24px;background:linear-gradient(135deg,#1d202a,#1a1b25);border:1px solid var(--line);border-radius:16px}
+.open-audio-section .youtube-section-heading{margin-bottom:18px}
+.archive-search-form{display:flex;align-items:stretch;gap:10px;margin:17px 0}
+.archive-search-box{display:flex;align-items:center;gap:10px;flex:1;min-width:0;min-height:48px;padding:0 14px;border:1px solid #3a3a4b;border-radius:11px;background:#11131a;color:#9595aa}
+.archive-search-box>span{font-size:22px}
+.archive-search-box input{border:0;outline:0;background:transparent;color:#efedf9;width:100%;min-width:0;font:500 13px "DM Sans",sans-serif}
+.archive-search-box input::placeholder{color:#77798e}
+.archive-status{font-size:12px;line-height:1.65;color:var(--muted);margin:12px 0;overflow-wrap:anywhere}
+.archive-results{display:grid;gap:11px;margin-top:16px}
+.archive-result{display:grid;gap:12px;padding:15px;border:1px solid var(--line);background:#20222c;border-radius:12px;min-width:0}
+.archive-result-main{min-width:0}
+.archive-result-label{font:800 9px Manrope,sans-serif;letter-spacing:1.1px;color:#c1a7ff;margin-bottom:7px}
+.archive-result-main>strong{display:block;font:700 14px Manrope,sans-serif;line-height:1.45;overflow-wrap:anywhere}
+.archive-result-main>small{display:block;color:#aaaabc;font-size:11px;margin-top:5px;line-height:1.45}
+.archive-result-main>p{font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0}
+.archive-result-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.archive-result-actions .button{font-size:11px}
+.archive-files{padding-top:13px;border-top:1px solid #373746;min-width:0}
+.archive-files[hidden]{display:none}
+.archive-license-badge{padding:12px;border-radius:9px;background:#282536;border:1px solid #514268;font-size:11px;line-height:1.6;color:#e4d9ff;overflow-wrap:anywhere}
+.archive-license-badge p{margin:6px 0 0;color:#b3aec5}
+.archive-license-badge a{color:#d5c4ff;text-decoration:underline;text-underline-offset:3px}
+.archive-file-list{display:grid;gap:7px;margin-top:11px}
+.archive-file-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #343543;min-width:0}
+.archive-file-copy{display:grid;gap:4px;min-width:0;flex:1}
+.archive-file-copy strong{font-size:11px;font-weight:600;overflow-wrap:anywhere}
+.archive-file-copy small{font-size:10px;color:var(--muted)}
+.archive-file-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;flex-shrink:0}
+.archive-file-actions .button{min-height:31px;padding:0 9px;font-size:10px}
+.archive-download-link{font-size:10px;color:#c4b2ff;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.archive-inline-status{font-size:11px;line-height:1.6;color:#b8b7c8}
+.archive-inline-error{color:#ffb9b0}
+.archive-inline-error a{display:inline-block;color:#d4c0ff;margin-left:6px;text-decoration:underline}
+.archive-load-more{margin-top:14px}
+.archive-rights-note{font-size:10px;line-height:1.65;color:#83869a;margin:12px 0 0}
+@media(max-width:680px){
+ .open-audio-section{padding:18px 13px}
+ .archive-search-form{flex-direction:column}
+ .archive-search-form>.button{width:100%}
+ .archive-file-row{align-items:flex-start;flex-direction:column;gap:10px}
+ .archive-file-actions{width:100%;justify-content:flex-start}
+ .archive-result-actions{align-items:stretch}
+ .archive-result-actions .button{flex:1;text-align:center}
+}
+.archive-track-download{display:inline-grid;place-items:center;text-decoration:none;flex-shrink:0}
+.archive-track-download:hover{color:#d5c4ff}

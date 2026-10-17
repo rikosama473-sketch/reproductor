@@ -31,7 +31,7 @@ function loadAudioPreferences() {
 const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
-const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", mediaSessionTrackId: null };
+const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null };
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online" };
 
@@ -120,7 +120,9 @@ function trackRow(track, index) {
     '<div class="track-copy"><strong>' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div></div>' +
     '<span class="source-tag' + (isLocal(track) ? "" : " stream") + '">' + (isLocal(track) ? "Offline" : "Online") + '</span>' +
     '<span class="track-duration">' + (track.duration ? formatTime(track.duration) : "—") + '</span>' +
-    '<div class="track-actions"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + (track.kind === "url" ? '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión (si está permitido)" aria-label="Guardar audio online sin conexión">⇩</button>' : '') + '<button class="row-icon' + favClass + '" data-favorite="' + escapeHTML(track.id) + '" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div>';
+    '<div class="track-actions"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + (track.kind === "url" ? (track.sourceProvider === "Internet Archive"
+      ? '<a class="row-icon archive-track-download" href="' + escapeHTML(track.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original para descargar" aria-label="Abrir archivo original para descargar">⇩</a>'
+      : '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión (si está permitido)" aria-label="Guardar audio online sin conexión">⇩</button>') : '') + '<button class="row-icon' + favClass + '" data-favorite="' + escapeHTML(track.id) + '" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div>';
 }
 function bindRenderedActions(root) {
   root.querySelectorAll("[data-play]").forEach(button => {
@@ -1017,6 +1019,193 @@ function openExternal(url) {
   link.click();
   link.remove();
 }
+const ARCHIVE_PAGE_SIZE = 12;
+const ARCHIVE_AUDIO_EXTENSIONS = /\.(mp3|m4a|aac|wav|wave|ogg|oga|opus|flac|aiff|aif|mp2)$/i;
+function archiveItemURL(identifier) {
+  return "https://archive.org/details/" + encodeURIComponent(identifier);
+}
+function archiveFileURL(identifier, name) {
+  const encodedName = String(name || "").split("/").map(part => encodeURIComponent(part)).join("/");
+  return "https://archive.org/download/" + encodeURIComponent(identifier) + "/" + encodedName;
+}
+function archiveValue(value) {
+  if (Array.isArray(value)) return value.map(item => String(item ?? "")).filter(Boolean).join(", ");
+  return String(value ?? "");
+}
+function renderArchiveResults(items, append = false) {
+  const root = $("#archive-results");
+  const cards = (items || []).map(item => {
+    const identifier = String(item.identifier || "");
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(identifier)) return "";
+    const title = archiveValue(item.title) || identifier;
+    const creator = archiveValue(item.creator) || "Autoría no indicada en metadatos";
+    const year = archiveValue(item.year || item.date);
+    const note = "Creative Commons declarado por los metadatos; verificá condiciones específicas en la ficha.";
+    return '<article class="archive-result" data-archive-result="' + escapeHTML(identifier) + '">' +
+      '<div class="archive-result-main"><div class="archive-result-label">INTERNET ARCHIVE · AUDIO</div><strong>' + escapeHTML(title) + '</strong>' +
+      '<small>' + escapeHTML(creator) + (year ? " · " + escapeHTML(year) : "") + '</small><p>' + note + '</p>' +
+      '<div class="archive-result-actions"><button class="button button-primary" type="button" data-archive-inspect="' + escapeHTML(identifier) + '">Ver licencia y archivos</button>' +
+      '<a class="button button-soft" target="_blank" rel="noopener noreferrer" href="' + escapeHTML(archiveItemURL(identifier)) + '">Abrir ficha ↗</a></div></div>' +
+      '<div class="archive-files" data-archive-files="' + escapeHTML(identifier) + '" hidden></div></article>';
+  }).join("");
+  if (!append) root.innerHTML = "";
+  if (cards) root.insertAdjacentHTML("beforeend", cards);
+}
+function renderArchiveFiles(identifier, container, entry) {
+  const license = entry.license;
+  const licenseLink = '<a href="' + escapeHTML(license) + '" target="_blank" rel="noopener noreferrer">Leer la licencia Creative Commons ↗</a>';
+  const filesHTML = entry.files.map((file, index) => {
+    const size = Number(file.size) > 0 ? formatBytes(Number(file.size)) : "Tamaño no indicado";
+    const format = archiveValue(file.format) || file.name.split(".").pop().toUpperCase();
+    const url = archiveFileURL(identifier, file.name);
+    return '<div class="archive-file-row"><div class="archive-file-copy"><strong>' + escapeHTML(file.name) + '</strong><small>' +
+      escapeHTML(format) + ' · ' + escapeHTML(size) + '</small></div><div class="archive-file-actions">' +
+      '<button class="button button-soft" type="button" data-archive-add="' + escapeHTML(identifier) + '" data-archive-file-index="' + index + '">Agregar</button>' +
+      '<button class="button button-primary" type="button" data-archive-play="' + escapeHTML(identifier) + '" data-archive-file-index="' + index + '">Reproducir</button>' +
+      '<a class="archive-download-link" href="' + escapeHTML(url) + '" target="_blank" rel="noopener noreferrer">Descargar original ↗</a></div></div>';
+  }).join("");
+  container.innerHTML = '<div class="archive-license-badge"><strong>Licencia declarada:</strong> ' + licenseLink +
+    '<p>Guardá o compartí la obra respetando la licencia indicada. La ficha de origen es la referencia para las condiciones aplicables.</p></div>' +
+    '<div class="archive-file-list">' + filesHTML + '</div>';
+  container.hidden = false;
+}
+async function inspectArchiveItem(identifier, button) {
+  const container = document.querySelector('[data-archive-files="' + identifier + '"]');
+  if (!container) return;
+  const cached = state.archiveFileCache.get(identifier);
+  if (cached) {
+    container.hidden = !container.hidden;
+    if (!container.hidden) renderArchiveFiles(identifier, container, cached);
+    button.textContent = container.hidden ? "Ver licencia y archivos" : "Ocultar archivos";
+    return;
+  }
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "Comprobando…";
+  container.hidden = false;
+  container.innerHTML = '<p class="archive-inline-status">Comprobando licencia y formatos disponibles…</p>';
+  try {
+    const response = await fetch("https://archive.org/metadata/" + encodeURIComponent(identifier), {
+      mode: "cors", credentials: "omit", cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Internet Archive respondió " + response.status + ".");
+    const data = await response.json();
+    const metadata = data.metadata || {};
+    const result = state.archiveResults.find(item => item.identifier === identifier) || {};
+    const license = archiveValue(metadata.licenseurl || result.licenseurl);
+    const mediatype = archiveValue(metadata.mediatype || result.mediatype).toLowerCase();
+    let parsedLicense = null;
+    try { parsedLicense = new URL(license); } catch {}
+    const isCCLicense = Boolean(parsedLicense && (parsedLicense.hostname === "creativecommons.org" || parsedLicense.hostname.endsWith(".creativecommons.org")) &&
+      /\/(licenses|publicdomain)\//i.test(parsedLicense.pathname));
+    if (mediatype !== "audio" || !isCCLicense) {
+      throw new Error("No pude verificar una licencia Creative Commons y un tipo de elemento de audio en sus metadatos. Por seguridad no ofrezco estos archivos desde Ritmo; revisá la ficha original.");
+    }
+    const preferred = { mp3: 0, m4a: 1, aac: 2, ogg: 3, oga: 3, opus: 4, flac: 5, wav: 6, wave: 6, aiff: 7, aif: 7, mp2: 8 };
+    const files = (Array.isArray(data.files) ? data.files : [])
+      .filter(file => file && typeof file.name === "string" && ARCHIVE_AUDIO_EXTENSIONS.test(file.name) && file.private !== "true")
+      .filter(file => !Number(file.size) || Number(file.size) > 0)
+      .sort((a, b) => {
+        const ae = a.name.split(".").pop().toLowerCase(), be = b.name.split(".").pop().toLowerCase();
+        return (preferred[ae] ?? 99) - (preferred[be] ?? 99) || (Number(a.size) || 0) - (Number(b.size) || 0);
+      }).slice(0, 12);
+    if (!files.length) throw new Error("La ficha declara licencia Creative Commons, pero no encontramos archivos de audio directos en formatos conocidos. Abrí la ficha original para ver todos sus formatos.");
+    const entry = { metadata, result, license, files };
+    state.archiveFileCache.set(identifier, entry);
+    renderArchiveFiles(identifier, container, entry);
+  } catch (error) {
+    container.innerHTML = '<p class="archive-inline-status archive-inline-error">' + escapeHTML(error.message || "No se pudo verificar este elemento.") +
+      ' <a href="' + escapeHTML(archiveItemURL(identifier)) + '" target="_blank" rel="noopener noreferrer">Abrir la ficha original ↗</a></p>';
+  } finally {
+    button.disabled = false;
+    button.textContent = state.archiveFileCache.has(identifier) ? (container.hidden ? "Ver licencia y archivos" : "Ocultar archivos") : original;
+  }
+}
+async function addArchiveFile(identifier, index, playNow = false) {
+  const entry = state.archiveFileCache.get(identifier);
+  const file = entry?.files[index];
+  if (!entry || !file) { toast("Volvé a comprobar la licencia y los archivos de este resultado."); return; }
+  const url = archiveFileURL(identifier, file.name);
+  let track = state.tracks.find(item => item.kind === "url" && item.url === url);
+  if (!track) {
+    const baseTitle = archiveValue(entry.metadata.title || entry.result.title) || titleFromFilename(file.name);
+    const fileTitle = titleFromFilename(file.name);
+    track = {
+      id: id(), kind: "url", url, name: file.name,
+      title: entry.files.length > 1 ? (baseTitle + " — " + fileTitle) : baseTitle,
+      artist: archiveValue(entry.metadata.creator || entry.result.creator) || "Autoría no indicada",
+      album: "Internet Archive · Creative Commons", favorite: false,
+      addedAt: Date.now(), duration: 0, lastPlayedAt: 0,
+      sourceProvider: "Internet Archive", sourcePage: archiveItemURL(identifier),
+      licenseUrl: entry.license, archiveIdentifier: identifier, archiveFileName: file.name
+    };
+    try {
+      await saveTrack(track);
+      state.tracks = await getAllTracks();
+      render();
+      toast("Se agregó el audio abierto a tu biblioteca. La pista se reproduce desde Internet Archive.");
+    } catch (error) { toast(error.message || "No se pudo agregar esta fuente."); return; }
+  } else {
+    toast("Ese archivo ya está en tu biblioteca.");
+  }
+  if (playNow) await playTrack(track.id);
+}
+async function searchArchiveAudio(loadMore = false) {
+  const query = loadMore ? state.archiveQuery : $("#archive-query").value.trim();
+  if (!query) { $("#archive-status").textContent = "Escribí un artista, género o título para buscar."; return; }
+  if (!navigator.onLine) { $("#archive-status").textContent = "El catálogo abierto necesita conexión. Tu biblioteca local sigue disponible offline."; return; }
+  if (!loadMore) {
+    state.archiveQuery = query;
+    state.archiveOffset = 0;
+    state.archiveTotal = 0;
+    state.archiveResults = [];
+    state.archiveFileCache.clear();
+    $("#archive-results").innerHTML = "";
+    $("#archive-load-more").hidden = true;
+  }
+  const button = $("#archive-search-button");
+  const loadButton = $("#archive-load-more");
+  button.disabled = true;
+  loadButton.disabled = true;
+  if (!loadMore) button.textContent = "Buscando…";
+  else loadButton.textContent = "Cargando…";
+  $("#archive-status").textContent = "Buscando audio con licencia Creative Commons declarada en Internet Archive…";
+  try {
+    const phrase = '"' + query.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim() + '"';
+    const searchQuery = 'mediatype:audio AND licenseurl:http*creativecommons.org* AND (title:' + phrase +
+      ' OR creator:' + phrase + ' OR subject:' + phrase + ')';
+    const url = new URL("https://archive.org/advancedsearch.php");
+    url.searchParams.set("q", searchQuery);
+    for (const field of ["identifier", "title", "creator", "year", "date", "mediatype", "licenseurl"]) url.searchParams.append("fl[]", field);
+    url.searchParams.set("rows", String(ARCHIVE_PAGE_SIZE));
+    url.searchParams.set("start", String(state.archiveOffset));
+    url.searchParams.set("output", "json");
+    url.searchParams.append("sort[]", "downloads desc");
+    const response = await fetch(url.href, { mode: "cors", credentials: "omit", cache: "no-store" });
+    if (!response.ok) throw new Error("Internet Archive respondió " + response.status + ".");
+    const data = await response.json();
+    if (data.responseHeader?.status !== 0 || !data.response) throw new Error("Internet Archive devolvió una respuesta de búsqueda no válida.");
+    const docs = (Array.isArray(data.response.docs) ? data.response.docs : []).filter(item =>
+      /^[A-Za-z0-9_-]{1,100}$/.test(String(item.identifier || "")) && String(item.mediatype || "audio") === "audio");
+    state.archiveResults = loadMore ? state.archiveResults.concat(docs) : docs;
+    state.archiveTotal = Number(data.response.numFound) || 0;
+    state.archiveOffset = (Number(data.response.start) || 0) + docs.length;
+    renderArchiveResults(docs, loadMore);
+    loadButton.hidden = state.archiveOffset >= state.archiveTotal || docs.length === 0;
+    $("#archive-status").textContent = state.archiveResults.length
+      ? "Mostrando " + state.archiveResults.length + " de " + state.archiveTotal + " resultados que declaran una licencia Creative Commons. Abrí “Ver licencia y archivos” para comprobar los metadatos antes de añadir una pista."
+      : "No se encontraron audios con licencia Creative Commons declarada para «" + query + "». Probá un término más general o abrí Internet Archive directamente.";
+  } catch (error) {
+    $("#archive-status").textContent = (error.message || "No se pudo consultar Internet Archive.") +
+      " Podés abrir su búsqueda pública desde " + "https://archive.org/search?query=" + encodeURIComponent(query);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = 'Buscar catálogo <span>→</span>';
+    loadButton.disabled = false;
+    loadButton.textContent = "Cargar más resultados ↓";
+  }
+}
+
 function setYoutubeStatus(message, kind = "info") {
   const status = $("#youtube-status");
   status.className = "youtube-status " + kind;
@@ -1213,6 +1402,16 @@ function bindEvents() {
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });
   folderPicker.addEventListener("change", async () => { await importFiles(folderPicker.files); folderPicker.value = ""; });
   $("#youtube-search-form").addEventListener("submit", event => { event.preventDefault(); searchYoutube(); });
+  $("#archive-search-form").addEventListener("submit", event => { event.preventDefault(); searchArchiveAudio(false); });
+  $("#archive-load-more").addEventListener("click", () => searchArchiveAudio(true));
+  $("#archive-results").addEventListener("click", event => {
+    const inspect = event.target.closest("[data-archive-inspect]");
+    if (inspect) { inspectArchiveItem(inspect.dataset.archiveInspect, inspect); return; }
+    const add = event.target.closest("[data-archive-add]");
+    if (add) { addArchiveFile(add.dataset.archiveAdd, Number(add.dataset.archiveFileIndex), false); return; }
+    const play = event.target.closest("[data-archive-play]");
+    if (play) addArchiveFile(play.dataset.archivePlay, Number(play.dataset.archiveFileIndex), true);
+  });
   $("#youtube-open-search").addEventListener("click", () => {
     const query = $("#youtube-query").value.trim() || state.youtubeQuery;
     if (!query) { $("#youtube-query").focus(); setYoutubeStatus("Primero escribí una canción o artista.", "info"); return; }
