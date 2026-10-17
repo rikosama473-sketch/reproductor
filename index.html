@@ -98,8 +98,9 @@
 
         <section class="view-panel" id="library-view" hidden>
           <div class="page-intro"><div><div class="eyebrow">TU COLECCIÓN PERSONAL</div><h1>Mi <em>biblioteca.</em></h1><p>Todo lo que importaste, organizado en un solo lugar.</p></div><button class="button button-primary" id="library-import">＋ Importar archivos</button></div>
-          <div class="library-toolbar"><label class="search-box"><span>⌕</span><input id="library-search" type="search" placeholder="Buscar canciones, artistas…" autocomplete="off"><kbd>/</kbd></label><div class="toolbar-meta" id="library-meta">0 canciones</div></div>
-          <div class="track-table-wrap"><div class="track-table-header"><span>#</span><span>TÍTULO</span><span>ORIGEN</span><span>TIEMPO</span><span></span></div><div id="library-tracks" class="track-list"></div></div>
+          <div class="library-toolbar"><label class="search-box"><span>⌕</span><input id="library-search" type="search" placeholder="Buscar canciones, artistas…" autocomplete="off"><kbd>/</kbd></label><div class="library-toolbar-actions"><div class="toolbar-meta" id="library-meta">0 canciones</div><div class="library-view-toggle" role="group" aria-label="Diseño de biblioteca"><button type="button" data-library-mode="grid" aria-pressed="true" title="Ver portadas en cuadrícula" aria-label="Ver portadas en cuadrícula">▦</button><button type="button" data-library-mode="list" aria-pressed="false" title="Ver lista detallada" aria-label="Ver lista detallada">☷</button></div></div></div>
+          <div class="track-table-wrap" id="library-list-view"><div class="track-table-header"><span>#</span><span>TÍTULO</span><span>ORIGEN</span><span>TIEMPO</span><span></span></div><div id="library-tracks" class="track-list"></div></div>
+          <div id="library-grid" class="library-grid" hidden></div>
           <div id="library-empty" class="empty-state compact-empty"><div class="empty-visual"><span>♫</span><i>✦</i></div><h3>Tu biblioteca empieza acá</h3><p>Seleccioná carpetas o archivos de música en tu dispositivo.</p><button class="button button-primary" id="library-empty-import">Importar música</button></div>
           <div id="library-no-results" class="empty-state compact-empty" hidden><div class="empty-visual"><span>⌕</span><i>✦</i></div><h3>No encontramos coincidencias</h3><p>Probá con otro título, artista o palabra de la canción.</p></div>
         </section>
@@ -215,6 +216,7 @@
       <div class="cover-thumb cover-placeholder" id="player-cover"><span>♫</span></div>
       <div class="now-track"><strong id="player-title">Todavía no suena nada</strong><span id="player-artist">Elegí una canción de tu biblioteca</span></div>
       <button class="heart-button" id="player-favorite" aria-label="Marcar favorito" title="Marcar favorito" disabled>♡</button>
+      <button class="icon-button now-playing-open" id="now-playing-open" type="button" aria-label="Abrir reproductor expandido" title="Ver reproducción expandida">⤢</button>
     </div>
     <div class="player-center">
       <div class="player-controls">
@@ -229,7 +231,40 @@
     <div class="player-extra"><button class="volume-icon volume-mute-button" id="volume-mute-button" type="button" aria-label="Silenciar" title="Silenciar / activar sonido">◖))</button><input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen"><button class="icon-button queue-button" id="queue-button" aria-label="Ver cola" title="Mostrar cola">☷</button></div>
   </div>
 
-  <audio id="audio-engine" preload="metadata"></audio>
+    <dialog id="now-playing-dialog" class="app-dialog now-playing-dialog" aria-labelledby="expanded-title">
+    <div class="immersive-backdrop tone-purple" id="expanded-art-backdrop" aria-hidden="true"></div>
+    <div class="expanded-player-shell">
+      <header class="expanded-player-header">
+        <button class="icon-button" id="close-now-playing" type="button" aria-label="Cerrar reproductor expandido" title="Volver a la biblioteca">⌄</button>
+        <div class="expanded-header-label"><span class="expanded-live-dot"></span><span>REPRODUCIENDO AHORA</span><small>RITMO · TU ESPACIO</small></div>
+        <button class="button button-soft expanded-queue-button" id="expanded-queue-button" type="button">☷ <span>Cola</span></button>
+      </header>
+      <div class="expanded-player-content">
+        <div class="expanded-cover-stage">
+          <div class="expanded-cover-art tone-purple" id="expanded-cover" aria-hidden="true"><span class="expanded-cover-number">RITMO / SIDE A</span><span class="expanded-cover-glyph">♫</span><span class="expanded-cover-rings"></span></div>
+          <div class="expanded-orbit expanded-orbit-one"></div><div class="expanded-orbit expanded-orbit-two"></div>
+        </div>
+        <div class="expanded-track-info">
+          <div class="section-kicker">TU BANDA SONORA, A TU MANERA</div>
+          <h2 id="expanded-title">Todavía no suena nada</h2>
+          <div class="expanded-track-bottom"><p id="expanded-artist">Elegí una canción de tu biblioteca</p><button class="heart-button expanded-favorite" id="expanded-favorite-button" type="button" aria-label="Marcar favorito" title="Marcar favorito" disabled>♡</button></div>
+          <div class="expanded-progress"><div class="expanded-timeline"><span id="expanded-current-time">0:00</span><span id="expanded-duration-time">0:00</span></div><input type="range" id="expanded-seek-bar" min="0" max="1000" value="0" aria-label="Posición de reproducción" disabled></div>
+          <div class="expanded-controls">
+            <button class="expanded-side-control" id="expanded-shuffle-button" type="button" aria-label="Aleatorio" title="Aleatorio">⤨</button>
+            <button class="expanded-side-control" id="expanded-previous-button" type="button" aria-label="Anterior" title="Anterior">|‹</button>
+            <button class="expanded-play-button" id="expanded-play-button" type="button" aria-label="Reproducir" disabled>▶</button>
+            <button class="expanded-side-control" id="expanded-next-button" type="button" aria-label="Siguiente" title="Siguiente">›|</button>
+            <button class="expanded-side-control" id="expanded-repeat-button" type="button" aria-label="Repetición" title="Repetición">↻</button>
+          </div>
+          <div class="expanded-volume-row"><span>−</span><input type="range" id="expanded-volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen"><span>＋</span><span class="expanded-volume-label">VOLUMEN</span></div>
+          <div class="expanded-source-line"><span class="expanded-source-dot"></span><span id="expanded-source-label">Listo cuando vos quieras</span></div>
+        </div>
+      </div>
+      <footer class="expanded-player-footer"><span>HECHO PARA ESCUCHAR</span><span>♫</span><span>RITMO PERSONAL PLAYER</span></footer>
+    </div>
+  </dialog>
+
+<audio id="audio-engine" preload="metadata"></audio>
   <input type="file" id="file-picker" accept="audio/*,.mp3,.m4a,.mp4,.aac,.wav,.wave,.ogg,.oga,.opus,.webm,.flac,.aiff,.aif,.alac,.wma,.ape,.mp2,.mid,.midi,.caf,.3gp,.amr" multiple hidden>
   <input type="file" id="folder-picker" accept="audio/*" webkitdirectory multiple hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
