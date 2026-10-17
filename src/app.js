@@ -472,6 +472,7 @@ function startSleepTimer(minutes) {
           equalizedAudio.pause();
           defaultAudio.volume = volume;
           equalizedAudio.volume = volume;
+          stopYoutubePlayback();
           updatePlayer();
           showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
           toast("Temporizador finalizado.");
@@ -479,6 +480,7 @@ function startSleepTimer(minutes) {
       }, 250);
     } else {
       audio.pause();
+      stopYoutubePlayback();
       updatePlayer();
       showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
       toast("Temporizador finalizado.");
@@ -768,8 +770,9 @@ async function downloadStreamOffline(trackId) {
       catch { return "audio-offline"; }
     })();
     const isAudioExtension = /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|caf|3gp|amr)$/i.test(filename);
+    const genericContentType = !rawType || ["application/octet-stream", "application/x-download", "application/ogg", "video/mp4"].includes(rawType);
     if (rawType.startsWith("text/") || rawType.includes("html") ||
-        (!rawType.startsWith("audio/") && !(rawType === "application/octet-stream" && isAudioExtension) && !isAudioExtension)) {
+        !(rawType.startsWith("audio/") || (isAudioExtension && genericContentType))) {
       throw new Error("La URL no parece entregar un archivo de audio directo.");
     }
     const declaredLength = Number(response.headers.get("content-length") || 0);
