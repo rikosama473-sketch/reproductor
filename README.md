@@ -78,6 +78,9 @@ Las reproducciones de YouTube solo guardan metadatos del historial, nunca archiv
 
 ## Ajustes de audio, diagnóstico y recuperación
 
+- **Cola de reproducción real:** el botón de cola abre una vista con las canciones que van a sonar, permite reproducir una pista de inmediato, reordenar elementos, quitar entradas sin borrar los archivos y volver al orden de biblioteca. Los cambios de orden hechos desde esa vista son de la sesión y no reescriben las listas guardadas.
+- **Silencio con memoria de volumen:** el control del altavoz silencia y restaura el último volumen audible; el volumen se conserva en las preferencias locales.
+
 El botón de configuración permite modificar el sonido y comprobar qué APIs ofrece el navegador:
 
 - **Ecualizador de tres bandas para archivos locales:** graves, medios/voces y agudos de −12 a +12 dB, guardados como preferencias del dispositivo. Incluye un compresor suave opcional para moderar picos. No modifica el archivo original. Las fuentes online se reproducen con el motor directo: algunas bloquean el acceso CORS que el procesamiento Web Audio necesitaría, así que Ritmo evita ponerlas en una ruta que podría dejarlas mudas.
