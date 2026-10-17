@@ -250,8 +250,14 @@ assert.match(sw, /catch \{\s*\/\/ Network-first resources still fall back[\s\S]*
 console.log("Network-first service-worker policy smoke checks passed.");
 
 
-assert.match(app, /import \\{ clearMediaSession \\} from "\\.\\/media-session-state\\.js"/, "Media Session cleanup must use the tested helper");
-assert.match(app, /if \\(!track\\) \\{ clearMediaSession\\(navigator\\.mediaSession, state\\); return; \\}/, "No selected track must clear platform media metadata and playback state");
-assert.match(app, /async function removeCurrent\\(\\) \\{[\\s\\S]*?state\\.currentId = null;\\s*updatePlayer\\(\\);\\s*updateMediaSession\\(\\);/, "Removing the active track must clear the system media session");
-assert.match(app, /function playYoutubeVideo[\\s\\S]*?state\\.currentId = null;\\s*state\\.queueIds = null;\\s*updatePlayer\\(\\);\\s*updateMediaSession\\(\\)/, "Switching to YouTube must not retain metadata from the previous native track");
+assert.ok(app.includes('import { clearMediaSession } from "./media-session-state.js";'), "Media Session cleanup must use the tested helper");
+assert.ok(app.includes('if (!track) { clearMediaSession(navigator.mediaSession, state); return; }'), "No selected track must clear platform media metadata and playback state");
+const removeCurrentStart = app.indexOf("async function removeCurrent()");
+const removeCurrentEnd = app.indexOf("\nasync function addStream", removeCurrentStart);
+assert.ok(removeCurrentStart >= 0 && removeCurrentEnd > removeCurrentStart, "Current-track removal handler must exist");
+assert.ok(app.slice(removeCurrentStart, removeCurrentEnd).includes("state.currentId = null;\n  updatePlayer();\n  updateMediaSession();"), "Removing the active track must clear the system media session");
+const youtubeStart = app.indexOf("function playYoutubeVideo");
+const youtubeEnd = app.indexOf("\nfunction updateYoutubeKeyStatus", youtubeStart);
+assert.ok(youtubeStart >= 0 && youtubeEnd > youtubeStart, "YouTube player transition handler must exist");
+assert.ok(app.slice(youtubeStart, youtubeEnd).includes("state.currentId = null;\n  state.queueIds = null;\n  updatePlayer();\n  updateMediaSession();"), "Switching to YouTube must not retain metadata from the previous native track");
 console.log("Media Session cleanup integration checks passed.");
