@@ -373,3 +373,28 @@ La nueva prueba comprueba el listener real con APIs simuladas de Service Worker/
 ### Validación y límites
 
 La prueba usa un IndexedDB simulado para verificar el resultado real de `getHistory`; no depende de datos del navegador del usuario. La suite sigue sin reemplazar pruebas manuales de toda la aplicación en navegadores y dispositivos reales.
+
+
+## Octava pasada — metadatos antiguos en los controles del sistema (17 de octubre de 2026)
+
+### Hallazgo
+
+Cuando se quitaba la pista activa o se cambiaba del audio nativo al reproductor de YouTube, la aplicación ponía `state.currentId` en `null`, pero no siempre volvía a sincronizar la Media Session después de ese cambio. Además, el camino de `updateMediaSession()` sin una pista seleccionada cambiaba el estado a `none` pero dejaba el objeto `metadata` y el ID interno de la pista anterior. Como la plataforma puede mostrar esa información en controles del sistema, notificaciones o pantalla bloqueada, el título de una pista ya detenida podía permanecer visible.
+
+### Solución aplicada
+
+- Se añadió `src/media-session-state.js` para borrar de manera defensiva los metadatos, indicar el estado `none` y restablecer la referencia interna de la pista.
+- La ruta de actualización para una biblioteca sin pista seleccionada llama ahora a ese helper.
+- Al quitar la pista activa o pasar a YouTube, la aplicación sincroniza la Media Session inmediatamente después de limpiar el estado local.
+- Se añadieron pruebas unitarias del helper y comprobaciones de integración en el smoke check; ambas se ejecutan en GitHub Actions.
+- Se incluyó el nuevo módulo en la shell offline y se subió la caché de `ritmo-shell-v15` a `ritmo-shell-v16`.
+
+### Fuentes públicas consultadas
+
+- MDN, [MediaSession: metadata](https://developer.mozilla.org/en-US/docs/Web/API/MediaSession/metadata): define `metadata` como la información descriptiva del contenido multimedia actual y establece que el valor puede ser `null` cuando no hay metadatos configurados.
+- MDN, [Media Session API](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API): explica que el navegador puede presentar metadatos de título, artista, álbum y carátula en controles del sistema, notificaciones y pantalla de bloqueo.
+- W3C, [Media Session API — explainer](https://github.com/w3c/mediasession/blob/main/explainer.md): describe el uso de `playbackState = "none"` cuando ya no hay contenido activo asociado a la sesión.
+
+### Validación y límites
+
+Las nuevas pruebas verifican las asignaciones de limpieza y que los caminos de eliminación/cambio de reproductor la invoquen. No pretenden demostrar que todos los sistemas operativos actualicen instantáneamente sus paneles multimedia; eso sigue dependiendo de la implementación concreta del navegador y del sistema.

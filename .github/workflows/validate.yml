@@ -23,6 +23,8 @@ jobs:
           node --check src/app.js
           node --check src/youtube-history.js
           node --check src/audio-output-volume.js
+          node --check src/media-session-state.js
+          node --check scripts/media-session-state-check.mjs
           node --check src/storage.js
           node --check sw.js
           node --check scripts/smoke-check.mjs
@@ -37,5 +39,6 @@ jobs:
           node scripts/indexeddb-recovery-check.mjs
           node scripts/youtube-history-check.mjs
           node scripts/audio-output-volume-check.mjs
+          node scripts/media-session-state-check.mjs
           node scripts/service-worker-fetch-check.mjs
           node scripts/history-limit-check.mjs

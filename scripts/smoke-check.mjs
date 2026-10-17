@@ -50,7 +50,7 @@ assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
 assert.match(html, /id="library-no-results"/, "Library search should expose a no-matches empty state");
-assert.match(sw, /ritmo-shell-v15/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v16/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
 
@@ -75,7 +75,7 @@ assert.match(app, /async function downloadStreamOffline/, "Direct audio URLs sho
 assert.match(app, /MAX_DOWNLOAD_BYTES = 150 \* 1024 \* 1024/, "Offline saving must enforce a bounded download size");
 assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must respect browser CORS and avoid sending credentials");
 assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
-assert.match(sw, /ritmo-shell-v15/, "Service-worker cache must refresh after playback settings are added");
+assert.match(sw, /ritmo-shell-v16/, "Service-worker cache must refresh after playback settings are added");
 console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
 
 
@@ -110,7 +110,7 @@ assert.match(app, /creativecommons\.org/, "The app must verify the declared Crea
 assert.match(app, /function addArchiveFile/, "Catalog tracks should be addable to the local library as remote sources");
 assert.match(app, /function archiveFileURL/, "Catalog file actions must link to the original archive host");
 assert.match(app, /Descargar original/, "Catalog should provide the source's original-file link, not bypass its delivery rules");
-assert.match(sw, /ritmo-shell-v15/, "Service-worker cache should refresh after adding the open-license catalog");
+assert.match(sw, /ritmo-shell-v16/, "Service-worker cache should refresh after adding the open-license catalog");
 console.log("Internet Archive open-license search, metadata verification and original-file link smoke checks passed.");
 
 
@@ -126,7 +126,7 @@ assert.match(app, /function addArchiveFile/, "Verified Archive audio should be a
 assert.match(app, /function archiveFileURL/, "Original files should use Archive.org direct links");
 assert.match(app, /Descargar original/, "Catalog should provide source-file navigation rather than bypass CORS");
 assert.match(app, /track\.sourceProvider === "Internet Archive"/, "Archive tracks should open original files directly where binary servers don't provide CORS");
-assert.match(sw, /ritmo-shell-v15/, "Service Worker cache should refresh with the open-license catalog");
+assert.match(sw, /ritmo-shell-v16/, "Service Worker cache should refresh with the open-license catalog");
 console.log("Internet Archive catalog, license checks, source links and offline import guidance smoke checks passed.");
 
 
@@ -215,11 +215,11 @@ assert.match(html, /id="expanded-seek-bar"/, "Expanded player must include a fun
 assert.match(app, /function renderLibraryGrid\(/, "The visual library should render track artwork cards");
 assert.match(app, /function setLibraryMode\(/, "Library presentation changes must be handled by a stateful control");
 assert.match(app, /expanded-volume-bar[\s\S]*?dispatchEvent\(new Event\("input"/, "Expanded volume control must route through the standard persisted volume handler");
-assert.match(sw, /ritmo-shell-v15/, "Service-worker shell cache must refresh for the interface redesign");
+assert.match(sw, /ritmo-shell-v16/, "Service-worker shell cache must refresh for the interface redesign");
 console.log("Library grid/list, immersive playback, and synchronized expanded controls passed.");
 
 assert.match(app, /button\.tagName !== "BUTTON" && \(event\.key === "Enter" \|\| event\.key === " "\)/, "Native play buttons must not manually replay their own keyboard activation");
-assert.match(sw, /ritmo-shell-v15/, "PWA shell cache must refresh for the keyboard activation fix");
+assert.match(sw, /ritmo-shell-v16/, "PWA shell cache must refresh for the keyboard activation fix");
 
 
 assert.match(html, /id="app-update-banner"/, "PWA should announce when an updated controller is taking over an already-controlled page");
@@ -228,7 +228,7 @@ assert.match(app, /const hadController = Boolean\(navigator\.serviceWorker\.cont
 assert.match(app, /if \(!hadController \|\| updatePromptShown\) return;/, "PWA update prompt should be shown only once after an actual controller replacement");
 assert.match(app, /app-update-now[\s\S]*?window\.location\.reload\(\)/, "The update action must reload the page to synchronize its HTML and JavaScript");
 assert.match(app, /setOutputVolume\(audioPrefs\.volume\);\s*\$\("#expanded-volume-bar"\)\.value = String\(audioPrefs\.volume\)/, "Mute/unmute must route through the shared output volume controller and keep the expanded slider in sync");
-assert.match(sw, /ritmo-shell-v15/, "PWA shell cache should advance with the update prompt and mute sync fixes");
+assert.match(sw, /ritmo-shell-v16/, "PWA shell cache should advance with the update prompt and mute sync fixes");
 console.log("PWA update prompt and expanded mute synchronization checks passed.");
 
 
@@ -248,3 +248,16 @@ assert.match(sw, /const preferNetwork = request\.mode === "navigate"[\s\S]*?\["d
 assert.match(sw, /if \(!preferNetwork\) \{\s*const cached = await caches\.match\(request\);\s*if \(cached\) return cached;/, "Non-shell resources should retain cache-first behavior");
 assert.match(sw, /catch \{\s*\/\/ Network-first resources still fall back[\s\S]*?const cached = await caches\.match\(request\);\s*if \(cached\) return cached;/, "Network-first requests must fall back to the cached resource when offline");
 console.log("Network-first service-worker policy smoke checks passed.");
+
+
+assert.ok(app.includes('import { clearMediaSession } from "./media-session-state.js";'), "Media Session cleanup must use the tested helper");
+assert.ok(app.includes('if (!track) { clearMediaSession(navigator.mediaSession, state); return; }'), "No selected track must clear platform media metadata and playback state");
+const removeCurrentStart = app.indexOf("async function removeCurrent()");
+const removeCurrentEnd = app.indexOf("\nasync function addStream", removeCurrentStart);
+assert.ok(removeCurrentStart >= 0 && removeCurrentEnd > removeCurrentStart, "Current-track removal handler must exist");
+assert.ok(app.slice(removeCurrentStart, removeCurrentEnd).includes("state.currentId = null;\n  updatePlayer();\n  updateMediaSession();"), "Removing the active track must clear the system media session");
+const youtubeStart = app.indexOf("function playYoutubeVideo");
+const youtubeEnd = app.indexOf("\nfunction updateYoutubeKeyStatus", youtubeStart);
+assert.ok(youtubeStart >= 0 && youtubeEnd > youtubeStart, "YouTube player transition handler must exist");
+assert.ok(app.slice(youtubeStart, youtubeEnd).includes("state.currentId = null;\n  state.queueIds = null;\n  updatePlayer();\n  updateMediaSession();"), "Switching to YouTube must not retain metadata from the previous native track");
+console.log("Media Session cleanup integration checks passed.");
