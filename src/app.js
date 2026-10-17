@@ -50,7 +50,7 @@ function loadAudioPreferences() {
 const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
-const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null };
+const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, nativeMusicPlugin: null };
  
 const LIBRARY_VIEW_KEY = "ritmo.library-view.v1";
 let libraryMode = (() => {
@@ -100,7 +100,22 @@ function importedFileFingerprint(fileOrTrack) {
 }
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
-function isLocal(track) { return track?.kind === "file" && track.blob instanceof Blob; }
+function isLocal(track) {
+  return track?.kind === "file" && (
+    track.blob instanceof Blob ||
+    (typeof track.nativePath === "string" && Boolean(track.nativePath)) ||
+    (typeof track.nativeUri === "string" && Boolean(track.nativeUri))
+  );
+}
+function nativeMusicPlugin() {
+  const bridge = window.Capacitor;
+  if (!bridge?.isNativePlatform?.() || typeof bridge.registerPlugin !== "function") return null;
+  if (!state.nativeMusicPlugin) {
+    try { state.nativeMusicPlugin = bridge.registerPlugin("RitmoMusicLibrary"); }
+    catch { return null; }
+  }
+  return state.nativeMusicPlugin;
+}
 function sourceLabel(track) { return isLocal(track) ? "En este dispositivo" : "Streaming online"; }
 function toast(message) {
   const node = $("#toast");
@@ -110,11 +125,17 @@ function toast(message) {
   state.toastTimer = setTimeout(() => node.classList.remove("show"), 2800);
 }
 function trackURL(track) {
-  if (isLocal(track)) {
+  if (track?.nativePath) {
+    const bridge = window.Capacitor;
+    if (typeof bridge?.convertFileSrc !== "function") throw new Error("Android no pudo abrir la ruta de esta canción.");
+    return bridge.convertFileSrc(track.nativePath);
+  }
+  if (track?.blob instanceof Blob) {
     if (!state.objectUrls.has(track.id)) state.objectUrls.set(track.id, URL.createObjectURL(track.blob));
     return state.objectUrls.get(track.id);
   }
-  return track.url;
+  if (track?.nativeUri) throw new Error("La canción necesita resolver su ruta del dispositivo antes de reproducirse.");
+  return track?.url || "";
 }
 
 // Only the currently selected local track needs a live object URL. Revoking
@@ -969,6 +990,29 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
+  if (track.nativeUri && !track.nativePath) {
+    const plugin = nativeMusicPlugin();
+    if (!plugin?.resolveAudioPath) {
+      pendingPlaybackRequestId = null;
+      showPlaybackStatus("No está disponible el acceso nativo a esta canción. Volvé a buscar la música del teléfono.", "error", false);
+      return;
+    }
+    try {
+      const resolved = await plugin.resolveAudioPath({ uri: track.nativeUri, name: track.name });
+      if (!isCurrentPlaybackRequest()) return;
+      track.nativePath = String(resolved?.path || "");
+      if (!track.nativePath) throw new Error("Android no devolvió una ruta reproducible para esta canción.");
+      await saveTrack(track);
+    } catch (error) {
+      if (!isCurrentPlaybackRequest()) return;
+      pendingPlaybackRequestId = null;
+      const message = error?.message || "No pude abrir este archivo desde el almacenamiento del teléfono.";
+      showPlaybackStatus(message, "error", false);
+      toast(message);
+      updatePlayer();
+      return;
+    }
+  }
   if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
@@ -1174,6 +1218,103 @@ async function downloadStreamOffline(trackId) {
     showPlaybackStatus(message, "warning", false);
   } finally {
     try { reader?.releaseLock(); } catch {}
+  }
+}
+
+async function openAudioImport() {
+  const plugin = nativeMusicPlugin();
+  if (!plugin?.pickAudioFiles || !plugin?.resolveAudioPath) {
+    filePicker.click();
+    return;
+  }
+  try {
+    const result = await plugin.pickAudioFiles();
+    const selected = Array.isArray(result?.files) ? result.files : [];
+    if (!selected.length) return;
+    let imported = 0;
+    for (const item of selected) {
+      if (!item?.uri || !item?.name) continue;
+      const resolved = item.path ? { path: item.path } : await plugin.resolveAudioPath({ uri: item.uri, name: item.name });
+      const localURL = window.Capacitor.convertFileSrc(resolved.path);
+      const response = await fetch(localURL);
+      if (!response.ok) throw new Error("Android no pudo leer " + item.name + ".");
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("El archivo está vacío o el proveedor no permitió leer " + item.name + ".");
+      const file = new File([blob], item.name, {
+        type: item.mimeType || blob.type || "application/octet-stream",
+        lastModified: Number(item.lastModified) || Date.now()
+      });
+      await importFiles([file]);
+      imported += 1;
+    }
+    if (imported) toast("Importación desde el selector de Android terminada: " + imported + " archivo(s).");
+  } catch (error) {
+    const message = error?.message || "No se pudieron abrir los archivos seleccionados.";
+    toast(message);
+    showPlaybackStatus(message, "warning", false);
+  }
+}
+
+async function scanDeviceMusic() {
+  const plugin = nativeMusicPlugin();
+  if (!plugin?.requestAudioPermission || !plugin?.listAudio) {
+    toast("La búsqueda automática de música requiere la APK Android. En la web podés elegir archivos manualmente.");
+    await openAudioImport();
+    return;
+  }
+  const buttons = [...document.querySelectorAll("[data-scan-device-music]")];
+  buttons.forEach(button => { button.disabled = true; button.textContent = "Buscando música…"; });
+  try {
+    toast("Android te pedirá permiso para buscar canciones en este dispositivo.");
+    const permission = await plugin.requestAudioPermission();
+    if (!permission?.granted) {
+      toast("Sin permiso de audio no se puede buscar la biblioteca del teléfono. Podés elegir archivos desde carpetas.");
+      return;
+    }
+    const result = await plugin.listAudio({ query: "" });
+    const files = Array.isArray(result?.files) ? result.files : [];
+    if (!files.length) {
+      toast("No encontré audio indexado. Probá «Importar archivos» para explorar carpetas.");
+      return;
+    }
+    const knownByUri = new Map(state.tracks.filter(track => track.nativeUri).map(track => [track.nativeUri, track]));
+    const scanned = files.map((item, index) => {
+      const uri = String(item.uri || "");
+      const old = uri ? knownByUri.get(uri) : null;
+      const name = String(item.name || item.displayName || ("audio-" + (item.id || index)));
+      return {
+        ...(old || {}),
+        id: old?.id || ("android-audio-" + String(item.id || uri || index)),
+        kind: "file",
+        name,
+        sourcePath: uri || name,
+        nativePath: old?.nativePath || "",
+        nativeUri: uri || old?.nativeUri || "",
+        title: String(item.title || titleFromFilename(name)),
+        artist: String(item.artist || old?.artist || "Artista desconocido"),
+        album: String(item.album || old?.album || ""),
+        size: Number(item.size) || 0,
+        mimeType: String(item.mimeType || "application/octet-stream"),
+        lastModified: Number(item.lastModified) || 0,
+        favorite: Boolean(old?.favorite),
+        addedAt: Number(old?.addedAt) || Date.now() + index,
+        duration: Math.max(0, Number(item.duration) || 0) / 1000,
+        lastPlayedAt: Number(old?.lastPlayedAt) || 0
+      };
+    });
+    for (let offset = 0; offset < scanned.length; offset += 100) {
+      await saveManyTracks(scanned.slice(offset, offset + 100));
+    }
+    state.tracks = await getAllTracks();
+    render();
+    showView("library");
+    toast("Encontré " + files.length + " archivos de audio. Usá Buscar en biblioteca para filtrar por artista, canción o MP3.");
+  } catch (error) {
+    const message = error?.message || "No se pudo consultar la biblioteca de música de Android.";
+    toast(message);
+    showPlaybackStatus(message, "error", false);
+  } finally {
+    buttons.forEach(button => { button.disabled = false; button.textContent = "Buscar música del teléfono"; });
   }
 }
 
@@ -1738,7 +1879,10 @@ function bindEvents() {
   document.querySelectorAll("[data-go-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.goView)));
   ["hero-import", "empty-import", "library-import", "library-empty-import", "offline-import"].forEach(selector => {
     const node = $("#" + selector);
-    if (node) node.addEventListener("click", () => filePicker.click());
+    if (node) node.addEventListener("click", openAudioImport);
+  });
+  document.querySelectorAll("[data-scan-device-music]").forEach(button => {
+    button.addEventListener("click", scanDeviceMusic);
   });
   $("#menu-toggle").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });
