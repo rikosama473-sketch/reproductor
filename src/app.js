@@ -795,7 +795,16 @@ async function downloadStreamOffline(trackId) {
       total = blob.size;
     }
     if (!total) throw new Error("El servidor devolvió un archivo vacío.");
-    const blob = new Blob(chunks, { type: rawType.startsWith("audio/") ? rawType : "application/octet-stream" });
+    const fallbackMimes = {
+      mp3: "audio/mpeg", m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac",
+      wav: "audio/wav", wave: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg",
+      opus: "audio/ogg", webm: "audio/webm", flac: "audio/flac", aiff: "audio/aiff",
+      aif: "audio/aiff", alac: "audio/mp4", wma: "audio/x-ms-wma", ape: "audio/ape",
+      mp2: "audio/mpeg", caf: "audio/x-caf", "3gp": "audio/3gpp", amr: "audio/amr"
+    };
+    const extension = filename.split(".").pop().toLowerCase();
+    const blobMime = rawType.startsWith("audio/") ? rawType : (fallbackMimes[extension] || "application/octet-stream");
+    const blob = new Blob(chunks, { type: blobMime });
     const storage = await estimateStorage();
     if (storage?.quota && storage.usage + blob.size > storage.quota * 0.95) {
       throw new Error("No queda espacio suficiente en el navegador. Liberá almacenamiento antes de descargar.");
@@ -1211,7 +1220,7 @@ function bindEvents() {
     if (document.hidden) {
       updateMediaSession();
       releaseScreenWakeLock();
-    } else if (audioPrefs.keepScreenAwake && !audio.paused) {
+    } else if (audioPrefs.keepScreenAwake) {
       requestScreenWakeLock();
     }
   });
