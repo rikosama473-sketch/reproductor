@@ -24,5 +24,8 @@ jobs:
           node --check src/storage.js
           node --check sw.js
           node --check scripts/smoke-check.mjs
+          node --check scripts/indexeddb-recovery-check.mjs
       - name: Check app shell wiring
-        run: node scripts/smoke-check.mjs
+        run: |
+          node scripts/smoke-check.mjs
+          node scripts/indexeddb-recovery-check.mjs
