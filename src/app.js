@@ -1076,6 +1076,7 @@ async function inspectArchiveItem(identifier, button) {
   if (cached) {
     container.hidden = !container.hidden;
     if (!container.hidden) renderArchiveFiles(identifier, container, cached);
+    button.textContent = container.hidden ? "Ver licencia y archivos" : "Ocultar archivos";
     return;
   }
   const original = button.textContent;
