@@ -199,3 +199,10 @@ assert.ok(deployWorkflow.includes("actions/checkout@v7"), "Deployment should use
 assert.ok(deployWorkflow.includes("actions/configure-pages@v6"), "Pages configuration should use the supported Node 24 action");
 assert.ok(deployWorkflow.includes("actions/deploy-pages@v5"), "Pages deployment should use the supported Node 24 action");
 console.log("GitHub Actions Node 24 compatibility checks passed.");
+
+assert.match(app, /createYoutubeHistoryController/, "YouTube history must be gated by confirmed playback state");
+assert.doesNotMatch((app.match(/function playYoutubeVideo[\s\S]*?function updateYoutubeKeyStatus/) || [""])[0], /addHistoryEntry\(/, "Selecting a YouTube result must not directly write history");
+assert.match(app, /onStateChange: recordConfirmedYoutubePlayback/, "The official YouTube player API must observe state changes");
+assert.match(app, /event\.data !== window\.YT\.PlayerState\.PLAYING/, "History must only record confirmed YouTube PLAYING events");
+assert.match(sw, /src\/youtube-history\.js/, "The imported YouTube history controller must be cached for offline app-shell loading");
+console.log("YouTube history is bound to confirmed playback-state events.");
