@@ -142,12 +142,12 @@ assert.match(sw, /\.catch\(\(\) => \{\}\)/, "Cache quota errors must not become 
 assert.match(sw, /const offlinePage = await caches\.match\("\.\/index\.html"\)/, "Offline navigation should return a cached document only when one exists");
 console.log("Service-worker cache lifetime and storage-error checks passed.");
 
-assert.doesNotMatch(app, /defaultAudio\\.volume = 0\\.8;\\s*equalizedAudio\\.volume = 0\\.8;/, "Startup must not overwrite the saved volume or mute preference");
-assert.match(app, /defaultAudio\\.volume = audioPrefs\\.volume/, "The native audio element should use the persisted volume preference");
+assert.doesNotMatch(app, /defaultAudio\.volume = 0\.8;\s*equalizedAudio\.volume = 0\.8;/, "Startup must not overwrite the saved volume or mute preference");
+assert.match(app, /defaultAudio\.volume = audioPrefs\.volume/, "The native audio element should use the persisted volume preference");
 assert.match(app, /function releaseUnusedObjectURLs/, "The player should release object URLs for tracks that are no longer active");
-assert.match(app, /releaseUnusedObjectURLs\\(isLocal\\(track\\) \\? track\\.id : null\\)/, "Track changes should retain a blob URL only for the active local track");
+assert.match(app, /releaseUnusedObjectURLs\(isLocal\(track\) \? track\.id : null\)/, "Track changes should retain a blob URL only for the active local track");
 assert.match(app, /function importedFileFingerprint/, "Import deduplication should use a reusable path-aware fingerprint");
-assert.match(app, /fileOrTrack\\.webkitRelativePath \\|\\| fileOrTrack\\.sourcePath/, "Folder imports should distinguish identical filenames in different folders");
-assert.match(app, /sourcePath: file\\.webkitRelativePath \\|\\| file\\.name/, "Imported tracks should persist their relative source path");
+assert.match(app, /fileOrTrack\.webkitRelativePath \|\| fileOrTrack\.sourcePath/, "Folder imports should distinguish identical filenames in different folders");
+assert.match(app, /sourcePath: file\.webkitRelativePath \|\| file\.name/, "Imported tracks should persist their relative source path");
 console.log("Second-pass regressions passed: persisted volume, object-URL lifecycle, and folder-import identity.");
 
