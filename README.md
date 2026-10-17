@@ -74,3 +74,22 @@ La importación se procesa en lotes de 20, conserva los blobs originales sin rec
 Formatos frecuentes en navegadores modernos incluyen MP3, AAC/M4A, WAV, Ogg Vorbis/Opus, WebM Opus y FLAC, dependiendo del navegador, sistema y códec. La interfaz informa `canPlayType()` para varios tipos. WMA, APE, AIFF y otros códecs poco comunes no están garantizados. No se falsifica compatibilidad ni se hace transcodificación local en esta versión.
 
 Las reproducciones de YouTube solo guardan metadatos del historial, nunca archivos de audio. La app usa el reproductor oficial, y ese contenido no está disponible sin conexión.
+
+
+## Ajustes de audio, diagnóstico y recuperación
+
+- **Cola de reproducción real:** el botón de cola abre una vista con las canciones que van a sonar, permite reproducir una pista de inmediato, reordenar elementos, quitar entradas sin borrar los archivos y volver al orden de biblioteca. Los cambios de orden hechos desde esa vista son de la sesión y no reescriben las listas guardadas.
+- **Silencio con memoria de volumen:** el control del altavoz silencia y restaura el último volumen audible; el volumen se conserva en las preferencias locales.
+
+El botón de configuración permite modificar el sonido y comprobar qué APIs ofrece el navegador:
+
+- **Ecualizador de tres bandas para archivos locales:** graves, medios/voces y agudos de −12 a +12 dB, guardados como preferencias del dispositivo. Incluye un compresor suave opcional para moderar picos. No modifica el archivo original. Las fuentes online se reproducen con el motor directo: algunas bloquean el acceso CORS que el procesamiento Web Audio necesitaría, así que Ritmo evita ponerlas en una ruta que podría dejarlas mudas.
+- **Errores recuperables:** muestra avisos específicos para falta de conexión, espera de datos, interrupciones, decodificación y formatos incompatibles; el botón Reintentar vuelve a cargar la fuente y trata de continuar desde la posición anterior.
+- **Temporizador para dormir:** 15, 30, 45, 60, 90 o 120 minutos, con desvanecimiento de volumen de cinco segundos opcional. Detiene el audio nativo y cierra el reproductor incrustado de YouTube cuando el temporizador finaliza. Como cualquier temporizador JavaScript, puede retrasarse si el sistema suspende o finaliza la página.
+- **Mantener pantalla despierta:** opción explícita que solicita la Screen Wake Lock API. Solo funciona en navegadores compatibles, normalmente bajo HTTPS y mientras la página está visible; el sistema puede rechazarla o revocarla. No evita que Android, iOS o el navegador cierren la aplicación, y no concede reproducción en segundo plano a YouTube.
+- **Diagnóstico y almacenamiento:** muestra soporte detectado para Media Session, Web Audio, Wake Lock, IndexedDB y Service Worker, conexión y cuota local. El usuario puede volver a solicitar almacenamiento persistente, pero la decisión corresponde al navegador.
+- **Guardar una fuente directa offline:** en una pista que proviene de una URL directa se muestra el control de descarga. Requiere confirmar que el sitio permite conservar el audio; el navegador también debe permitir leer la respuesta mediante CORS. Se rechazan respuestas que parecen páginas HTML, se limita cada descarga a 150 MB y se revisa la cuota de almacenamiento antes de guardar una copia local. No se eluden logins, CORS, paywalls, DRM, ni permisos del servidor.
+
+## Qué no se descarga desde YouTube
+
+La búsqueda, los metadatos y el reproductor incrustado usan las vías oficiales. Ritmo **no extrae ni guarda el audio de videos de YouTube**, ni bloquea los anuncios o habilita la reproducción en segundo plano por fuera de lo permitido por YouTube. Sin clave API, la búsqueda pública continúa disponible en una pestaña del navegador. Para música gratuita guardable offline, usá archivos propios o catálogos que autoricen claramente la descarga (por ejemplo, dominio público o licencias Creative Commons); conservá la atribución y revisá las condiciones de cada obra.

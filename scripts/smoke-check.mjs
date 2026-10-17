@@ -46,5 +46,44 @@ assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadat
 assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
-assert.match(sw, /ritmo-shell-v3/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v4/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
+
+
+assert.match(html, /id="settings-dialog"/, "Settings dialog should exist");
+assert.match(html, /id="eq-enabled"/, "Audio settings must expose equalizer enable control");
+assert.match(html, /id="eq-bass"/, "Audio settings must expose bass adjustment");
+assert.match(html, /id="eq-mid"/, "Audio settings must expose midrange adjustment");
+assert.match(html, /id="eq-treble"/, "Audio settings must expose treble adjustment");
+assert.match(html, /id="limiter-toggle"/, "Audio settings must expose soft peak limiting");
+assert.match(html, /id="keep-screen-awake"/, "Playback settings must expose optional Wake Lock request");
+assert.match(html, /id="sleep-start"/, "Playback settings must provide a sleep timer");
+assert.match(html, /id="request-storage-button"/, "Storage settings must allow a user-directed persistent-storage request");
+assert.match(html, /id="diagnostics-list"/, "Settings must report browser capabilities");
+assert.match(html, /id="playback-retry"/, "Playback failures must offer retry");
+assert.match(app, /function ensureAudioProcessing/, "Optional local EQ must use the Web Audio API");
+assert.match(app, /createDynamicsCompressor/, "The local EQ chain should include the optional soft peak limiter");
+assert.match(app, /function bindAudioEngineEvents/, "Audio engine must report waiting, stalled and error states");
+assert.match(app, /function retryCurrentPlayback/, "Audio failures must have a reload/retry route");
+assert.match(app, /function requestScreenWakeLock/, "Screen Wake Lock must be requested only when the user opts in");
+assert.match(app, /function startSleepTimer/, "The player must expose a sleep timer");
+assert.match(app, /async function downloadStreamOffline/, "Direct audio URLs should support authorized offline saving");
+assert.match(app, /MAX_DOWNLOAD_BYTES = 150 \* 1024 \* 1024/, "Offline saving must enforce a bounded download size");
+assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must respect browser CORS and avoid sending credentials");
+assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
+assert.match(sw, /ritmo-shell-v4/, "Service-worker cache must refresh after playback settings are added");
+console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
+
+
+assert.match(html, /id="queue-dialog"/, "Queue button should open a dedicated editable queue");
+assert.match(html, /id="queue-items"/, "Queue dialog should render the active queue");
+assert.match(html, /id="queue-from-library"/, "Queue should be resettable to library order");
+assert.match(html, /id="volume-mute-button"/, "Player should expose a dedicated mute/unmute action");
+assert.match(app, /function activeQueueIds/, "The queue should distinguish library order from an explicit empty/custom queue");
+assert.match(app, /function renderQueue/, "The queue UI should expose actual queued tracks and order controls");
+assert.match(app, /data-queue-up/, "Queue items should be reorderable");
+assert.match(app, /data-queue-down/, "Queue items should be reorderable in both directions");
+assert.match(app, /data-queue-remove/, "Queue items should be removable without deleting library files");
+assert.match(app, /function toggleMute/, "Mute should remember the previous audible volume");
+assert.match(app, /lastAudibleVolume/, "The previous audible volume should be preserved between mute toggles");
+console.log("Editable queue and persistent mute control smoke checks passed.");
