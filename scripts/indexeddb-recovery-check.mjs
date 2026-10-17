@@ -2,22 +2,38 @@ import assert from "node:assert/strict";
 
 const requests = [];
 let lateConnectionClosed = false;
+let transactionAborted = false;
+let attemptedQueuedWrite = false;
 
 const fakeDb = {
   objectStoreNames: { contains: () => true },
   close() {},
   transaction() {
-    return {
+    const tx = {
+      oncomplete: null,
+      onerror: null,
+      onabort: null,
+      abort() {
+        transactionAborted = true;
+        queueMicrotask(() => tx.onabort?.());
+      },
       objectStore() {
         return {
           getAll() {
             const request = { result: [] };
             queueMicrotask(() => request.onsuccess?.());
             return request;
+          },
+          put() {
+            // Model a write request being queued before a later synchronous
+            // setup error is raised by the transaction callback.
+            attemptedQueuedWrite = true;
+            throw new Error("simulated synchronous write failure");
           }
         };
       }
     };
+    return tx;
   }
 };
 
@@ -63,4 +79,12 @@ assert.equal(requests.length, 3, "a second blocked attempt should also permit an
 requests[2].result = fakeDb;
 requests[2].onsuccess?.();
 assert.deepEqual(await thirdAttempt, [], "storage should recover once another tab no longer blocks opening");
-console.log("IndexedDB blocked-open recovery tests passed.");
+
+await assert.rejects(
+  storage.saveTrack({ id: "queued-then-failed", title: "Regression test" }),
+  /simulated synchronous write failure/,
+  "storage should surface synchronous write setup failures"
+);
+assert.equal(attemptedQueuedWrite, true, "the test should simulate a queued write before the later exception");
+assert.equal(transactionAborted, true, "the transaction must abort so a queued write cannot commit after setup fails");
+console.log("IndexedDB blocked-open recovery and synchronous-write rollback tests passed.");
