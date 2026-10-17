@@ -17,6 +17,9 @@ assert.deepEqual(missingIds, [], "App selectors refer to IDs missing from index.
 assert.match(html, /<audio id="audio-engine"/, "HTML must include the audio engine");
 assert.match(html, /manifest\.webmanifest/, "HTML must link to the PWA manifest");
 assert.match(app, /indexedDB|saveManyTracks/, "App must use persistent local library storage");
+assert.match(app, /function scanDeviceMusic/, "Android build must scan local device music");
+assert.match(app, /function nativeMusicPlugin/, "App must expose its native Android plugin bridge");
+assert.match(html, /data-scan-device-music/, "UI must expose device music scanning");
 assert.match(storage, /createObjectStore/, "Storage must create its IndexedDB object store");
 assert.match(sw, /addAll\(APP_SHELL\)/, "Service worker must cache the app shell");
 assert.match(app, /data-delete/, "Library must expose delete actions for imported entries");
@@ -51,7 +54,7 @@ assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
 assert.match(html, /id="library-no-results"/, "Library search should expose a no-matches empty state");
-assert.match(sw, /ritmo-shell-v17/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v18/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
 
