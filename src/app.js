@@ -93,7 +93,7 @@ function trackRow(track, index) {
     '<div class="track-copy"><strong>' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div></div>' +
     '<span class="source-tag' + (isLocal(track) ? "" : " stream") + '">' + (isLocal(track) ? "Offline" : "Online") + '</span>' +
     '<span class="track-duration">' + (track.duration ? formatTime(track.duration) : "—") + '</span>' +
-    '<div class="track-actions"><button class="row-icon' + favClass + '" data-favorite="' + escapeHTML(track.id) + '" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '">' + (track.favorite ? "♥" : "♡") + '</button></div></div>';
+    '<div class="track-actions"><button class="row-icon' + favClass + '" data-favorite="' + escapeHTML(track.id) + '" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div>';
 }
 function bindRenderedActions(root) {
   root.querySelectorAll("[data-play]").forEach(button => {
@@ -106,6 +106,22 @@ function bindRenderedActions(root) {
     if (!track) return;
     track.favorite = !track.favorite;
     try { await saveTrack(track); render(); updatePlayerFavorite(); } catch (error) { toast(error.message || "No se pudo guardar el favorito."); }
+  }));
+  root.querySelectorAll("[data-delete]").forEach(button => button.addEventListener("click", async event => {
+    event.stopPropagation();
+    const track = getTrack(button.dataset.delete);
+    if (!track) return;
+    if (!confirm("¿Eliminar «" + track.title + "» de tu biblioteca? El archivo original de tu equipo no se modifica.")) return;
+    try {
+      if (track.id === state.currentId) await removeCurrent();
+      const objectUrl = state.objectUrls.get(track.id);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      state.objectUrls.delete(track.id);
+      await deleteTrack(track.id);
+      state.tracks = await getAllTracks();
+      render();
+      toast("Se quitó de tu biblioteca.");
+    } catch (error) { toast(error.message || "No se pudo eliminar la canción."); }
   }));
 }
 function renderTrackList(selector, list, emptySelector) {
