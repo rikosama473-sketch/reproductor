@@ -124,3 +124,14 @@ assert.match(app, /Descargar original/, "Catalog should provide source-file navi
 assert.match(app, /track\.sourceProvider === "Internet Archive"/, "Archive tracks should open original files directly where binary servers don't provide CORS");
 assert.match(sw, /ritmo-shell-v5/, "Service Worker cache should refresh with the open-license catalog");
 console.log("Internet Archive catalog, license checks, source links and offline import guidance smoke checks passed.");
+
+
+assert.match(app, /const \[tracksResult, historyResult, playlistsResult\] = await Promise\.allSettled/, "Startup must restore persisted tracks, history and playlists independently");
+assert.match(app, /getHistory\(250\)/, "Startup should restore saved playback history");
+assert.match(app, /getPlaylists\(\)/, "Startup should restore saved playlists");
+assert.match(app, /showView\("online"\);\s*playYoutubeVideo\(button\.dataset\.historyYoutube/, "Replaying a YouTube history item should show its player view");
+assert.match(app, /audioContext\.resume\(\)\.then/, "Suspended local EQ audio should attempt safe foreground recovery");
+assert.match(storage, /request\.onblocked = \(\) => \{\s*wasBlocked = true;\s*if \(databasePromise === openingPromise\) databasePromise = null;/, "Blocked IndexedDB opens must clear the rejected single-flight promise");
+assert.match(storage, /if \(wasBlocked\) \{\s*db\.close\(\)/, "Late IndexedDB success after a blocked error must close its abandoned connection");
+assert.match(storage, /queueMicrotask\(\(\) => \{\s*if \(databasePromise === openingPromise\) databasePromise = null;/, "Synchronous IndexedDB open failures must clear the cached rejected promise");
+console.log("Persistence restoration, IndexedDB retry, history navigation and audio foreground-recovery checks passed.");
