@@ -704,6 +704,7 @@ function toggleMute() {
   slider.value = String(audioPrefs.volume);
   defaultAudio.volume = audioPrefs.volume;
   equalizedAudio.volume = audioPrefs.volume;
+  $("#expanded-volume-bar").value = String(audioPrefs.volume);
   saveAudioPreferences();
   updateMuteButton();
 }
@@ -1883,6 +1884,8 @@ function bindEvents() {
       });
     }
   });
+  $("#app-update-now").addEventListener("click", () => window.location.reload());
+  $("#app-update-later").addEventListener("click", () => { $("#app-update-banner").hidden = true; });
   $("#settings-button").addEventListener("click", openSettings);
   $("#close-settings").addEventListener("click", () => $("#settings-dialog").close());
   $("#close-settings-bottom").addEventListener("click", () => $("#settings-dialog").close());
@@ -1986,6 +1989,17 @@ async function init() {
   bindEvents();
   updateYoutubeKeyStatus();
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    // The new worker skips waiting and claims existing clients. When a tab that
+    // already had a controller changes to the new worker, its HTML/JS may still
+    // be the old build; prompt a safe, user-initiated reload instead of forcing
+    // a reload in the middle of playback.
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    let updatePromptShown = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || updatePromptShown) return;
+      updatePromptShown = true;
+      $("#app-update-banner").hidden = false;
+    });
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
   const [tracksResult, historyResult, playlistsResult] = await Promise.allSettled([
