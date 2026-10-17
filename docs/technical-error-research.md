@@ -274,3 +274,29 @@ Se añadieron smoke checks de integración para la vista de cuadrícula, el sele
 Durante la revisión final de la cuadrícula nueva se identificó una interacción duplicada: el helper que permite activar con Enter/Espacio las filas implementadas como elementos con rol de botón también se ejecutaba sobre el nuevo botón HTML nativo de cada portada. El navegador ya sintetiza el clic de activación del botón nativo, así que la vía manual podía enviar dos solicitudes seguidas.
 
 Se limitó el manejador de teclado manual a los elementos no nativos que realmente lo necesitan; los botones HTML conservan la activación nativa y accesible del navegador. Se añadió una aserción de regresión y se incrementó la shell PWA a ritmo-shell-v11, porque la aplicación usa una estrategia de caché del shell que necesita una versión nueva para recibir el JavaScript actualizado.
+
+
+## Undécima pasada — actualización segura de PWA y sincronización de silencio (17 de octubre de 2026)
+
+### Hallazgo 1: pestaña abierta con código viejo después de cambiar el Service Worker
+
+Ritmo usa un Service Worker que llama a `skipWaiting()` durante la instalación y `clients.claim()` al activarse. Eso permite que la nueva versión tome el control de pestañas abiertas, pero el JavaScript ya cargado en una pestaña no se reemplaza por arte de magia. La misma pestaña puede quedar ejecutando el código anterior mientras el Service Worker nuevo sirve recursos nuevos.
+
+**Solución aplicada:** si una pestaña ya controlada detecta `controllerchange`, ahora muestra un aviso accesible que ofrece actualizar ahora o más tarde. La recarga es voluntaria para no cortar la reproducción sin permiso. La primera instalación no activa el aviso. La cache shell pasó de `ritmo-shell-v11` a `ritmo-shell-v12`.
+
+### Hallazgo 2: silencio desincronizado en el reproductor expandido
+
+El control de silencio ya persistía el volumen y actualizaba los dos motores de audio, pero no movía el deslizador que aparece en la vista expandida. Después de silenciar desde el reproductor inferior, la vista de pantalla completa podía mostrar un nivel antiguo hasta el siguiente cambio de volumen.
+
+**Solución aplicada:** el handler de silenciar/restaurar actualiza también `#expanded-volume-bar`, conservando una única preferencia y el mismo estado de volumen.
+
+### Referencias consultadas
+
+- Chrome for Developers, [Service Worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle/): explica que las versiones nuevas pueden tomar el control, que las cachés anteriores deben gestionarse y que la sustitución de controlador puede afectar recursos de una página ya abierta.
+- Chrome for Developers, [Handling service worker updates](https://developer.chrome.com/docs/workbox/handling-service-worker-updates/): describe el patrón de avisar cuando hay una actualización y permitir que el usuario recargue para cargar recursos y lógica coherentes.
+- MDN, [HTMLMediaElement.play()](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/play): confirma que el inicio de audio es asíncrono y puede ser rechazado; por eso la actualización no fuerza una recarga durante la sesión de escucha.
+- WebKit, [Safari Technology Preview 252 release notes](https://webkit.org/blog/18304/release-notes-for-safari-technology-preview-252/): ejemplo de notas oficiales que documentan fallos de Web Audio/streaming y su reparación. Estas variaciones refuerzan la necesidad de pruebas reales entre navegadores; no se atribuye a Ritmo un bug interno de Safari.
+
+### Validación
+
+Se añadieron comprobaciones de regresión para el aviso de actualización, la exclusión del primer registro, la acción de recarga, la sincronización del volumen expandido y el número de caché. La validación automática no sustituye pruebas manuales en navegadores móviles.

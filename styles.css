@@ -309,3 +309,23 @@
 @media(prefers-reduced-motion:reduce){
   .library-album-card,.expanded-cover-glyph,.expanded-live-dot,.now-playing-dialog[open]{animation:none!important}
 }
+
+
+/* PWA: announce a fresh service-worker controller without interrupting playback */
+.app-update-banner{position:fixed;z-index:90;top:14px;left:50%;transform:translateX(-50%);width:min(720px,calc(100vw - 28px));display:flex;align-items:center;gap:12px;padding:12px 13px;border:1px solid #66518b;border-radius:14px;background:#211c2bf5;box-shadow:0 18px 55px #0008;backdrop-filter:blur(18px);color:#f4efff}
+.app-update-banner[hidden]{display:none}
+.app-update-icon{display:grid;place-items:center;flex:0 0 35px;height:35px;border-radius:11px;background:#9c7be32a;color:#d9c5ff;font-size:20px}
+.app-update-copy{display:grid;gap:4px;flex:1;min-width:0}
+.app-update-copy strong{font-size:12px}
+.app-update-copy span{font-size:10px;line-height:1.5;color:#b3adc3}
+.app-update-banner .button{min-height:34px;padding:0 12px;font-size:10px;white-space:nowrap}
+.app-update-dismiss{font-size:17px;flex:0 0 auto}
+@media(max-width:600px){
+ .app-update-banner{top:8px;align-items:flex-start;flex-wrap:wrap;gap:9px;padding:10px}
+ .app-update-icon{width:30px;height:30px;flex-basis:30px}
+ .app-update-copy{flex:1 1 calc(100% - 90px);padding-top:2px}
+ .app-update-copy strong{font-size:11px}
+ .app-update-copy span{font-size:9px}
+ .app-update-banner #app-update-now{margin-left:39px}
+ .app-update-dismiss{margin-left:auto}
+}
