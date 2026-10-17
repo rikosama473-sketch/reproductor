@@ -267,3 +267,10 @@ Se añadieron smoke checks de integración para la vista de cuadrícula, el sele
 - Spotify, [rediseño de la experiencia de escritorio y vista de reproducción](https://newsroom.spotify.com/2023-06-20/spotify-desktop-experience-redesign-your-library-now-playing-views-customize/): navegación, biblioteca lateral y controles persistentes como patrones de referencia.
 - Apple, [guía de Apple Music](https://support.apple.com/guide/music/welcome/mac): organización visual de biblioteca, álbumes y listas.
 - Plexamp, [sitio oficial](https://www.plex.tv/plexamp/): referencia para una experiencia de reproducción más inmersiva. Estos productos se usan como inspiración de UX, no se copian sus recursos de marca.
+
+
+## Décima pasada — evitar doble activación por teclado en tarjetas visuales (17 de octubre de 2026)
+
+Durante la revisión final de la cuadrícula nueva se identificó una interacción duplicada: el helper que permite activar con Enter/Espacio las filas implementadas como elementos con rol de botón también se ejecutaba sobre el nuevo botón HTML nativo de cada portada. El navegador ya sintetiza el clic de activación del botón nativo, así que la vía manual podía enviar dos solicitudes seguidas.
+
+Se limitó el manejador de teclado manual a los elementos no nativos que realmente lo necesitan; los botones HTML conservan la activación nativa y accesible del navegador. Se añadió una aserción de regresión y se incrementó la shell PWA a ritmo-shell-v11, porque la aplicación usa una estrategia de caché del shell que necesita una versión nueva para recibir el JavaScript actualizado.
