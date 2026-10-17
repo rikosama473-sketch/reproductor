@@ -167,7 +167,7 @@ console.log("Third-pass regressions passed: failed-storage rollback, live sleep-
 assert.match(app, /let playbackRequestId = 0;[\s\S]*let youtubeSearchRequestId = 0;[\s\S]*let archiveSearchRequestId = 0;/, "Async playback and both online searches must track the latest request");
 assert.match(app, /async function playTrack\(trackId, autoplay = true, options = \{\}\) \{[\s\S]*const isCurrentPlaybackRequest = \(\) => requestId === playbackRequestId;/, "Playback requests need a unique identity");
 assert.match(app, /if \(autoplay\) await audio\.play\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;/, "A superseded play() promise must not update the newer track state");
-assert.match(app, /function playYoutubeVideo[\s\S]*playbackRequestId \+= 1;/, "Starting YouTube playback must invalidate pending native-audio requests");
+assert.match(app, /function playYoutubeVideo[\s\S]*cancelPendingPlaybackIntent\(\);/, "Starting YouTube playback must invalidate pending native-audio requests");
 assert.match(app, /const query = pageToken \? state\.youtubeQuery : \$\("#youtube-query"\)\.value\.trim\(\);/, "YouTube pagination must use the query that created its page token");
 assert.match(app, /const isCurrentYoutubeSearch = \(\) => requestId === youtubeSearchRequestId;/, "YouTube search responses must be associated with the latest request");
 assert.match(app, /if \(!isCurrentYoutubeSearch\(\)\) return;/, "Stale YouTube responses must not overwrite newer results");
@@ -182,10 +182,15 @@ assert.doesNotMatch(app, /await deleteTrack\(track\.id\)[\s\S]*for \(const list 
 console.log("Fourth-pass regressions passed: async audio switching, latest-query-wins, and atomic deletion from playlists.");
 
 assert.match(storage, /A helper callback can throw after it has already queued a write\.[\s\S]*tx\.abort\(\)/, "A synchronous storage callback failure must abort any queued writes");
-assert.match(app, /async function removeCurrent\(\) \{\s*\/\/[\s\S]*playbackRequestId \+= 1;/, "Removing a selected track must invalidate any pending play request");
+assert.match(app, /async function removeCurrent\(\) \{\s*\/\/[\s\S]*cancelPendingPlaybackIntent\(\);/, "Removing a selected track must invalidate any pending play request");
 assert.match(app, /function resumeCurrentTrack\(\) \{[\s\S]*playTrack\(track\.id, true, \{ keepQueue: true, resumeAt: position, skipHistory: true \}\);/, "Resume actions must pass through request-aware track selection");
-assert.match(app, /play: \(\) => resumeCurrentTrack\(\)/, "System media-session resume must use the request-aware player");
-assert.doesNotMatch(app, /if \(audio\.paused\) \{\s*try \{ if \(audio === equalizedAudio\) await ensureAudioProcessing\(\); await audio\.play\(\);/, "The play button must not bypass playback request guards");
+assert.match(app, /function cancelPendingPlaybackIntent\(\) \{\s*playbackRequestId \+= 1;\s*pendingPlaybackRequestId = null;/, "Pausing must invalidate pending play requests and clear their intent");
+assert.match(app, /function pauseCurrentTrack\(\) \{[\s\S]*cancelPendingPlaybackIntent\(\);\s*audio\.pause\(\);/, "Explicit pause must cancel async playback before pausing the media element");
+assert.match(app, /pendingPlaybackRequestId = autoplay \? requestId : null;/, "Autoplay requests must expose their pending intent before asynchronous setup");
+assert.match(app, /pendingPlaybackRequestId !== null \|\| !audio\.paused\) pauseCurrentTrack\(\);/, "The play button must cancel in-flight requests even while the element still reports paused");
+assert.match(app, /play: \(\) => resumeCurrentTrack\(\), pause: \(\) => pauseCurrentTrack\(\), stop: \(\) => pauseCurrentTrack\(\)/, "Media Session pause/stop must use the same request cancellation logic");
+assert.match(app, /cancelPendingPlaybackIntent\(\);\s*defaultAudio\.pause\(\);\s*equalizedAudio\.pause\(\);/, "Sleep fade completion must invalidate playback requests before stopping both audio engines");
+assert.match(app, /if \(state\.repeat === "one"\) \{ element\.currentTime = 0; resumeCurrentTrack\(\); \}/, "Repeat-one restart must use the request-aware player");
 console.log("Fifth-pass regressions passed: service-worker cache invalidation, abortable writes and request-safe resume/removal.");
 
 assert.ok(validateWorkflow.includes("actions/checkout@v7"), "Validation should use a checkout action compatible with the retired Node 20 runtime");
