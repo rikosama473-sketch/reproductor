@@ -329,3 +329,9 @@
  .app-update-banner #app-update-now{margin-left:39px}
  .app-update-dismiss{margin-left:auto}
 }
+
+
+/* Paired music discovery/import actions on home and library views. */
+.page-intro-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0.65rem; }
+.page-intro-actions .button { white-space: nowrap; }
+@media (max-width: 720px) { .page-intro-actions { width: 100%; justify-content: stretch; } .page-intro-actions .button { flex: 1 1 auto; } }
