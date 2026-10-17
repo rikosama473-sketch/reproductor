@@ -157,3 +157,5 @@
  .archive-result-actions{align-items:stretch}
  .archive-result-actions .button{flex:1;text-align:center}
 }
+.archive-track-download{display:inline-grid;place-items:center;text-decoration:none;flex-shrink:0}
+.archive-track-download:hover{color:#d5c4ff}
