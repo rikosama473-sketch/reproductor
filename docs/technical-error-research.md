@@ -455,7 +455,7 @@ El primer run de `Build Ritmo Android APK` falló en el paso `Set up Android SDK
 
 ### Corrección
 
-Se cambió el input `packages` del paso `android-actions/setup-android@v4` a la lista delimitada por comas que consume la acción: `platform-tools,platforms;android-36,build-tools;36.0.0`. Se anotó el incidente en la guía Android para que futuros cambios de workflow mantengan el formato correcto.
+La primera tentativa de separar la lista por comas tampoco sirvió: la segunda ejecución mostró que el action seguía pasando la cadena completa como un único paquete. La corrección actual elimina el input `packages`, deja que `setup-android@v4` instale sus herramientas predeterminadas y añade un paso separado que llama `sdkmanager "platforms;android-36" "build-tools;36.0.0"` con los paquetes como argumentos separados.
 
 ### Evidencia y referencias
 
@@ -466,3 +466,8 @@ Se cambió el input `packages` del paso `android-actions/setup-android@v4` a la 
 ### Estado
 
 La corrección se registra en el commit siguiente. Solo el próximo resultado de Actions puede confirmar si el SDK quedó correctamente instalado y si se genera el APK.
+
+
+### Seguimiento experimental
+
+La ejecución [39068069529](https://github.com/rikosama473-sketch/reproductor/actions/runs/39068069529) confirmó que la separación por comas tampoco funcionaba porque `setup-android@v4` entregó todo el texto a `sdkmanager` como un solo paquete. La corrección siguiente evita esa entrada y usa la CLI `sdkmanager` directamente. Se espera al resultado del nuevo workflow antes de marcar la APK como compilada.

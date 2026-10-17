@@ -40,4 +40,9 @@ El build automatizado comprueba el ensamblado y la firma, pero no sustituye las 
 
 La primera ejecución de Actions falló en `Set up Android SDK`: el log mostró que `sdkmanager` recibió una cadena con saltos de línea y respondió `Failed to find package 'platform-tools platforms;android-36 build-tools;36.0.0'`. La compilación ni siquiera había llegado a instalar Node dependencies, por lo que no era un fallo de Capacitor ni del código de Ritmo.
 
-**Solución:** la entrada `packages` de `android-actions/setup-android` se convirtió a su formato delimitado por comas: `platform-tools,platforms;android-36,build-tools;36.0.0`. El siguiente run debe confirmar la instalación de cada paquete por separado antes de validar el APK.
+**Primera corrección insuficiente:** separar los nombres con comas tampoco funcionó: el segundo log confirma que la acción pasó toda la cadena como un único argumento. **Corrección definitiva:** se deja que `setup-android@v4` instale sus herramientas predeterminadas y se ejecuta en un paso independiente `sdkmanager "platforms;android-36" "build-tools;36.0.0"`, pasando cada paquete como argumento real al programa.
+
+
+### Seguimiento de la misma incidencia
+
+La ejecución posterior [39068069529](https://github.com/rikosama473-sketch/reproductor/actions/runs/39068069529) demostró que la separación por comas tampoco es interpretada por la acción: el log literal dice `Failed to find package 'platform-tools,platforms;android-36,build-tools;36.0.0'`. El workflow ya no usa el input `packages`; invoca a `sdkmanager` directamente con dos argumentos separados. El resultado de la próxima ejecución determinará si el problema quedó resuelto.
