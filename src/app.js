@@ -212,7 +212,7 @@ function sortedForView(view) {
   if (view === "offline") tracks = tracks.filter(isLocal);
   if (view === "library" && state.query.trim()) {
     const query = state.query.toLocaleLowerCase();
-    tracks = tracks.filter(track => (track.title + " " + track.artist + " " + (track.album || "")).toLocaleLowerCase().includes(query));
+    tracks = tracks.filter(track => [track.title, track.artist, track.album, track.name, track.sourcePath].filter(Boolean).join(" ").toLocaleLowerCase().includes(query));
   }
   return tracks;
 }
@@ -990,7 +990,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
-  if (track.nativeUri && !track.nativePath) {
+  if (track.nativeUri) {
     const plugin = nativeMusicPlugin();
     if (!plugin?.resolveAudioPath) {
       pendingPlaybackRequestId = null;
