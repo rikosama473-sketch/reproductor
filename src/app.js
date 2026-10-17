@@ -151,8 +151,18 @@ function bindRenderedActions(root) {
     event.stopPropagation();
     const track = getTrack(button.dataset.favorite);
     if (!track) return;
-    track.favorite = !track.favorite;
-    try { await saveTrack(track); render(); updatePlayerFavorite(); } catch (error) { toast(error.message || "No se pudo guardar el favorito."); }
+    const previousFavorite = track.favorite;
+    track.favorite = !previousFavorite;
+    try {
+      await saveTrack(track);
+      render();
+      updatePlayerFavorite();
+    } catch (error) {
+      track.favorite = previousFavorite;
+      render();
+      updatePlayerFavorite();
+      toast(error.message || "No se pudo guardar el favorito.");
+    }
   }));
   root.querySelectorAll("[data-delete]").forEach(button => button.addEventListener("click", async event => {
     event.stopPropagation();
@@ -193,6 +203,8 @@ function bindRenderedActions(root) {
     const list = state.playlists[Number.parseInt(answer, 10) - 1];
     if (!list) { toast("Ese número no corresponde a una lista."); return; }
     if (list.trackIds.includes(track.id)) { toast("La canción ya está en esa lista."); return; }
+    const previousTrackIds = [...list.trackIds];
+    const previousUpdatedAt = list.updatedAt;
     list.trackIds.push(track.id);
     list.updatedAt = Date.now();
     try {
@@ -200,7 +212,12 @@ function bindRenderedActions(root) {
       state.playlists = await getPlaylists();
       renderPlaylists();
       toast("Se agregó a «" + list.name + "».");
-    } catch (error) { toast(error.message || "No se pudo actualizar la lista."); }
+    } catch (error) {
+      list.trackIds = previousTrackIds;
+      list.updatedAt = previousUpdatedAt;
+      renderPlaylists();
+      toast(error.message || "No se pudo actualizar la lista.");
+    }
   }));
 function renderTrackList(selector, list, emptySelector) {
   const root = $(selector);
@@ -285,10 +302,21 @@ function renderPlaylists() {
       event.stopPropagation();
       const list = state.playlists.find(item => item.id === state.currentPlaylistId);
       if (!list) return;
+      const previousTrackIds = [...list.trackIds];
+      const previousUpdatedAt = list.updatedAt;
       list.trackIds = list.trackIds.filter(trackId => trackId !== row.dataset.trackRow);
       list.updatedAt = Date.now();
-      try { await savePlaylist(list); state.playlists = await getPlaylists(); renderPlaylists(); toast("Canción quitada de la lista."); }
-      catch (error) { toast(error.message || "No se pudo actualizar la lista."); }
+      try {
+        await savePlaylist(list);
+        state.playlists = await getPlaylists();
+        renderPlaylists();
+        toast("Canción quitada de la lista.");
+      } catch (error) {
+        list.trackIds = previousTrackIds;
+        list.updatedAt = previousUpdatedAt;
+        renderPlaylists();
+        toast(error.message || "No se pudo actualizar la lista.");
+      }
     });
     actions.prepend(removeButton);
   });
@@ -482,7 +510,10 @@ function startSleepTimer(minutes) {
       const steps = 20;
       state.sleepFadeTimer = setInterval(() => {
         step += 1;
-        const fadedVolume = volume * Math.max(0, 1 - step / steps);
+        // Read the current slider preference on every tick so a volume change
+        // during the timer/fade isn't overwritten by an old captured value.
+        const currentVolume = Number($("#volume-bar").value);
+        const fadedVolume = currentVolume * Math.max(0, 1 - step / steps);
         defaultAudio.volume = fadedVolume;
         equalizedAudio.volume = fadedVolume;
         if (step >= steps) {
@@ -490,8 +521,9 @@ function startSleepTimer(minutes) {
           state.sleepFadeTimer = null;
           defaultAudio.pause();
           equalizedAudio.pause();
-          defaultAudio.volume = volume;
-          equalizedAudio.volume = volume;
+          const restoredVolume = Number($("#volume-bar").value);
+          defaultAudio.volume = restoredVolume;
+          equalizedAudio.volume = restoredVolume;
           stopYoutubePlayback();
           updatePlayer();
           showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
@@ -1502,8 +1534,17 @@ function bindEvents() {
   $("#player-favorite").addEventListener("click", async () => {
     const track = currentTrack();
     if (!track) return;
-    track.favorite = !track.favorite;
-    try { await saveTrack(track); render(); } catch { toast("No se pudo guardar el favorito."); }
+    const previousFavorite = track.favorite;
+    track.favorite = !previousFavorite;
+    try {
+      await saveTrack(track);
+      render();
+    } catch {
+      track.favorite = previousFavorite;
+      render();
+      updatePlayerFavorite();
+      toast("No se pudo guardar el favorito.");
+    }
   });
   $("#seek-bar").addEventListener("input", event => { if (Number.isFinite(audio.duration)) audio.currentTime = audio.duration * Number(event.target.value) / 1000; });
   $("#volume-bar").addEventListener("input", event => {
