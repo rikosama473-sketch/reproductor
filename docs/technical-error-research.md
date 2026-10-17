@@ -85,3 +85,27 @@ La documentación de Internet Archive aclara que licenseurl identifica una URL d
 5. Activar GitHub Pages desde Settings y verificar el despliegue por separado de los smoke checks.
 
 La automatización actual verifica sintaxis, selectores y regresiones simuladas. No reemplaza la comprobación real en Safari/Android ni garantiza que un archivo o una fuente externa siga disponible.
+
+
+## Segunda pasada — 17 de octubre de 2026
+
+Esta segunda auditoría encontró tres fallos adicionales de la aplicación y un riesgo de compatibilidad que queda explícitamente sin confirmar en hardware real.
+
+| Hallazgo | Evidencia en Ritmo | Corrección |
+| --- | --- | --- |
+| El volumen guardado se sobrescribía al arrancar | La inicialización aplicaba \`audioPrefs.volume\` y después fijaba ambos motores en \`0.8\`. Si la preferencia guardada era silencio, la interfaz podía indicar silencio mientras el motor quedaba al 80 %. | Eliminadas las asignaciones fijas posteriores; se conserva el valor que cargó la preferencia guardada. |
+| Retención innecesaria de URLs de objetos | Cada archivo local reproducido recibía una URL \`blob:\` almacenada en un mapa, pero las URLs de temas anteriores no se revocaban al cambiar de pista. | Al cambiar de fuente, se revocan todas las URLs inactivas; se conserva solo la de la pista local seleccionada. Al detener el audio para pasar a YouTube o quitar la pista actual, se vacía la fuente y se liberan las URLs. |
+| Caché de PWA no versionada para este cambio | La estrategia prioriza respuestas cacheadas. Cambiar `app.js` sin cambiar el script del service worker impide que este detecte una nueva versión del shell instalado. | Incrementada la caché del shell a `ritmo-shell-v7`, con comprobaciones actualizadas para verificar que el despliegue invalide la caché anterior. |
+| Dedupe de importación confundía archivos de carpetas distintas | La huella solo usaba nombre, tamaño y fecha de modificación. Dos archivos homónimos con tamaño/fecha iguales podían hacer que uno se descartara al importar una carpeta. | La huella usa la ruta relativa de la carpeta cuando existe y la persiste en \`sourcePath\`; los archivos con el mismo nombre en rutas distintas ya no colisionan. |
+| Reapertura de una PWA en iOS puede dejar el audio en silencio | WebKit contiene un reporte abierto de un fallo al reabrir una PWA instalada en iOS 26: \`play()\` puede resolverse aunque no salga sonido. | Riesgo documentado, no declarado como reparado: no podemos confirmar una solución sin probar en un iPhone/iPad y en las versiones de iOS afectadas. Ritmo ya ofrece la acción de reintento, pero no detecta silencios del sistema cuando el navegador no los informa. |
+
+### Fuentes nuevas revisadas
+
+- MDN, [blob: URLs y gestión de memoria](https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Schemes/blob): cada URL creada debe revocarse cuando deja de ser necesaria; mantenerlas puede impedir liberar sus recursos.
+- MDN, [URL.revokeObjectURL()](https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL_static): referencia del mecanismo para liberar URLs de objetos.
+- WebKit Bugzilla, [Bug 295518 — Audio Element Fails to Play on Reopen in PWA (Add to Home Screen)](https://bugs.webkit.org/show_bug.cgi?format=multiple&id=295518): reporte abierto relacionado con Safari/iOS 26; requiere verificación física antes de afirmar que una corrección funciona.
+- MDN, [Using IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB): nota sobre duración de transacciones; se mantuvo la importación en transacciones agrupadas y no se introdujeron esperas asíncronas dentro de una transacción.
+
+### Validación
+
+Se añadieron comprobaciones de regresión al smoke check para asegurar que el volumen guardado no vuelva a sobrescribirse, las URLs de objetos inactivas se limpien y las importaciones por carpeta distingan archivos homónimos. Estas comprobaciones son de código/estructura; no sustituyen una prueba manual en Safari/iOS ni una sesión de escucha real.
