@@ -694,13 +694,15 @@ function setupMediaSession() {
   $("#stat-total").innerHTML = all.length + ' <small>canciones</small>';
   $("#stat-favorites").innerHTML = all.filter(track => track.favorite).length + ' <small>guardadas</small>';
   $("#stat-offline").innerHTML = all.filter(isLocal).length + ' <small>archivos locales</small>';
-  $("#library-meta").textContent = sortedForView("library").length + (sortedForView("library").length === 1 ? " canción" : " canciones");
+  const visibleLibraryTracks = sortedForView("library");
+  $("#library-meta").textContent = visibleLibraryTracks.length + (visibleLibraryTracks.length === 1 ? " canción" : " canciones");
   renderCards("#recent-tracks", all);
   $("#home-empty").hidden = all.length > 0;
-  renderTrackList("#library-tracks", sortedForView("library"), "#library-empty");
+  renderTrackList("#library-tracks", visibleLibraryTracks, "#library-empty");
   renderTrackList("#favorite-tracks", sortedForView("favorites"), "#favorites-empty");
   renderTrackList("#offline-tracks", sortedForView("offline"), "#offline-empty");
-  $("#library-empty").hidden = all.length > 0 || Boolean(state.query.trim());
+  $("#library-empty").hidden = all.length > 0;
+  $("#library-no-results").hidden = !(all.length > 0 && Boolean(state.query.trim()) && visibleLibraryTracks.length === 0);
   $("#home-empty").hidden = all.length > 0;
   renderHistory();
   renderPlaylists();
@@ -1511,7 +1513,14 @@ function bindEvents() {
     if (!firstTrack) { toast("Esta lista no contiene canciones disponibles en la biblioteca."); return; }
     playTrack(firstTrack.id, true, { queueIds: list.trackIds });
   });
-  $("#library-search").addEventListener("input", event => { state.query = event.target.value; renderTrackList("#library-tracks", sortedForView("library"), "#library-empty"); $("#library-empty").hidden = state.tracks.length > 0 || Boolean(state.query.trim()); $("#library-meta").textContent = sortedForView("library").length + " canciones"; });
+  $("#library-search").addEventListener("input", event => {
+    state.query = event.target.value;
+    const visibleLibraryTracks = sortedForView("library");
+    renderTrackList("#library-tracks", visibleLibraryTracks, "#library-empty");
+    $("#library-empty").hidden = state.tracks.length > 0;
+    $("#library-no-results").hidden = !(state.tracks.length > 0 && Boolean(state.query.trim()) && visibleLibraryTracks.length === 0);
+    $("#library-meta").textContent = visibleLibraryTracks.length + (visibleLibraryTracks.length === 1 ? " canción" : " canciones");
+  });
   $("#play-button").addEventListener("click", async () => {
     if (!currentTrack()) return;
     if (audio.paused) {
