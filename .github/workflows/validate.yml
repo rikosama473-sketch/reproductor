@@ -22,13 +22,16 @@ jobs:
         run: |
           node --check src/app.js
           node --check src/youtube-history.js
+          node --check src/audio-output-volume.js
           node --check src/storage.js
           node --check sw.js
           node --check scripts/smoke-check.mjs
           node --check scripts/indexeddb-recovery-check.mjs
           node --check scripts/youtube-history-check.mjs
+          node --check scripts/audio-output-volume-check.mjs
       - name: Check app shell wiring
         run: |
           node scripts/smoke-check.mjs
           node scripts/indexeddb-recovery-check.mjs
           node scripts/youtube-history-check.mjs
+          node scripts/audio-output-volume-check.mjs
