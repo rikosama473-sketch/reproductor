@@ -15,6 +15,9 @@ assert.match(java, /READ_MEDIA_AUDIO/, "Android 13+ debe usar el permiso de audi
 assert.match(java, /READ_EXTERNAL_STORAGE/, "Android 12 y anteriores deben usar el permiso heredado");
 assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo debe consultar MediaStore");
 assert.match(java, /ACTION_OPEN_DOCUMENT/, "La importación debe abrir carpetas y seleccionar archivos");
+assert.match(java, /ACTION_OPEN_DOCUMENT_TREE/, "La app debe permitir elegir una carpeta completa");
+assert.match(java, /listAudioFromTree/, "La app debe explorar la carpeta seleccionada");
+assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente debe funcionar en JS vanilla sin registerPlugin importado");
 assert.match(java, /copyToPrivateCache/, "Proveedores sin ruta directa deben poder leerse");
 assert.match(prep, /registerPlugin\(RitmoMusicLibraryPlugin\.class\)/, "El build debe registrar el plugin");
 assert.match(workflow, /prepare-android-native\.mjs/, "CI debe preparar el puente antes de compilar");

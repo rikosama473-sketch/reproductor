@@ -10,6 +10,8 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
+import android.provider.DocumentsContract;
+import android.provider.DocumentsContract.Document;
 import android.provider.OpenableColumns;
 import android.webkit.MimeTypeMap;
 
@@ -29,8 +31,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @CapacitorPlugin(
     name = "RitmoMusicLibrary",
@@ -221,6 +226,121 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         file.put("mimeType", mime == null ? guessMimeType(name) : mime);
         file.put("lastModified", System.currentTimeMillis());
         return file;
+    }
+
+    @PluginMethod
+    public void pickAudioFolder(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(call, intent, "audioFolderPickerResult");
+    }
+
+    @ActivityCallback
+    private void audioFolderPickerResult(PluginCall call, ActivityResult result) {
+        if (result == null || result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            JSObject empty = new JSObject();
+            empty.put("treeUri", "");
+            empty.put("cancelled", true);
+            call.resolve(empty);
+            return;
+        }
+        Uri treeUri = result.getData().getData();
+        try {
+            getContext().getContentResolver().takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception error) {
+            call.reject("Android no permitió conservar el acceso a esa carpeta. Elegí otra ubicación.", error);
+            return;
+        }
+        JSObject response = new JSObject();
+        response.put("treeUri", treeUri.toString());
+        response.put("cancelled", false);
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void listAudioFromTree(PluginCall call) {
+        String rawTreeUri = call.getString("treeUri");
+        if (rawTreeUri == null || rawTreeUri.trim().isEmpty()) {
+            call.reject("No se recibió una carpeta de música válida.");
+            return;
+        }
+        Uri treeUri = Uri.parse(rawTreeUri);
+        JSArray files = new JSArray();
+        Set<String> visited = new HashSet<>();
+        ArrayDeque<TreeFolder> pending = new ArrayDeque<>();
+        try {
+            String rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri);
+            pending.push(new TreeFolder(rootDocumentId, 0));
+            visited.add(rootDocumentId);
+            ContentResolver resolver = getContext().getContentResolver();
+            String[] projection = {
+                Document.COLUMN_DOCUMENT_ID,
+                Document.COLUMN_DISPLAY_NAME,
+                Document.COLUMN_MIME_TYPE,
+                Document.COLUMN_SIZE,
+                Document.COLUMN_LAST_MODIFIED
+            };
+            while (!pending.isEmpty() && files.length() < 10000) {
+                TreeFolder folder = pending.pop();
+                if (folder.depth > 32) continue;
+                Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folder.documentId);
+                try (Cursor cursor = resolver.query(childrenUri, projection, null, null, Document.COLUMN_DISPLAY_NAME + " COLLATE NOCASE ASC")) {
+                    if (cursor == null) continue;
+                    int idColumn = cursor.getColumnIndex(Document.COLUMN_DOCUMENT_ID);
+                    int nameColumn = cursor.getColumnIndex(Document.COLUMN_DISPLAY_NAME);
+                    int mimeColumn = cursor.getColumnIndex(Document.COLUMN_MIME_TYPE);
+                    int sizeColumn = cursor.getColumnIndex(Document.COLUMN_SIZE);
+                    int modifiedColumn = cursor.getColumnIndex(Document.COLUMN_LAST_MODIFIED);
+                    while (cursor.moveToNext() && files.length() < 10000) {
+                        String docId = columnString(cursor, idColumn);
+                        String name = columnString(cursor, nameColumn);
+                        String mime = columnString(cursor, mimeColumn);
+                        if (docId == null || docId.trim().isEmpty()) continue;
+                        if (Document.MIME_TYPE_DIR.equals(mime)) {
+                            if (visited.add(docId)) pending.push(new TreeFolder(docId, folder.depth + 1));
+                            continue;
+                        }
+                        if (!isAudioFile(name, mime)) continue;
+                        Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId);
+                        JSObject item = new JSObject();
+                        item.put("id", documentUri.toString());
+                        item.put("uri", documentUri.toString());
+                        item.put("name", name == null || name.trim().isEmpty() ? "audio" : name);
+                        item.put("title", stripExtension(name == null ? "audio" : name));
+                        item.put("artist", "Artista desconocido");
+                        item.put("album", "");
+                        item.put("duration", 0);
+                        item.put("size", columnLong(cursor, sizeColumn));
+                        item.put("mimeType", mime == null ? guessMimeType(name == null ? "" : name) : mime);
+                        item.put("lastModified", columnLong(cursor, modifiedColumn));
+                        files.put(item);
+                    }
+                }
+            }
+            JSObject response = new JSObject();
+            response.put("files", files);
+            response.put("treeUri", treeUri.toString());
+            call.resolve(response);
+        } catch (SecurityException error) {
+            call.reject("Android no permitió leer la carpeta. Volvé a elegirla y concedé acceso.", error);
+        } catch (Exception error) {
+            call.reject("No se pudo explorar la carpeta de música seleccionada.", error);
+        }
+    }
+
+    private static boolean isAudioFile(String filename, String mime) {
+        if (mime != null && mime.toLowerCase().startsWith("audio/")) return true;
+        if (filename == null) return false;
+        return filename.matches("(?i).+\\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$");
+    }
+
+    private static final class TreeFolder {
+        final String documentId;
+        final int depth;
+        TreeFolder(String documentId, int depth) {
+            this.documentId = documentId;
+            this.depth = depth;
+        }
     }
 
     @PluginMethod

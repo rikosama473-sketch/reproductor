@@ -60,3 +60,12 @@ La solución incorpora `native/android/RitmoMusicLibraryPlugin.java` y lo regist
 - El escaneo depende de que Android indexe el audio y de que el usuario conceda el permiso. Para audios no indexados, ubicaciones USB/red o proveedores externos se puede usar el selector de archivos.
 
 Android distingue correctamente ambas operaciones: los documentos escogidos por el usuario mediante Storage Access Framework no requieren permiso general, mientras que enumerar la biblioteca de audio de otras aplicaciones usa un permiso de medios granular. Fuentes: [Android: acceso a documentos y archivos](https://developer.android.com/training/data-storage/shared/documents-files?hl=es-419), [Android: acceso a medios compartidos](https://developer.android.com/training/data-storage/shared/media?hl=es), [Android 13: permisos de medios granulares](https://developer.android.com/about/versions/13/behavior-changes-13?hl=es-419), [Capawesome File Picker: documentación y correcciones recientes](https://github.com/capawesome-team/capacitor-plugins/tree/main/packages/file-picker).
+
+
+## Corrección adicional: puente JavaScript y selección de carpetas
+
+Se corrigió un fallo de integración de la aplicación estática: el código dependía de `window.Capacitor.registerPlugin()`, API que pertenece al runtime JavaScript de Capacitor y que no está garantizada cuando la página no importa/bundlea `@capacitor/core`. La app ahora usa el puente de promesas nativo directamente si falta ese registro y ya no cae silenciosamente al selector web cuando detecta que se ejecuta en Android.
+
+Se agregó **Elegir carpeta de música**: abre el selector SAF de Android con `ACTION_OPEN_DOCUMENT_TREE`, conserva el permiso persistente para la carpeta elegida y recorre subcarpetas para registrar audio reconocido por MIME o extensión. La selección de carpeta no precisa permiso global de almacenamiento. La búsqueda de toda la biblioteca continúa usando `READ_MEDIA_AUDIO` (Android 13+) o `READ_EXTERNAL_STORAGE` (Android 12 y anteriores).
+
+Referencias: [Capacitor: registro de complementos nativos](https://next.capacitorjs.com/docs/next/android/custom-code), [Capacitor 8 runtime](https://github.com/ionic-team/capacitor/blob/8.5.3/core/src/runtime.ts), [Android: selector de documentos y carpetas](https://developer.android.com/training/data-storage/shared/documents-files?hl=es-419), [Android: permisos multimedia y MediaStore](https://developer.android.com/training/data-storage/shared/media?hl=es).

@@ -107,12 +107,27 @@ function isLocal(track) {
     (typeof track.nativeUri === "string" && Boolean(track.nativeUri))
   );
 }
+function isNativeAndroidShell() {
+  const bridge = window.Capacitor;
+  const platform = typeof bridge?.getPlatform === "function" ? bridge.getPlatform() : "";
+  return Boolean(window.androidBridge) || platform === "android" ||
+    (platform !== "web" && typeof bridge?.nativePromise === "function");
+}
 function nativeMusicPlugin() {
   const bridge = window.Capacitor;
-  if (!bridge?.isNativePlatform?.() || typeof bridge.registerPlugin !== "function") return null;
+  if (!isNativeAndroidShell() || typeof bridge?.nativePromise !== "function") return null;
   if (!state.nativeMusicPlugin) {
-    try { state.nativeMusicPlugin = bridge.registerPlugin("RitmoMusicLibrary"); }
-    catch { return null; }
+    // This app ships vanilla ES modules and does not bundle an @capacitor/core import.
+    // Use the native Promise bridge directly when registerPlugin is absent.
+    const invoke = method => options => bridge.nativePromise("RitmoMusicLibrary", method, options || {});
+    state.nativeMusicPlugin = {
+      requestAudioPermission: invoke("requestAudioPermission"),
+      listAudio: invoke("listAudio"),
+      pickAudioFiles: invoke("pickAudioFiles"),
+      pickAudioFolder: invoke("pickAudioFolder"),
+      listAudioFromTree: invoke("listAudioFromTree"),
+      resolveAudioPath: invoke("resolveAudioPath")
+    };
   }
   return state.nativeMusicPlugin;
 }
@@ -1224,6 +1239,12 @@ async function downloadStreamOffline(trackId) {
 async function openAudioImport() {
   const plugin = nativeMusicPlugin();
   if (!plugin?.pickAudioFiles || !plugin?.resolveAudioPath) {
+    if (isNativeAndroidShell()) {
+      const message = "No se pudo conectar con el selector nativo de Ritmo. Cerrá y volvé a abrir la APK actualizada; no se abrió el selector web.";
+      toast(message);
+      showPlaybackStatus(message, "error", false);
+      return;
+    }
     filePicker.click();
     return;
   }
@@ -1258,8 +1279,12 @@ async function openAudioImport() {
 async function scanDeviceMusic() {
   const plugin = nativeMusicPlugin();
   if (!plugin?.requestAudioPermission || !plugin?.listAudio) {
-    toast("La búsqueda automática de música requiere la APK Android. En la web podés elegir archivos manualmente.");
-    await openAudioImport();
+    const message = isNativeAndroidShell()
+      ? "Ritmo detectó Android, pero no pudo iniciar el puente nativo de música. Actualizá la APK y volvé a abrirla."
+      : "La búsqueda automática de música requiere la APK Android. En la web podés elegir archivos manualmente.";
+    toast(message);
+    showPlaybackStatus(message, "error", false);
+    if (!isNativeAndroidShell()) await openAudioImport();
     return;
   }
   const buttons = [...document.querySelectorAll("[data-scan-device-music]")];
@@ -1315,6 +1340,71 @@ async function scanDeviceMusic() {
     showPlaybackStatus(message, "error", false);
   } finally {
     buttons.forEach(button => { button.disabled = false; button.textContent = "Buscar música del teléfono"; });
+  }
+}
+
+async function browseAudioFolder() {
+  const plugin = nativeMusicPlugin();
+  if (!plugin?.pickAudioFolder || !plugin?.listAudioFromTree || !plugin?.resolveAudioPath) {
+    if (isNativeAndroidShell()) {
+      const message = "No se pudo iniciar la selección nativa de carpetas. Actualizá la APK y volvé a abrirla.";
+      toast(message);
+      showPlaybackStatus(message, "error", false);
+      return;
+    }
+    if (folderPicker.hasAttribute("webkitdirectory")) folderPicker.click();
+    else filePicker.click();
+    return;
+  }
+  const buttons = [...document.querySelectorAll("[data-pick-audio-folder]")];
+  buttons.forEach(button => { button.disabled = true; button.textContent = "Abriendo carpetas…"; });
+  try {
+    const picked = await plugin.pickAudioFolder();
+    if (!picked?.treeUri) return;
+    const result = await plugin.listAudioFromTree({ treeUri: picked.treeUri });
+    const files = Array.isArray(result?.files) ? result.files : [];
+    if (!files.length) {
+      toast("No encontré MP3 ni otros audios compatibles en esa carpeta. Elegí la carpeta donde guardás la música.");
+      return;
+    }
+    const knownByUri = new Map(state.tracks.filter(track => track.nativeUri).map(track => [track.nativeUri, track]));
+    const scanned = files.map((item, index) => {
+      const uri = String(item.uri || "");
+      const old = uri ? knownByUri.get(uri) : null;
+      const name = String(item.name || ("audio-" + (item.id || index)));
+      return {
+        ...(old || {}),
+        id: old?.id || ("android-tree-audio-" + String(item.id || uri || index)),
+        kind: "file",
+        name,
+        sourcePath: uri || name,
+        nativePath: "",
+        nativeUri: uri,
+        title: String(item.title || titleFromFilename(name)),
+        artist: String(item.artist || old?.artist || "Artista desconocido"),
+        album: String(item.album || old?.album || ""),
+        size: Number(item.size) || 0,
+        mimeType: String(item.mimeType || "application/octet-stream"),
+        lastModified: Number(item.lastModified) || 0,
+        favorite: Boolean(old?.favorite),
+        addedAt: Number(old?.addedAt) || Date.now() + index,
+        duration: Math.max(0, Number(item.duration) || 0) / 1000,
+        lastPlayedAt: Number(old?.lastPlayedAt) || 0
+      };
+    });
+    for (let offset = 0; offset < scanned.length; offset += 100) {
+      await saveManyTracks(scanned.slice(offset, offset + 100));
+    }
+    state.tracks = await getAllTracks();
+    render();
+    showView("library");
+    toast("Encontré " + scanned.length + " audios en la carpeta. Tocá una canción para reproducirla.");
+  } catch (error) {
+    const message = error?.message || "No se pudo explorar esa carpeta de música.";
+    toast(message);
+    showPlaybackStatus(message, "error", false);
+  } finally {
+    buttons.forEach(button => { button.disabled = false; button.textContent = "Elegir carpeta de música"; });
   }
 }
 
@@ -1883,6 +1973,9 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-scan-device-music]").forEach(button => {
     button.addEventListener("click", scanDeviceMusic);
+  });
+  document.querySelectorAll("[data-pick-audio-folder]").forEach(button => {
+    button.addEventListener("click", browseAudioFolder);
   });
   $("#menu-toggle").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });

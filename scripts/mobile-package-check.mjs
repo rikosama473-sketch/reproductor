@@ -23,7 +23,9 @@ const nativePlugin = await readFile(path.join(root, "native/android/RitmoMusicLi
 assert.match(nativePlugin, /READ_MEDIA_AUDIO/, "Android must request granular audio permission");
 assert.match(nativePlugin, /MediaStore\.Audio\.Media/, "Native plugin must query the audio media store");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT/, "Native plugin must open the system document picker");
-assert.match(sw, /ritmo-shell-v18/, "Android package should contain the latest offline shell");
+assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT_TREE/, "Native plugin must support selecting music folders");
+assert.match(nativePlugin, /listAudioFromTree/, "Native plugin must recursively inspect a selected folder tree");
+assert.match(sw, /ritmo-shell-v19/, "Android package should contain the latest offline shell");
 for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "src/app.js", "src/storage.js", "assets/icon.svg"]) {
   const info = await stat(path.join(root, "www", name)).catch(() => null);
   assert.ok(info?.isFile(), "Missing mobile asset: " + name);
