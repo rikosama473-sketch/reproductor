@@ -18,6 +18,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Install pinned Capacitor runtime dependencies
+        run: npm install --no-audit --no-fund
       - name: Check JavaScript syntax
         run: |
           node --check src/app.js
