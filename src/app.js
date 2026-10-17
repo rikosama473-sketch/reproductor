@@ -638,10 +638,42 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   else if (!options.keepQueue) state.queueIds = null;
   state.currentId = track.id;
   try {
+    let desiredEngine = isLocal(track) && audioPrefs.equalizerEnabled ? equalizedAudio : defaultAudio;
+    if (desiredEngine === equalizedAudio) {
+      try { await ensureAudioProcessing(); }
+      catch (error) {
+        audioPrefs.equalizerEnabled = false;
+        saveAudioPreferences();
+        syncSettingsUI();
+        desiredEngine = defaultAudio;
+        toast(error.message || "Ecualizador no disponible; se usará el audio original.");
+      }
+    }
+    if (desiredEngine !== audio) {
+      const previousEngine = audio;
+      previousEngine.pause();
+      previousEngine.removeAttribute("src");
+      previousEngine.load();
+      audio = desiredEngine;
+    }
+    audio.volume = Number($("#volume-bar").value);
     const url = trackURL(track);
-    if (audio.src !== new URL(url, location.href).href) audio.src = url;
+    const resolvedURL = new URL(url, location.href).href;
+    if (audio.src !== resolvedURL || options.forceReload) {
+      audio.src = url;
+      audio.load();
+    }
+    if (Number.isFinite(options.resumeAt) && options.resumeAt > 0) {
+      const targetEngine = audio;
+      const restorePosition = () => {
+        try { targetEngine.currentTime = Number.isFinite(targetEngine.duration) && targetEngine.duration > 0 ? Math.min(options.resumeAt, targetEngine.duration) : options.resumeAt; } catch {}
+      };
+      if (targetEngine.readyState >= 1) restorePosition();
+      else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
+    }
     if (autoplay) await audio.play();
-    if (autoplay) {
+    showPlaybackStatus("");
+    if (autoplay && !options.skipHistory) {
       track.lastPlayedAt = Date.now();
       try { await saveTrack(track); } catch {}
       try {
@@ -655,8 +687,11 @@ async function playTrack(trackId, autoplay = true, options = {}) {
     updatePlayer();
   } catch (error) {
     const extension = (track.name || track.url || "").split(/[?#]/)[0].split(".").pop()?.toUpperCase();
-    toast(error?.name === "NotAllowedError" ? "Tocá reproducir para habilitar el audio." :
-      "No se pudo reproducir (" + (extension || "formato desconocido") + "). Puede que este navegador no tenga el códec necesario.");
+    const message = error?.name === "NotAllowedError"
+      ? "El navegador bloqueó el inicio automático. Tocá Reproducir para habilitar el audio."
+      : (error?.message || ("No se pudo reproducir (" + (extension || "formato desconocido") + "). Puede que falte el códec o que la fuente no admita reproducción directa."));
+    showPlaybackStatus(message, "error", true);
+    toast(message);
     updatePlayer();
   }
 }
