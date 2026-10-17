@@ -191,8 +191,17 @@ function updateConnection() {
   $("#connection-label").textContent = online ? "Conectado" : "Sin conexión";
   $("#connection-dot").classList.toggle("offline", !online);
 }
+function stopYoutubePlayback() {
+  const frame = $("#youtube-iframe");
+  if (frame && frame.src && frame.src.includes("youtube.com/embed/")) {
+    frame.src = "about:blank";
+  }
+  const wrap = $("#youtube-player-wrap");
+  if (wrap) wrap.hidden = true;
+}
 function showView(view) {
   if (!viewNames[view]) return;
+  if (view !== "online") stopYoutubePlayback();
   state.view = view;
   document.querySelectorAll(".view-panel").forEach(node => { node.hidden = node.id !== view + "-view"; });
   document.querySelectorAll(".nav-item").forEach(node => node.classList.toggle("active", node.dataset.view === view));
@@ -308,8 +317,15 @@ function youtubeVideoURL(videoId) {
   return "https://www.youtube.com/watch?v=" + encodeURIComponent(videoId);
 }
 function openExternal(url) {
-  const opened = window.open(url, "_blank", "noopener");
-  if (!opened) location.href = url;
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.referrerPolicy = "no-referrer";
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
 }
 function setYoutubeStatus(message, kind = "info") {
   const status = $("#youtube-status");
@@ -405,7 +421,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
   const origin = location.origin && location.origin !== "null" ? "&origin=" + encodeURIComponent(location.origin) : "";
-  frame.src = "https://www.youtube.com/embed/" + encodeURIComponent(videoId) + "?autoplay=1&playsinline=1&rel=0" + origin;
+  frame.src = "https://www.youtube.com/embed/" + encodeURIComponent(videoId) + "?autoplay=1&playsinline=1&rel=0&enablejsapi=1" + origin;
   $("#youtube-player-wrap").hidden = false;
   $("#youtube-player-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -504,6 +520,7 @@ function bindEvents() {
   audio.addEventListener("pause", updatePlayer);
   audio.addEventListener("ended", () => { if (state.repeat === "one") { audio.currentTime = 0; audio.play().catch(() => {}); } else nextTrack(1); });
   audio.addEventListener("error", () => { if (currentTrack()) toast("La fuente de audio no está disponible o el formato no es compatible."); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopYoutubePlayback(); });
   window.addEventListener("online", updateConnection);
   window.addEventListener("offline", updateConnection);
   $("#about-button").addEventListener("click", () => $("#info-dialog").showModal());
