@@ -108,3 +108,19 @@ assert.match(app, /function archiveFileURL/, "Catalog file actions must link to 
 assert.match(app, /Descargar original/, "Catalog should provide the source's original-file link, not bypass its delivery rules");
 assert.match(sw, /ritmo-shell-v5/, "Service-worker cache should refresh after adding the open-license catalog");
 console.log("Internet Archive open-license search, metadata verification and original-file link smoke checks passed.");
+
+
+assert.match(html, /id="archive-search-form"/, "Online view should expose open-license music search");
+assert.match(html, /id="archive-query"/, "Open-license search needs a query input");
+assert.match(html, /id="archive-results"/, "Open-license search needs result cards");
+assert.match(html, /id="archive-load-more"/, "Open-license search should support pagination");
+assert.match(app, /https:\/\/archive\.org\/advancedsearch\.php/, "Open-license search should use Internet Archive's public API");
+assert.match(app, /licenseurl:http\*creativecommons\.org\*/, "Archive search must filter to declared Creative Commons metadata");
+assert.match(app, /https:\/\/archive\.org\/metadata\//, "Archive results should verify item metadata before exposing audio");
+assert.match(app, /function inspectArchiveItem/, "Archive cards must check audio item type and Creative Commons license");
+assert.match(app, /function addArchiveFile/, "Verified Archive audio should be addable to the library");
+assert.match(app, /function archiveFileURL/, "Original files should use Archive.org direct links");
+assert.match(app, /Descargar original/, "Catalog should provide source-file navigation rather than bypass CORS");
+assert.match(app, /track\.sourceProvider === "Internet Archive"/, "Archive tracks should open original files directly where binary servers don't provide CORS");
+assert.match(sw, /ritmo-shell-v5/, "Service Worker cache should refresh with the open-license catalog");
+console.log("Internet Archive catalog, license checks, source links and offline import guidance smoke checks passed.");
