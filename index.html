@@ -205,7 +205,7 @@
       </div>
       <div class="timeline"><span id="current-time">0:00</span><input type="range" id="seek-bar" min="0" max="1000" value="0" aria-label="Posición de reproducción" disabled><span id="duration-time">0:00</span></div>
     </div>
-    <div class="player-extra"><span class="volume-icon">◖))</span><input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen"><button class="icon-button queue-button" id="queue-button" aria-label="Ver cola" title="Mostrar cola">☷</button></div>
+    <div class="player-extra"><button class="volume-icon volume-mute-button" id="volume-mute-button" type="button" aria-label="Silenciar" title="Silenciar / activar sonido">◖))</button><input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen"><button class="icon-button queue-button" id="queue-button" aria-label="Ver cola" title="Mostrar cola">☷</button></div>
   </div>
 
   <audio id="audio-engine" preload="metadata"></audio>
@@ -247,6 +247,15 @@
       <div id="diagnostics-list" class="diagnostics-list" aria-live="polite"></div>
     </section>
     <button class="button button-primary dialog-close" id="close-settings-bottom" type="button">Listo</button>
+  </dialog>
+
+  <dialog id="queue-dialog" class="app-dialog queue-dialog" aria-labelledby="queue-title">
+    <div class="dialog-top"><div class="brand-mark"><span>♫</span></div><button class="icon-button" id="close-queue" type="button" aria-label="Cerrar cola">✕</button></div>
+    <div class="eyebrow">SIGUIENTE EN TU SESIÓN</div><h2 id="queue-title">Cola de <span>reproducción.</span></h2>
+    <p class="dialog-muted" id="queue-summary">Orden de reproducción actual.</p>
+    <div id="queue-items" class="queue-items"></div>
+    <div id="queue-empty" class="empty-state compact-empty" hidden><div class="empty-visual"><span>♫</span></div><h3>La cola está vacía</h3><p>Agregá canciones a tu biblioteca o abrí una lista para empezar.</p></div>
+    <div class="queue-footer"><button class="button button-soft" id="queue-from-library" type="button">Usar orden de biblioteca</button><button class="button button-primary" id="close-queue-bottom" type="button">Listo</button></div>
   </dialog>
 
   <dialog id="info-dialog" class="app-dialog"><div class="dialog-top"><div class="brand-mark"><span>R</span></div><button class="icon-button" id="close-info" aria-label="Cerrar">✕</button></div><div class="eyebrow">HECHO PARA ESCUCHAR</div><h2>Ritmo<span>.</span></h2><p>Un reproductor personal, ligero y centrado en tu privacidad. Tu biblioteca se almacena en este navegador; no se suben tus archivos a un servidor.</p><p class="dialog-muted">El funcionamiento offline requiere instalar o abrir la aplicación una vez con conexión. El navegador puede limitar el almacenamiento disponible y permitir que se borre desde sus ajustes.</p><button class="button button-primary dialog-close" id="close-info-bottom">Entendido</button></dialog>
