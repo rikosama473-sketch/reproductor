@@ -39,6 +39,13 @@ const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
 const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null };
+ 
+const LIBRARY_VIEW_KEY = "ritmo.library-view.v1";
+let libraryMode = (() => {
+  try { return localStorage.getItem(LIBRARY_VIEW_KEY) === "list" ? "list" : "grid"; }
+  catch { return "grid"; }
+})();
+
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online" };
 
@@ -129,6 +136,43 @@ function coverHTML(track, extra = "") {
 function coverCardHTML(track) {
   return '<div class="cover-art ' + coverClass(track) + '"><span>♫</span><button class="card-play" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">▶</button></div>';
 }
+function syncLibraryViewControls() {
+  const listView = $("#library-list-view");
+  const gridView = $("#library-grid");
+  if (listView) listView.hidden = libraryMode !== "list";
+  if (gridView) gridView.hidden = libraryMode !== "grid";
+  document.querySelectorAll("[data-library-mode]").forEach(button => {
+    const active = button.dataset.libraryMode === libraryMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+function setLibraryMode(mode) {
+  if (mode !== "grid" && mode !== "list") return;
+  libraryMode = mode;
+  try { localStorage.setItem(LIBRARY_VIEW_KEY, mode); } catch {}
+  syncLibraryViewControls();
+}
+function renderLibraryGrid(list) {
+  const root = $("#library-grid");
+  if (!root) return;
+  root.innerHTML = list.map((track, index) => {
+    const active = track.id === state.currentId;
+    const favoriteClass = track.favorite ? " is-favorite" : "";
+    const source = isLocal(track) ? "EN ESTE DISPOSITIVO" : "STREAMING ONLINE";
+    const download = track.kind !== "url" ? "" : track.sourceProvider === "Internet Archive"
+      ? '<a class="row-icon archive-track-download" href="' + escapeHTML(track.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original" aria-label="Abrir archivo original">⇩</a>'
+      : '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión si está permitido" aria-label="Guardar audio online sin conexión">⇩</button>';
+    return '<article class="library-album-card' + (active ? " library-album-active" : "") + '" data-library-card="' + escapeHTML(track.id) + '">' +
+      '<button class="library-album-art ' + coverClass(track) + '" type="button" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">' +
+      '<span class="library-art-stamp">' + String(index + 1).padStart(2, "0") + '</span><span class="library-art-glyph">♫</span><span class="library-art-caption">' + escapeHTML(track.album || "RITMO MIX") + '</span><span class="library-art-play">▶</span></button>' +
+      '<div class="library-album-meta"><div class="library-album-title-row"><div class="library-album-title"><strong title="' + escapeHTML(track.title) + '">' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div><span class="library-album-status' + (active ? " is-live" : "") + '" title="' + (active ? "Pista seleccionada" : source) + '">' + (active ? "♫" : (isLocal(track) ? "●" : "↗")) + '</span></div>' +
+      '<div class="library-album-actions"><span class="library-album-source">' + source + '</span><div class="library-album-buttons"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" type="button" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + download +
+      '<button class="row-icon' + favoriteClass + '" data-favorite="' + escapeHTML(track.id) + '" type="button" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '" title="Favorito">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" type="button" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div></div></article>';
+  }).join("");
+  bindRenderedActions(root);
+}
+
 function sortedForView(view) {
   let tracks = [...state.tracks];
   if (view === "favorites") tracks = tracks.filter(track => track.favorite);
@@ -739,6 +783,8 @@ function setupMediaSession() {
   renderCards("#recent-tracks", all);
   $("#home-empty").hidden = all.length > 0;
   renderTrackList("#library-tracks", visibleLibraryTracks, "#library-empty");
+  renderLibraryGrid(visibleLibraryTracks);
+  syncLibraryViewControls();
   renderTrackList("#favorite-tracks", sortedForView("favorites"), "#favorites-empty");
   renderTrackList("#offline-tracks", sortedForView("offline"), "#offline-empty");
   $("#library-empty").hidden = all.length > 0;
@@ -774,6 +820,32 @@ function updatePlayer() {
   $("#current-time").textContent = formatTime(audio.currentTime);
   $("#duration-time").textContent = formatTime(Number.isFinite(audio.duration) ? audio.duration : track?.duration);
   $("#seek-bar").value = Number.isFinite(audio.duration) && audio.duration > 0 ? String(Math.round(audio.currentTime / audio.duration * 1000)) : "0";
+  const expandedTitle = $("#expanded-title");
+  if (expandedTitle) {
+    $("#expanded-title").textContent = track ? track.title : "Todavía no suena nada";
+    $("#expanded-artist").textContent = track ? (track.artist || sourceLabel(track)) : "Elegí una canción de tu biblioteca";
+    $("#expanded-cover").className = "expanded-cover-art " + (track ? coverClass(track) : "tone-purple");
+    $("#expanded-art-backdrop").className = "immersive-backdrop " + (track ? coverClass(track) : "tone-purple");
+    $("#expanded-favorite-button").disabled = !track;
+    $("#expanded-favorite-button").textContent = track?.favorite ? "♥" : "♡";
+    $("#expanded-favorite-button").classList.toggle("is-favorite", Boolean(track?.favorite));
+    $("#expanded-favorite-button").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Agregar a favoritos");
+    $("#expanded-play-button").disabled = !track;
+    $("#expanded-play-button").textContent = audio.paused ? "▶" : "Ⅱ";
+    $("#expanded-play-button").setAttribute("aria-label", audio.paused ? "Reproducir" : "Pausar");
+    $("#expanded-previous-button").disabled = !state.tracks.length;
+    $("#expanded-next-button").disabled = !state.tracks.length;
+    $("#expanded-seek-bar").disabled = !track;
+    $("#expanded-current-time").textContent = formatTime(audio.currentTime);
+    $("#expanded-duration-time").textContent = formatTime(Number.isFinite(audio.duration) ? audio.duration : track?.duration);
+    $("#expanded-seek-bar").value = Number.isFinite(audio.duration) && audio.duration > 0 ? String(Math.round(audio.currentTime / audio.duration * 1000)) : "0";
+    $("#expanded-volume-bar").value = $("#volume-bar").value;
+    $("#expanded-shuffle-button").classList.toggle("active", state.shuffle);
+    $("#expanded-repeat-button").classList.toggle("active", state.repeat !== "off");
+    $("#expanded-repeat-button").textContent = state.repeat === "one" ? "↻¹" : "↻";
+    $("#expanded-repeat-button").setAttribute("aria-label", "Repetición: " + ({ off: "desactivada", all: "toda la cola", one: "una canción" }[state.repeat]));
+    $("#expanded-source-label").textContent = track ? (isLocal(track) ? "Archivo local · disponible sin conexión" : "Fuente online · requiere conexión") : "Listo cuando vos quieras";
+  }
   updateMuteButton();
 }
 function updatePlayerFavorite() {
@@ -1709,9 +1781,39 @@ function bindEvents() {
     state.query = event.target.value;
     const visibleLibraryTracks = sortedForView("library");
     renderTrackList("#library-tracks", visibleLibraryTracks, "#library-empty");
+    renderLibraryGrid(visibleLibraryTracks);
+    syncLibraryViewControls();
     $("#library-empty").hidden = state.tracks.length > 0;
     $("#library-no-results").hidden = !(state.tracks.length > 0 && Boolean(state.query.trim()) && visibleLibraryTracks.length === 0);
     $("#library-meta").textContent = visibleLibraryTracks.length + (visibleLibraryTracks.length === 1 ? " canción" : " canciones");
+  });
+  document.querySelectorAll("[data-library-mode]").forEach(button => button.addEventListener("click", () => setLibraryMode(button.dataset.libraryMode)));
+  $("#now-playing-open").addEventListener("click", () => {
+    updatePlayer();
+    const dialog = $("#now-playing-dialog");
+    if (!dialog.open) dialog.showModal();
+  });
+  $("#close-now-playing").addEventListener("click", () => $("#now-playing-dialog").close());
+  $("#now-playing-dialog").addEventListener("click", event => {
+    if (event.target === $("#now-playing-dialog")) $("#now-playing-dialog").close();
+  });
+  $("#expanded-play-button").addEventListener("click", () => $("#play-button").click());
+  $("#expanded-previous-button").addEventListener("click", () => $("#previous-button").click());
+  $("#expanded-next-button").addEventListener("click", () => $("#next-button").click());
+  $("#expanded-shuffle-button").addEventListener("click", () => $("#shuffle-button").click());
+  $("#expanded-repeat-button").addEventListener("click", () => $("#repeat-button").click());
+  $("#expanded-favorite-button").addEventListener("click", () => $("#player-favorite").click());
+  $("#expanded-seek-bar").addEventListener("input", event => {
+    if (Number.isFinite(audio.duration)) audio.currentTime = audio.duration * Number(event.target.value) / 1000;
+  });
+  $("#expanded-volume-bar").addEventListener("input", event => {
+    $("#volume-bar").value = event.target.value;
+    $("#volume-bar").dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  $("#expanded-queue-button").addEventListener("click", () => {
+    $("#now-playing-dialog").close();
+    const queue = $("#queue-dialog");
+    if (!queue.open) queue.showModal();
   });
   $("#play-button").addEventListener("click", () => {
     if (!currentTrack()) return;
@@ -1756,6 +1858,7 @@ function bindEvents() {
     audio.volume = volume;
     defaultAudio.volume = volume;
     equalizedAudio.volume = volume;
+    $("#expanded-volume-bar").value = String(volume);
     updateMuteButton();
   });
   $("#volume-mute-button").addEventListener("click", toggleMute);
