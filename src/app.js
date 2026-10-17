@@ -1197,6 +1197,10 @@ function updateYoutubeKeyStatus(message = "") {
 }
 
 function bindEvents() {
+  $("#volume-bar").value = String(audioPrefs.volume);
+  defaultAudio.volume = audioPrefs.volume;
+  equalizedAudio.volume = audioPrefs.volume;
+  if (audioPrefs.volume > 0.001) audioPrefs.lastAudibleVolume = audioPrefs.volume;
   document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
   document.querySelectorAll("[data-go-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.goView)));
   ["hero-import", "empty-import", "library-import", "library-empty-import", "offline-import"].forEach(selector => {
@@ -1287,10 +1291,15 @@ function bindEvents() {
   $("#seek-bar").addEventListener("input", event => { if (Number.isFinite(audio.duration)) audio.currentTime = audio.duration * Number(event.target.value) / 1000; });
   $("#volume-bar").addEventListener("input", event => {
     const volume = Number(event.target.value);
+    audioPrefs.volume = volume;
+    if (volume > 0.001) audioPrefs.lastAudibleVolume = volume;
+    saveAudioPreferences();
     audio.volume = volume;
     defaultAudio.volume = volume;
     equalizedAudio.volume = volume;
+    updateMuteButton();
   });
+  $("#volume-mute-button").addEventListener("click", toggleMute);
   defaultAudio.volume = 0.8;
   equalizedAudio.volume = 0.8;
   bindAudioEngineEvents(defaultAudio);
@@ -1372,8 +1381,15 @@ function bindEvents() {
   $("#close-info").addEventListener("click", () => $("#info-dialog").close());
   $("#close-info-bottom").addEventListener("click", () => $("#info-dialog").close());
   $("#queue-button").addEventListener("click", () => {
-    const list = state.tracks;
-    toast(list.length ? "Cola actual: " + list.map(track => track.title).slice(0, 3).join(" · ") + (list.length > 3 ? " …" : "") : "Todavía no hay canciones en la biblioteca.");
+    renderQueue();
+    $("#queue-dialog").showModal();
+  });
+  $("#close-queue").addEventListener("click", () => $("#queue-dialog").close());
+  $("#close-queue-bottom").addEventListener("click", () => $("#queue-dialog").close());
+  $("#queue-from-library").addEventListener("click", () => {
+    state.queueIds = null;
+    renderQueue();
+    toast("La cola volvió al orden de tu biblioteca.");
   });
   window.addEventListener("beforeinstallprompt", event => {
     event.preventDefault();
