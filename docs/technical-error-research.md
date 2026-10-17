@@ -244,3 +244,26 @@ Esta revisión encontró que playYoutubeVideo() escribía una entrada en el hist
 ### Pruebas y límites
 
 Se agregó un controlador aislado con pruebas para impedir entradas al seleccionar, ignorar IDs distintos, registrar una sola vez tras PLAYING, descartar eventos atrasados y cancelar al salir del reproductor. Los checks se conectaron al workflow y el cache shell subió a ritmo-shell-v9 para que la PWA descargue el nuevo módulo. La validación automatizada verifica la lógica y la integración; no sustituye una prueba manual en navegador con videos bloqueados/no disponibles ni permite garantizar el comportamiento de la red o de las políticas de autoplay de cada dispositivo.
+
+
+## Novena pasada — renovación visual de Ritmo (17 de octubre de 2026)
+
+Se implementó la dirección de interfaz elegida: navegación y reproductor persistente inspirados en Spotify, exploración por portadas con alternancia lista/cuadrícula inspirada en Apple Music y una vista expandida de escucha inspirada en Plexamp.
+
+| Cambio | Implementación |
+| --- | --- |
+| Biblioteca visual y biblioteca detallada | Se añadió una cuadrícula responsiva de tarjetas musicales con portadas generadas localmente, título, artista, estado de origen y accesos a favoritos, listas, eliminación y guardado offline cuando corresponda. La tabla detallada sigue disponible mediante un selector accesible. La preferencia lista/cuadrícula queda guardada en el navegador. |
+| Reproductor inmersivo | Se añadió una vista ampliada con fondo difuminado por paleta, arte geométrico generado en CSS, información de pista, progreso, controles principales, repetición, aleatorio, favorito y volumen. El panel utiliza el estado real del reproductor y no crea un segundo motor de audio. |
+| Sincronización de controles | Reproducir/pausar, anterior/siguiente, favorito, aleatorio, repetición, volumen y posición en la vista expandida reutilizan los controles y eventos existentes. El volumen continúa pasando por el handler habitual para guardar la preferencia. |
+| Instalaciones PWA | Se incrementó la shell cache de ritmo-shell-v9 a ritmo-shell-v10 para descargar HTML, CSS y JavaScript actualizados después de instalar la nueva versión. |
+| Diseño adaptable y accesibilidad | La cuadrícula refluye en pantallas pequeñas; los controles cuentan con nombres accesibles, foco visible y estilos que respetan la preferencia del sistema de reducir movimiento. |
+
+### Validación
+
+Se añadieron smoke checks de integración para la vista de cuadrícula, el selector de modo, el reproductor expandido, su barra de progreso, el control de volumen sincronizado y la versión de caché PWA. La validación estructural no sustituye una revisión visual manual en Chrome/Firefox/Safari ni pruebas móviles en dispositivos reales.
+
+### Referencias de diseño
+
+- Spotify, [rediseño de la experiencia de escritorio y vista de reproducción](https://newsroom.spotify.com/2023-06-20/spotify-desktop-experience-redesign-your-library-now-playing-views-customize/): navegación, biblioteca lateral y controles persistentes como patrones de referencia.
+- Apple, [guía de Apple Music](https://support.apple.com/guide/music/welcome/mac): organización visual de biblioteca, álbumes y listas.
+- Plexamp, [sitio oficial](https://www.plex.tv/plexamp/): referencia para una experiencia de reproducción más inmersiva. Estos productos se usan como inspiración de UX, no se copian sus recursos de marca.
