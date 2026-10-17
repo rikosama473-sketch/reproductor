@@ -188,9 +188,9 @@ assert.match(app, /play: \(\) => resumeCurrentTrack\(\)/, "System media-session 
 assert.doesNotMatch(app, /if \(audio\.paused\) \{\s*try \{ if \(audio === equalizedAudio\) await ensureAudioProcessing\(\); await audio\.play\(\);/, "The play button must not bypass playback request guards");
 console.log("Fifth-pass regressions passed: service-worker cache invalidation, abortable writes and request-safe resume/removal.");
 
-assert.match(validateWorkflow, /actions\\/checkout@v7/, "Validation should use a checkout action compatible with the retired Node 20 runtime");
-assert.match(validateWorkflow, /actions\\/setup-node@v7/, "Validation should use setup-node's supported Node 24 runtime");
-assert.match(deployWorkflow, /actions\\/checkout@v7/, "Deployment should use a checkout action compatible with the retired Node 20 runtime");
-assert.match(deployWorkflow, /actions\\/configure-pages@v6/, "Pages configuration should use the supported Node 24 action");
-assert.match(deployWorkflow, /actions\\/deploy-pages@v5/, "Pages deployment should use the supported Node 24 action");
+assert.ok(validateWorkflow.includes("actions/checkout@v7"), "Validation should use a checkout action compatible with the retired Node 20 runtime");
+assert.ok(validateWorkflow.includes("actions/setup-node@v7"), "Validation should use setup-node's supported Node 24 runtime");
+assert.ok(deployWorkflow.includes("actions/checkout@v7"), "Deployment should use a checkout action compatible with the retired Node 20 runtime");
+assert.ok(deployWorkflow.includes("actions/configure-pages@v6"), "Pages configuration should use the supported Node 24 action");
+assert.ok(deployWorkflow.includes("actions/deploy-pages@v5"), "Pages deployment should use the supported Node 24 action");
 console.log("GitHub Actions Node 24 compatibility checks passed.");
