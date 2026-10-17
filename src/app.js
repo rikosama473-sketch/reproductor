@@ -9,7 +9,7 @@ let audioContext = null;
 let audioGraph = null;
 let screenWakeLock = null;
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
-const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true };
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
@@ -22,7 +22,9 @@ function loadAudioPreferences() {
       equalizerEnabled: saved?.equalizerEnabled === true,
       limiter: saved?.limiter !== false,
       keepScreenAwake: saved?.keepScreenAwake === true,
-      fadeOutAtEnd: saved?.fadeOutAtEnd !== false
+      fadeOutAtEnd: saved?.fadeOutAtEnd !== false,
+      volume: Number.isFinite(Number(saved?.volume)) ? Math.max(0, Math.min(1, Number(saved.volume))) : 0.8,
+      lastAudibleVolume: Number.isFinite(Number(saved?.lastAudibleVolume)) ? Math.max(0.01, Math.min(1, Number(saved.lastAudibleVolume))) : 0.8
     };
   } catch { return { ...DEFAULT_AUDIO_PREFS }; }
 }
@@ -501,6 +503,77 @@ function openSettings() {
   renderDiagnostics();
 }
 
+function activeQueueIds() {
+  return (Array.isArray(state.queueIds) ? state.queueIds : state.tracks.map(track => track.id))
+    .filter(trackId => Boolean(getTrack(trackId)));
+}
+function renderQueue() {
+  const root = $("#queue-items");
+  if (!root) return;
+  const ids = activeQueueIds();
+  const custom = Array.isArray(state.queueIds);
+  const currentInQueue = ids.includes(state.currentId);
+  $("#queue-summary").textContent = (custom ? "Cola personalizada o de lista" : "Orden actual de tu biblioteca") +
+    " · " + ids.length + (ids.length === 1 ? " canción" : " canciones") +
+    (currentInQueue ? " · La canción activa está marcada." : "");
+  root.innerHTML = ids.map((trackId, index) => {
+    const track = getTrack(trackId);
+    const active = track.id === state.currentId;
+    return '<article class="queue-row' + (active ? ' queue-row-active' : '') + '" data-queue-row="' + escapeHTML(track.id) + '">' +
+      '<span class="queue-position">' + String(index + 1).padStart(2, "0") + '</span>' +
+      '<div class="queue-track-copy"><strong>' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + ' · ' + (active ? "Sonando" : "En cola") + '</small></div>' +
+      '<div class="queue-row-actions">' +
+      '<button class="row-icon" data-queue-play="' + escapeHTML(track.id) + '" type="button" aria-label="Reproducir ' + escapeHTML(track.title) + '" title="Reproducir ahora">▶</button>' +
+      '<button class="row-icon" data-queue-up="' + escapeHTML(track.id) + '" type="button" aria-label="Mover ' + escapeHTML(track.title) + ' hacia arriba" title="Mover hacia arriba" ' + (index === 0 ? "disabled" : "") + '>↑</button>' +
+      '<button class="row-icon" data-queue-down="' + escapeHTML(track.id) + '" type="button" aria-label="Mover ' + escapeHTML(track.title) + ' hacia abajo" title="Mover hacia abajo" ' + (index === ids.length - 1 ? "disabled" : "") + '>↓</button>' +
+      '<button class="row-icon delete-track" data-queue-remove="' + escapeHTML(track.id) + '" type="button" aria-label="Quitar ' + escapeHTML(track.title) + ' de la cola" title="Quitar de la cola">×</button></div></article>';
+  }).join("");
+  $("#queue-empty").hidden = ids.length > 0;
+  root.querySelectorAll("[data-queue-play]").forEach(button => button.addEventListener("click", () => {
+    const options = Array.isArray(state.queueIds) ? { queueIds: state.queueIds } : {};
+    playTrack(button.dataset.queuePlay, true, options);
+    renderQueue();
+  }));
+  for (const [action, delta] of [["up", -1], ["down", 1]]) {
+    root.querySelectorAll("[data-queue-" + action + "]").forEach(button => button.addEventListener("click", () => {
+      if (!Array.isArray(state.queueIds)) state.queueIds = state.tracks.map(track => track.id);
+      const position = state.queueIds.indexOf(button.dataset["queue" + (action === "up" ? "Up" : "Down")]);
+      const other = position + delta;
+      if (position < 0 || other < 0 || other >= state.queueIds.length) return;
+      [state.queueIds[position], state.queueIds[other]] = [state.queueIds[other], state.queueIds[position]];
+      renderQueue();
+    }));
+  }
+  root.querySelectorAll("[data-queue-remove]").forEach(button => button.addEventListener("click", () => {
+    if (!Array.isArray(state.queueIds)) state.queueIds = state.tracks.map(track => track.id);
+    state.queueIds = state.queueIds.filter(trackId => trackId !== button.dataset.queueRemove);
+    renderQueue();
+    toast("Canción quitada de la cola. El archivo sigue en tu biblioteca.");
+  }));
+}
+function updateMuteButton() {
+  const button = $("#volume-mute-button");
+  if (!button) return;
+  const muted = Number($("#volume-bar").value) <= 0.001;
+  button.textContent = muted ? "◖×" : "◖))";
+  button.setAttribute("aria-label", muted ? "Activar sonido" : "Silenciar");
+  button.setAttribute("title", muted ? "Activar sonido" : "Silenciar");
+}
+function toggleMute() {
+  const slider = $("#volume-bar");
+  if (Number(slider.value) > 0.001) {
+    audioPrefs.lastAudibleVolume = Number(slider.value);
+    audioPrefs.volume = 0;
+  } else {
+    audioPrefs.volume = Math.max(0.01, Math.min(1, Number(audioPrefs.lastAudibleVolume) || 0.8));
+  }
+  slider.value = String(audioPrefs.volume);
+  defaultAudio.volume = audioPrefs.volume;
+  equalizedAudio.volume = audioPrefs.volume;
+  saveAudioPreferences();
+  updateMuteButton();
+}
+
 function renderFormatCapabilities() {
   const formats = [
     ["MP3", "audio/mpeg"], ["M4A / MP4 audio", "audio/mp4"], ["AAC", "audio/aac"],
@@ -581,6 +654,7 @@ function setupMediaSession() {
   $("#home-empty").hidden = all.length > 0;
   renderHistory();
   renderPlaylists();
+  renderQueue();
   renderFormatCapabilities();
   updatePlayer();
   updateConnection();
@@ -608,6 +682,7 @@ function updatePlayer() {
   $("#current-time").textContent = formatTime(audio.currentTime);
   $("#duration-time").textContent = formatTime(Number.isFinite(audio.duration) ? audio.duration : track?.duration);
   $("#seek-bar").value = Number.isFinite(audio.duration) && audio.duration > 0 ? String(Math.round(audio.currentTime / audio.duration * 1000)) : "0";
+  updateMuteButton();
 }
 function updatePlayerFavorite() {
   const track = currentTrack();
@@ -702,10 +777,11 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   }
 }
 function nextTrack(direction = 1) {
-  const ids = Array.isArray(state.queueIds) && state.queueIds.length ? state.queueIds.filter(trackId => Boolean(getTrack(trackId))) : state.tracks.map(track => track.id);
+  const ids = Array.isArray(state.queueIds) ? state.queueIds.filter(trackId => Boolean(getTrack(trackId))) : state.tracks.map(track => track.id);
   const candidates = ids.map(trackId => getTrack(trackId)).filter(Boolean);
-  if (!candidates.length) return;
-  const currentIndex = Math.max(0, candidates.findIndex(track => track.id === state.currentId));
+  if (!candidates.length) { audio.pause(); updatePlayer(); return; }
+  const foundIndex = candidates.findIndex(track => track.id === state.currentId);
+  const currentIndex = foundIndex >= 0 ? foundIndex : (direction > 0 ? -1 : candidates.length);
   let nextIndex;
   if (state.shuffle && candidates.length > 1) {
     const others = candidates.map((track, index) => index).filter(index => index !== currentIndex);
