@@ -9,6 +9,9 @@ let audioContext = null;
 let audioGraph = null;
 let screenWakeLock = null;
 let playbackRequestId = 0;
+// Identifies a play() request that has not reached confirmed playback yet.
+// Pause must cancel intent even while the media element still reports paused.
+let pendingPlaybackRequestId = null;
 let youtubeSearchRequestId = 0;
 let archiveSearchRequestId = 0;
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
@@ -403,6 +406,18 @@ function resumeCurrentTrack() {
   const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true });
 }
+function cancelPendingPlaybackIntent() {
+  playbackRequestId += 1;
+  pendingPlaybackRequestId = null;
+}
+function pauseCurrentTrack() {
+  // Cancel asynchronous intent as well as pausing current media. A late
+  // AudioContext.resume() or play() continuation must not restart the track.
+  cancelPendingPlaybackIntent();
+  audio.pause();
+  updatePlayer();
+  updateMediaSession();
+}
 function bindAudioEngineEvents(element) {
   const isActive = () => element === audio;
   element.addEventListener("timeupdate", () => { if (isActive()) { updatePlayer(); updateMediaSession(); } });
@@ -423,7 +438,7 @@ function bindAudioEngineEvents(element) {
   });
   element.addEventListener("ended", () => {
     if (!isActive()) return;
-    if (state.repeat === "one") { element.currentTime = 0; element.play().catch(() => showPlaybackStatus("No se pudo reiniciar la canción.", "error", true)); }
+    if (state.repeat === "one") { element.currentTime = 0; resumeCurrentTrack(); }
     else nextTrack(1);
   });
   element.addEventListener("error", () => {
@@ -532,6 +547,9 @@ function startSleepTimer(minutes) {
         if (step >= steps) {
           clearInterval(state.sleepFadeTimer);
           state.sleepFadeTimer = null;
+          // The timer must cancel requests that are preparing to play, not
+          // merely pause media elements that have not started yet.
+          cancelPendingPlaybackIntent();
           defaultAudio.pause();
           equalizedAudio.pause();
           const restoredVolume = Number($("#volume-bar").value);
@@ -539,12 +557,13 @@ function startSleepTimer(minutes) {
           equalizedAudio.volume = restoredVolume;
           stopYoutubePlayback();
           updatePlayer();
+          updateMediaSession();
           showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
           toast("Temporizador finalizado.");
         }
       }, 250);
     } else {
-      audio.pause();
+      pauseCurrentTrack();
       stopYoutubePlayback();
       updatePlayer();
       showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
@@ -693,7 +712,7 @@ function updateMediaSession() {
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const handlers = {
-    play: () => resumeCurrentTrack(), pause: () => audio.pause(), stop: () => audio.pause(),
+    play: () => resumeCurrentTrack(), pause: () => pauseCurrentTrack(), stop: () => pauseCurrentTrack(),
     previoustrack: () => $("#previous-button").click(), nexttrack: () => $("#next-button").click(),
     seekbackward: details => { audio.currentTime = Math.max(0, audio.currentTime - (details.seekOffset || 10)); },
     seekforward: details => { const step = details.seekOffset || 10; audio.currentTime = Number.isFinite(audio.duration) ? Math.min(audio.duration, audio.currentTime + step) : audio.currentTime + step; },
@@ -781,6 +800,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const track = getTrack(trackId);
   if (!track) return;
   const requestId = ++playbackRequestId;
+  pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
   if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
@@ -827,6 +847,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
     }
     if (autoplay) await audio.play();
     if (!isCurrentPlaybackRequest()) return;
+    pendingPlaybackRequestId = null;
     showPlaybackStatus("");
     if (autoplay && !options.skipHistory) {
       track.lastPlayedAt = Date.now();
@@ -844,6 +865,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
     updatePlayer();
   } catch (error) {
     if (!isCurrentPlaybackRequest()) return;
+    pendingPlaybackRequestId = null;
     const extension = (track.name || track.url || "").split(/[?#]/)[0].split(".").pop()?.toUpperCase();
     const message = error?.name === "NotAllowedError"
       ? "El navegador bloqueó el inicio automático. Tocá Reproducir para habilitar el audio."
@@ -856,7 +878,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
 function nextTrack(direction = 1) {
   const ids = Array.isArray(state.queueIds) ? state.queueIds.filter(trackId => Boolean(getTrack(trackId))) : state.tracks.map(track => track.id);
   const candidates = ids.map(trackId => getTrack(trackId)).filter(Boolean);
-  if (!candidates.length) { audio.pause(); updatePlayer(); return; }
+  if (!candidates.length) { pauseCurrentTrack(); return; }
   const foundIndex = candidates.findIndex(track => track.id === state.currentId);
   const currentIndex = foundIndex >= 0 ? foundIndex : (direction > 0 ? -1 : candidates.length);
   let nextIndex;
@@ -868,7 +890,7 @@ function nextTrack(direction = 1) {
     if (nextIndex >= candidates.length) nextIndex = state.repeat === "all" ? 0 : -1;
     if (nextIndex < 0) nextIndex = state.repeat === "all" ? candidates.length - 1 : -1;
   }
-  if (nextIndex < 0) { audio.pause(); return; }
+  if (nextIndex < 0) { pauseCurrentTrack(); return; }
   playTrack(candidates[nextIndex].id, true, { keepQueue: true });
 }
 async function readMp3Tags(file) {
@@ -1028,7 +1050,7 @@ async function importFiles(fileList) {
 async function removeCurrent() {
   // Invalidate any play()/AudioContext continuation that is still awaiting a
   // result; otherwise it could restore the source after the user removes it.
-  playbackRequestId += 1;
+  cancelPendingPlaybackIntent();
   const track = currentTrack();
   if (!track) return;
   audio.pause();
@@ -1490,7 +1512,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
     return;
   }
   // Selecting a YouTube video supersedes any native-audio request still awaiting play().
-  playbackRequestId += 1;
+  cancelPendingPlaybackIntent();
   const frame = $("#youtube-iframe");
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
@@ -1606,8 +1628,10 @@ function bindEvents() {
   });
   $("#play-button").addEventListener("click", () => {
     if (!currentTrack()) return;
-    if (audio.paused) resumeCurrentTrack();
-    else audio.pause();
+    // A request can be pending while audio.paused is still true. Treat a tap
+    // during that window as cancellation, not as another Play request.
+    if (pendingPlaybackRequestId !== null || !audio.paused) pauseCurrentTrack();
+    else resumeCurrentTrack();
     updatePlayer();
   });
   $("#previous-button").addEventListener("click", () => {
