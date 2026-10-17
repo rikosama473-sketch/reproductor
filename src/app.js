@@ -173,8 +173,8 @@ function bindRenderedActions(root) {
       toast("Creá una lista primero; después podés agregarle canciones.");
       return;
     }
-    const choices = state.playlists.map((list, index) => (index + 1) + ". " + list.name).join("\\n");
-    const answer = prompt("¿A qué lista agregamos «" + track.title + "»? Escribí el número:\\n" + choices);
+    const choices = state.playlists.map((list, index) => (index + 1) + ". " + list.name).join("\n");
+    const answer = prompt("¿A qué lista agregamos «" + track.title + "»? Escribí el número:\n" + choices);
     if (answer === null) return;
     const list = state.playlists[Number.parseInt(answer, 10) - 1];
     if (!list) { toast("Ese número no corresponde a una lista."); return; }
@@ -1509,8 +1509,19 @@ function bindEvents() {
     if (document.hidden) {
       updateMediaSession();
       releaseScreenWakeLock();
-    } else if (audioPrefs.keepScreenAwake) {
-      requestScreenWakeLock();
+      return;
+    }
+    if (audioPrefs.keepScreenAwake) requestScreenWakeLock();
+    // Mobile browsers may suspend a Web Audio graph while the app is hidden.
+    // Try resuming on return; if autoplay policy rejects it, the retry action
+    // will resume the context from the user's next explicit interaction.
+    if (audio === equalizedAudio && audioContext && !audio.paused && audioContext.state !== "running") {
+      audioContext.resume().then(() => {
+        if (audioContext?.state === "running") showPlaybackStatus("");
+        else showPlaybackStatus("El motor de sonido sigue suspendido. Tocá Reintentar para reanudar el audio.", "warning", true);
+      }).catch(() => {
+        showPlaybackStatus("El navegador suspendió el motor de sonido. Tocá Reintentar para reanudarlo.", "warning", true);
+      });
     }
   });
   $("#settings-button").addEventListener("click", openSettings);
@@ -1618,11 +1629,22 @@ async function init() {
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
-  try {
-    state.tracks = await getAllTracks();
-  } catch (error) {
-    toast(error.message || "No se pudo abrir la biblioteca local.");
+  const [tracksResult, historyResult, playlistsResult] = await Promise.allSettled([
+    getAllTracks(),
+    getHistory(250),
+    getPlaylists()
+  ]);
+  if (tracksResult.status === "fulfilled") {
+    state.tracks = tracksResult.value;
+  } else {
     $("#home-empty").hidden = false;
+  }
+  if (historyResult.status === "fulfilled") state.history = historyResult.value;
+  if (playlistsResult.status === "fulfilled") state.playlists = playlistsResult.value;
+  const storageErrors = [tracksResult, historyResult, playlistsResult].filter(result => result.status === "rejected");
+  if (storageErrors.length) {
+    const error = storageErrors[0].reason;
+    toast(error?.message || "Parte de la biblioteca no pudo cargarse. Revisá el espacio y los permisos del navegador.");
   }
   render();
   syncSettingsUI();
