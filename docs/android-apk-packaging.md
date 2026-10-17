@@ -69,3 +69,25 @@ Se corrigió un fallo de integración de la aplicación estática: el código de
 Se agregó **Elegir carpeta de música**: abre el selector SAF de Android con `ACTION_OPEN_DOCUMENT_TREE`, conserva el permiso persistente para la carpeta elegida y recorre subcarpetas para registrar audio reconocido por MIME o extensión. La selección de carpeta no precisa permiso global de almacenamiento. La búsqueda de toda la biblioteca continúa usando `READ_MEDIA_AUDIO` (Android 13+) o `READ_EXTERNAL_STORAGE` (Android 12 y anteriores).
 
 Referencias: [Capacitor: registro de complementos nativos](https://next.capacitorjs.com/docs/next/android/custom-code), [Capacitor 8 runtime](https://github.com/ionic-team/capacitor/blob/8.5.3/core/src/runtime.ts), [Android: selector de documentos y carpetas](https://developer.android.com/training/data-storage/shared/documents-files?hl=es-419), [Android: permisos multimedia y MediaStore](https://developer.android.com/training/data-storage/shared/media?hl=es).
+
+
+## Auditoría adicional — runtime real del puente nativo (2026-10-17)
+
+Se encontró un segundo defecto en el empaquetado que las comprobaciones anteriores no detectaban: aunque src/app.js contenía llamadas a window.Capacitor.nativePromise, scripts/prepare-mobile.mjs no copiaba el runtime de Capacitor a www ni insertaba su etiqueta antes de cargar el módulo de la app. En una app vanilla sin bundler, una referencia en el código no inicializa por sí sola window.Capacitor; el resultado podía ser que la app no llegara a invocar el plugin Java y, por tanto, no mostrara el permiso, el selector de carpetas ni la biblioteca.
+
+Corrección aplicada:
+
+- prepare-mobile.mjs copia node_modules/@capacitor/core/dist/capacitor.js al paquete Android y lo carga antes de src/app.js.
+- La preparación falla de forma explícita si el runtime falta o no expone nativePromise y getPlatform, en lugar de generar silenciosamente un paquete incompleto.
+- mobile-package-check.mjs valida el orden de carga, la presencia del archivo empaquetado y las API del puente.
+- La validación CI instala las dependencias fijadas antes de preparar el paquete.
+- Se incrementó el caché del shell a ritmo-shell-v20 para evitar reutilizar un shell anterior después de instalar el APK actualizado.
+
+Fuentes comparadas:
+
+- [Capacitor: carga de runtime como script en una app vanilla](https://github.com/ionic-team/capacitor/discussions/3174) — indica que la aplicación sin bundler necesita cargar capacitor.js antes del código de la aplicación.
+- [Capacitor: nativePromise no definido (issue #5989)](https://github.com/ionic-team/capacitor/issues/5989) — antecedente público del síntoma de un puente no inicializado.
+- [Paquete oficial @capacitor/core 8.5.3](https://github.com/ionic-team/capacitor/blob/main/core/package.json) — declara dist/capacitor.js como bundle de navegador.
+- [Capacitor: registro de plugins Android personalizados](https://capacitorjs.com/docs/v6/android/custom-code) — documenta el registro del plugin nativo en MainActivity y el enlace desde JavaScript.
+
+Las pruebas de paquete ahora verifican el recurso real que se entrega, no solo la existencia de llamadas a nativePromise en el código fuente. La reproducción en hardware físico sigue siendo la comprobación final de dispositivo.
