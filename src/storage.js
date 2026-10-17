@@ -183,7 +183,11 @@ export async function deleteTrackAndPrunePlaylists(trackId) {
 
 export async function getHistory(limit = 100) {
   const records = await getAllFromStore(HISTORY, "playedAt", true);
-  return records.slice(0, Math.max(0, Math.min(Number(limit) || 100, 5000)));
+  // Zero is a meaningful limit (return no entries), not a request for the default.
+  // Logical OR would replace 0 with 100 because zero is a falsy JavaScript value.
+  const numericLimit = limit == null ? 100 : Number(limit);
+  const resolvedLimit = Number.isFinite(numericLimit) ? Math.trunc(numericLimit) : 100;
+  return records.slice(0, Math.max(0, Math.min(resolvedLimit, 5000)));
 }
 export async function addHistoryEntry(entry) { return storeTransaction(HISTORY, "readwrite", store => store.put(entry)); }
 export async function clearHistory() { return storeTransaction(HISTORY, "readwrite", store => store.clear()); }
