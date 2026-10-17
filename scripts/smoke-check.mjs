@@ -46,7 +46,7 @@ assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadat
 assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
-assert.match(sw, /ritmo-shell-v6/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v7/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
 
@@ -71,7 +71,7 @@ assert.match(app, /async function downloadStreamOffline/, "Direct audio URLs sho
 assert.match(app, /MAX_DOWNLOAD_BYTES = 150 \* 1024 \* 1024/, "Offline saving must enforce a bounded download size");
 assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must respect browser CORS and avoid sending credentials");
 assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
-assert.match(sw, /ritmo-shell-v6/, "Service-worker cache must refresh after playback settings are added");
+assert.match(sw, /ritmo-shell-v7/, "Service-worker cache must refresh after playback settings are added");
 console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
 
 
@@ -106,7 +106,7 @@ assert.match(app, /creativecommons\.org/, "The app must verify the declared Crea
 assert.match(app, /function addArchiveFile/, "Catalog tracks should be addable to the local library as remote sources");
 assert.match(app, /function archiveFileURL/, "Catalog file actions must link to the original archive host");
 assert.match(app, /Descargar original/, "Catalog should provide the source's original-file link, not bypass its delivery rules");
-assert.match(sw, /ritmo-shell-v6/, "Service-worker cache should refresh after adding the open-license catalog");
+assert.match(sw, /ritmo-shell-v7/, "Service-worker cache should refresh after adding the open-license catalog");
 console.log("Internet Archive open-license search, metadata verification and original-file link smoke checks passed.");
 
 
@@ -122,7 +122,7 @@ assert.match(app, /function addArchiveFile/, "Verified Archive audio should be a
 assert.match(app, /function archiveFileURL/, "Original files should use Archive.org direct links");
 assert.match(app, /Descargar original/, "Catalog should provide source-file navigation rather than bypass CORS");
 assert.match(app, /track\.sourceProvider === "Internet Archive"/, "Archive tracks should open original files directly where binary servers don't provide CORS");
-assert.match(sw, /ritmo-shell-v6/, "Service Worker cache should refresh with the open-license catalog");
+assert.match(sw, /ritmo-shell-v7/, "Service Worker cache should refresh with the open-license catalog");
 console.log("Internet Archive catalog, license checks, source links and offline import guidance smoke checks passed.");
 
 
