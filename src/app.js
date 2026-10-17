@@ -551,7 +551,7 @@ function updateMediaSession() {
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const handlers = {
-    play: () => audio.play().catch(() => {}), pause: () => audio.pause(), stop: () => audio.pause(),
+    play: async () => { try { if (audio === equalizedAudio) await ensureAudioProcessing(); await audio.play(); } catch { showPlaybackStatus("No se pudo reanudar desde los controles del sistema.", "error", true); } }, pause: () => audio.pause(), stop: () => audio.pause(),
     previoustrack: () => $("#previous-button").click(), nexttrack: () => $("#next-button").click(),
     seekbackward: details => { audio.currentTime = Math.max(0, audio.currentTime - (details.seekOffset || 10)); },
     seekforward: details => { const step = details.seekOffset || 10; audio.currentTime = Number.isFinite(audio.duration) ? Math.min(audio.duration, audio.currentTime + step) : audio.currentTime + step; },
@@ -1098,8 +1098,10 @@ function bindEvents() {
   $("#library-search").addEventListener("input", event => { state.query = event.target.value; renderTrackList("#library-tracks", sortedForView("library"), "#library-empty"); $("#library-empty").hidden = state.tracks.length > 0 || Boolean(state.query.trim()); $("#library-meta").textContent = sortedForView("library").length + " canciones"; });
   $("#play-button").addEventListener("click", async () => {
     if (!currentTrack()) return;
-    if (audio.paused) { try { await audio.play(); } catch { toast("No se pudo iniciar la reproducción."); } }
-    else audio.pause();
+    if (audio.paused) {
+      try { if (audio === equalizedAudio) await ensureAudioProcessing(); await audio.play(); showPlaybackStatus(""); }
+      catch (error) { showPlaybackStatus(error.message || "No se pudo iniciar la reproducción.", "error", true); }
+    } else audio.pause();
     updatePlayer();
   });
   $("#previous-button").addEventListener("click", () => {
@@ -1120,22 +1122,88 @@ function bindEvents() {
     try { await saveTrack(track); render(); } catch { toast("No se pudo guardar el favorito."); }
   });
   $("#seek-bar").addEventListener("input", event => { if (Number.isFinite(audio.duration)) audio.currentTime = audio.duration * Number(event.target.value) / 1000; });
-  $("#volume-bar").addEventListener("input", event => { audio.volume = Number(event.target.value); });
-  audio.volume = 0.8;
-  setupMediaSession();
-  audio.addEventListener("timeupdate", () => { updatePlayer(); updateMediaSession(); });
-  audio.addEventListener("durationchange", async () => {
-    const track = currentTrack();
-    if (track && Number.isFinite(audio.duration)) { track.duration = audio.duration; try { await saveTrack(track); } catch {} }
-    updatePlayer();
+  $("#volume-bar").addEventListener("input", event => {
+    const volume = Number(event.target.value);
+    audio.volume = volume;
+    defaultAudio.volume = volume;
+    equalizedAudio.volume = volume;
   });
-  audio.addEventListener("play", () => { updatePlayer(); updateMediaSession(); });
-  audio.addEventListener("pause", () => { updatePlayer(); updateMediaSession(); });
-  audio.addEventListener("ended", () => { if (state.repeat === "one") { audio.currentTime = 0; audio.play().catch(() => {}); } else nextTrack(1); });
-  audio.addEventListener("error", () => { if (currentTrack()) toast("La fuente de audio no está disponible o el formato no es compatible."); });
-  document.addEventListener("visibilitychange", () => { if (document.hidden) updateMediaSession(); });
-  window.addEventListener("online", updateConnection);
-  window.addEventListener("offline", updateConnection);
+  defaultAudio.volume = 0.8;
+  equalizedAudio.volume = 0.8;
+  bindAudioEngineEvents(defaultAudio);
+  bindAudioEngineEvents(equalizedAudio);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      updateMediaSession();
+      releaseScreenWakeLock();
+    } else if (audioPrefs.keepScreenAwake && !audio.paused) {
+      requestScreenWakeLock();
+    }
+  });
+  $("#settings-button").addEventListener("click", openSettings);
+  $("#close-settings").addEventListener("click", () => $("#settings-dialog").close());
+  $("#close-settings-bottom").addEventListener("click", () => $("#settings-dialog").close());
+  $("#eq-enabled").addEventListener("change", async event => {
+    audioPrefs.equalizerEnabled = event.target.checked;
+    saveAudioPreferences();
+    syncSettingsUI();
+    const track = currentTrack();
+    if (event.target.checked && track && isLocal(track)) {
+      try { await ensureAudioProcessing(); }
+      catch (error) {
+        audioPrefs.equalizerEnabled = false;
+        saveAudioPreferences();
+        syncSettingsUI();
+        $("#eq-status").textContent = error.message || "No se pudo iniciar el ecualizador.";
+        return;
+      }
+    }
+    $("#eq-status").textContent = audioPrefs.equalizerEnabled ? "Se aplica a los archivos locales; las fuentes online usan el reproductor directo." : "Ecualizador desactivado.";
+    applyCurrentEnginePreference();
+  });
+  for (const [controlId, key] of [["eq-bass", "bass"], ["eq-mid", "mid"], ["eq-treble", "treble"]]) {
+    $("#" + controlId).addEventListener("input", event => {
+      audioPrefs[key] = Number(event.target.value);
+      saveAudioPreferences();
+      syncSettingsUI();
+    });
+  }
+  $("#limiter-toggle").addEventListener("change", event => {
+    audioPrefs.limiter = event.target.checked;
+    saveAudioPreferences();
+    applyAudioGraphPreferences();
+  });
+  $("#eq-reset").addEventListener("click", () => {
+    audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = true;
+    saveAudioPreferences(); syncSettingsUI();
+    $("#eq-status").textContent = "Ecualizador restablecido.";
+  });
+  $("#keep-screen-awake").addEventListener("change", async event => {
+    audioPrefs.keepScreenAwake = event.target.checked;
+    saveAudioPreferences();
+    if (audioPrefs.keepScreenAwake) await requestScreenWakeLock();
+    else { await releaseScreenWakeLock(); $("#wake-lock-status").textContent = "Desactivado."; }
+  });
+  $("#sleep-fade").addEventListener("change", event => { audioPrefs.fadeOutAtEnd = event.target.checked; saveAudioPreferences(); });
+  $("#sleep-start").addEventListener("click", () => startSleepTimer(Number($("#sleep-minutes").value)));
+  $("#sleep-cancel").addEventListener("click", () => startSleepTimer(0));
+  $("#request-storage-button").addEventListener("click", async () => {
+    const granted = await requestPersistentStorage();
+    await renderStorageStatus();
+    if (granted) toast("El navegador concedió almacenamiento persistente.");
+    else toast("El navegador no concedió el almacenamiento persistente; puede que no admita la función o la haya rechazado.");
+  });
+  $("#diagnostics-refresh").addEventListener("click", renderDiagnostics);
+  $("#playback-retry").addEventListener("click", retryCurrentPlayback);
+  $("#playback-status-close").addEventListener("click", () => showPlaybackStatus(""));
+  window.addEventListener("online", () => {
+    updateConnection();
+    if (currentTrack() && !isLocal(currentTrack())) showPlaybackStatus("Conexión recuperada. Si el audio no continúa, tocá Reintentar.", "info", true);
+  });
+  window.addEventListener("offline", () => {
+    updateConnection();
+    if (currentTrack() && !isLocal(currentTrack())) showPlaybackStatus("Sin conexión: las fuentes online necesitan internet. Los archivos locales siguen disponibles.", "warning", true);
+  });
   $("#about-button").addEventListener("click", () => $("#info-dialog").showModal());
   $("#close-info").addEventListener("click", () => $("#info-dialog").close());
   $("#close-info-bottom").addEventListener("click", () => $("#info-dialog").close());
@@ -1176,6 +1244,7 @@ async function init() {
     $("#home-empty").hidden = false;
   }
   render();
+  syncSettingsUI();
   showView("home");
   estimateStorage().then(result => {
     if (result?.quota) {
