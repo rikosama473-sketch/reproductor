@@ -1271,6 +1271,7 @@ function bindEvents() {
   $("#diagnostics-refresh").addEventListener("click", renderDiagnostics);
   $("#playback-retry").addEventListener("click", retryCurrentPlayback);
   $("#playback-status-close").addEventListener("click", () => showPlaybackStatus(""));
+  setupMediaSession();
   window.addEventListener("online", () => {
     updateConnection();
     if (currentTrack() && !isLocal(currentTrack())) showPlaybackStatus("Conexión recuperada. Si el audio no continúa, tocá Reintentar.", "info", true);
