@@ -29,9 +29,11 @@ jobs:
           node --check scripts/indexeddb-recovery-check.mjs
           node --check scripts/youtube-history-check.mjs
           node --check scripts/audio-output-volume-check.mjs
+          node --check scripts/service-worker-fetch-check.mjs
       - name: Check app shell wiring
         run: |
           node scripts/smoke-check.mjs
           node scripts/indexeddb-recovery-check.mjs
           node scripts/youtube-history-check.mjs
           node scripts/audio-output-volume-check.mjs
+          node scripts/service-worker-fetch-check.mjs
