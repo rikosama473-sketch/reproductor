@@ -272,6 +272,229 @@ function renderPlaylists() {
   $("#playlist-detail-empty").hidden = tracks.length > 0;
   $("#playlist-play-all").disabled = !tracks.length;
 }
+function saveAudioPreferences() {
+  try { localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(audioPrefs)); } catch {}
+}
+function applyAudioGraphPreferences() {
+  if (!audioGraph || !audioContext) return;
+  const now = audioContext.currentTime;
+  audioGraph.bass.gain.setTargetAtTime(audioPrefs.bass, now, 0.02);
+  audioGraph.mid.gain.setTargetAtTime(audioPrefs.mid, now, 0.02);
+  audioGraph.treble.gain.setTargetAtTime(audioPrefs.treble, now, 0.02);
+  audioGraph.compressor.threshold.setTargetAtTime(audioPrefs.limiter ? -8 : 0, now, 0.02);
+  audioGraph.compressor.knee.setTargetAtTime(audioPrefs.limiter ? 8 : 0, now, 0.02);
+  audioGraph.compressor.ratio.setTargetAtTime(audioPrefs.limiter ? 8 : 1, now, 0.02);
+}
+async function ensureAudioProcessing() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) throw new Error("Este navegador no permite aplicar el ecualizador.");
+  if (!audioContext) audioContext = new AudioContextClass();
+  if (!audioGraph) {
+    const source = audioContext.createMediaElementSource(equalizedAudio);
+    const bass = audioContext.createBiquadFilter();
+    bass.type = "lowshelf";
+    bass.frequency.value = 120;
+    const mid = audioContext.createBiquadFilter();
+    mid.type = "peaking";
+    mid.frequency.value = 1000;
+    mid.Q.value = 0.85;
+    const treble = audioContext.createBiquadFilter();
+    treble.type = "highshelf";
+    treble.frequency.value = 8000;
+    const compressor = audioContext.createDynamicsCompressor();
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.22;
+    source.connect(bass);
+    bass.connect(mid);
+    mid.connect(treble);
+    treble.connect(compressor);
+    compressor.connect(audioContext.destination);
+    audioGraph = { bass, mid, treble, compressor };
+    applyAudioGraphPreferences();
+  }
+  if (audioContext.state !== "running") await audioContext.resume();
+  if (audioContext.state !== "running") throw new Error("El navegador mantuvo suspendido el motor de sonido.");
+}
+function showPlaybackStatus(message, kind = "info", allowRetry = false) {
+  const panel = $("#playback-status");
+  if (!panel) return;
+  $("#playback-status-message").textContent = message || "";
+  panel.classList.toggle("is-error", kind === "error");
+  panel.classList.toggle("is-warning", kind === "warning");
+  panel.hidden = !message;
+  $("#playback-retry").hidden = !allowRetry;
+}
+function mediaErrorMessage(track, error) {
+  if (!navigator.onLine && !isLocal(track)) return "Sin conexión: esta fuente online no puede reproducirse en este momento.";
+  if (error?.code === 1) return "La reproducción se interrumpió. Volvé a intentarlo.";
+  if (error?.code === 2) return "Falló la conexión con la fuente de audio. Revisá internet o reintentá.";
+  if (error?.code === 3) return "El navegador no pudo decodificar este audio. Probá otro formato compatible.";
+  if (error?.code === 4) return "Formato o fuente no compatible. Probá MP3, M4A/AAC, WAV, Ogg/Opus o FLAC si tu navegador los admite.";
+  return "No se pudo cargar el audio. La fuente puede estar caída, restringida o usar un formato incompatible.";
+}
+function retryCurrentPlayback() {
+  const track = currentTrack();
+  if (!track) return;
+  const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true, forceReload: true });
+}
+function bindAudioEngineEvents(element) {
+  const isActive = () => element === audio;
+  element.addEventListener("timeupdate", () => { if (isActive()) { updatePlayer(); updateMediaSession(); } });
+  element.addEventListener("durationchange", async () => {
+    if (!isActive()) return;
+    const track = currentTrack();
+    if (track && Number.isFinite(element.duration)) { track.duration = element.duration; try { await saveTrack(track); } catch {} }
+    updatePlayer();
+  });
+  element.addEventListener("play", () => { if (isActive()) { showPlaybackStatus(""); updatePlayer(); updateMediaSession(); } });
+  element.addEventListener("playing", () => { if (isActive()) { showPlaybackStatus(""); updatePlayer(); updateMediaSession(); } });
+  element.addEventListener("pause", () => { if (isActive()) { updatePlayer(); updateMediaSession(); } });
+  element.addEventListener("waiting", () => {
+    if (isActive() && !element.paused) showPlaybackStatus("Esperando datos de audio… Si no continúa, podés reintentar.", "warning", true);
+  });
+  element.addEventListener("stalled", () => {
+    if (isActive() && !element.paused) showPlaybackStatus("La fuente dejó de enviar datos temporalmente. Revisá la conexión o reintentá.", "warning", true);
+  });
+  element.addEventListener("ended", () => {
+    if (!isActive()) return;
+    if (state.repeat === "one") { element.currentTime = 0; element.play().catch(() => showPlaybackStatus("No se pudo reiniciar la canción.", "error", true)); }
+    else nextTrack(1);
+  });
+  element.addEventListener("error", () => {
+    if (!isActive() || !currentTrack()) return;
+    showPlaybackStatus(mediaErrorMessage(currentTrack(), element.error), "error", true);
+  });
+}
+function syncSettingsUI() {
+  $("#eq-enabled").checked = audioPrefs.equalizerEnabled;
+  $("#eq-bass").value = String(audioPrefs.bass);
+  $("#eq-mid").value = String(audioPrefs.mid);
+  $("#eq-treble").value = String(audioPrefs.treble);
+  $("#limiter-toggle").checked = audioPrefs.limiter;
+  $("#keep-screen-awake").checked = audioPrefs.keepScreenAwake;
+  $("#sleep-fade").checked = audioPrefs.fadeOutAtEnd;
+  for (const [id, value] of [["eq-bass-value", audioPrefs.bass], ["eq-mid-value", audioPrefs.mid], ["eq-treble-value", audioPrefs.treble]]) {
+    $("#" + id).textContent = (value > 0 ? "+" : "") + value + " dB";
+  }
+  applyAudioGraphPreferences();
+}
+async function renderStorageStatus() {
+  const node = $("#storage-permission-status");
+  try {
+    const persisted = navigator.storage?.persisted ? await navigator.storage.persisted() : false;
+    const estimate = await estimateStorage();
+    node.textContent = !navigator.storage?.persist
+      ? "Este navegador no ofrece el control de almacenamiento persistente."
+      : persisted
+        ? "Almacenamiento persistente concedido; el navegador reduce el riesgo de limpiar la biblioteca automáticamente."
+        : "El navegador todavía no concedió almacenamiento persistente. Podés solicitarlo con el botón.";
+    if (estimate?.quota) node.textContent += " Espacio: " + formatBytes(estimate.usage) + " usados de " + formatBytes(estimate.quota) + ".";
+  } catch { node.textContent = "No se pudo consultar el permiso o la cuota de almacenamiento."; }
+}
+async function renderDiagnostics() {
+  const rows = [
+    ["Audio nativo", defaultAudio.canPlayType ? "Disponible" : "No disponible"],
+    ["Controles de pantalla bloqueada", "mediaSession" in navigator ? "API disponible (depende del navegador y sistema)" : "No disponible en este navegador"],
+    ["Ecualizador local", (window.AudioContext || window.webkitAudioContext) ? "Disponible para archivos locales" : "No disponible en este navegador"],
+    ["Mantener pantalla despierta", navigator.wakeLock ? "API disponible; requiere que Ritmo esté visible" : "No compatible en este navegador"],
+    ["IndexedDB", "indexedDB" in window ? "Disponible en este navegador" : "No disponible"],
+    ["Service Worker / modo sin conexión", "serviceWorker" in navigator ? "API disponible" : "No disponible"],
+    ["Conexión", navigator.onLine ? "Conectado" : "Sin conexión"],
+    ["Fuente actual", currentTrack() ? (isLocal(currentTrack()) ? "Archivo local" : "Fuente online") : "No hay una canción activa"]
+  ];
+  $("#diagnostics-list").innerHTML = rows.map(([label, value]) => '<div class="diagnostic-row"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value) + '</strong></div>').join("");
+  await renderStorageStatus();
+}
+async function requestScreenWakeLock() {
+  if (!audioPrefs.keepScreenAwake) return;
+  if (!navigator.wakeLock?.request) {
+    $("#wake-lock-status").textContent = "Este navegador no admite el bloqueo de pantalla desde una web.";
+    return;
+  }
+  if (document.visibilityState !== "visible") {
+    $("#wake-lock-status").textContent = "Se intentará activar cuando Ritmo vuelva a estar visible.";
+    return;
+  }
+  try {
+    if (screenWakeLock && !screenWakeLock.released) return;
+    screenWakeLock = await navigator.wakeLock.request("screen");
+    screenWakeLock.addEventListener("release", () => {
+      screenWakeLock = null;
+      if (audioPrefs.keepScreenAwake) $("#wake-lock-status").textContent = "El sistema liberó el bloqueo de pantalla; Ritmo puede volver a solicitarlo al estar visible.";
+    });
+    $("#wake-lock-status").textContent = "Activo mientras Ritmo permanece visible. No impide que el sistema cierre o suspenda la aplicación.";
+  } catch (error) {
+    screenWakeLock = null;
+    $("#wake-lock-status").textContent = error?.name === "NotAllowedError"
+      ? "El navegador o el sistema rechazó el permiso (por ejemplo, por batería baja o porque la página no está visible)."
+      : "No se pudo mantener la pantalla despierta en este momento.";
+  }
+}
+async function releaseScreenWakeLock() {
+  if (!screenWakeLock) return;
+  const lock = screenWakeLock;
+  screenWakeLock = null;
+  try { await lock.release(); } catch {}
+}
+function startSleepTimer(minutes) {
+  clearTimeout(state.sleepTimer);
+  state.sleepTimer = null;
+  state.sleepEndsAt = null;
+  if (state.sleepFadeTimer) { clearInterval(state.sleepFadeTimer); state.sleepFadeTimer = null; }
+  const volume = Number($("#volume-bar").value);
+  defaultAudio.volume = volume;
+  equalizedAudio.volume = volume;
+  if (!minutes) {
+    $("#sleep-status").textContent = "Temporizador desactivado.";
+    return;
+  }
+  state.sleepEndsAt = Date.now() + minutes * 60_000;
+  state.sleepTimer = setTimeout(() => {
+    state.sleepTimer = null;
+    state.sleepEndsAt = null;
+    if (audioPrefs.fadeOutAtEnd && !audio.paused) {
+      let step = 0;
+      const steps = 20;
+      state.sleepFadeTimer = setInterval(() => {
+        step += 1;
+        const fadedVolume = volume * Math.max(0, 1 - step / steps);
+        defaultAudio.volume = fadedVolume;
+        equalizedAudio.volume = fadedVolume;
+        if (step >= steps) {
+          clearInterval(state.sleepFadeTimer);
+          state.sleepFadeTimer = null;
+          defaultAudio.pause();
+          equalizedAudio.pause();
+          defaultAudio.volume = volume;
+          equalizedAudio.volume = volume;
+          updatePlayer();
+          showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
+          toast("Temporizador finalizado.");
+        }
+      }, 250);
+    } else {
+      audio.pause();
+      updatePlayer();
+      showPlaybackStatus("Temporizador finalizado: música detenida.", "info", false);
+      toast("Temporizador finalizado.");
+    }
+  }, minutes * 60_000);
+  $("#sleep-status").textContent = "La música se detendrá en " + (minutes >= 60 ? (minutes / 60) + (minutes === 60 ? " hora." : " horas.") : minutes + " minutos.");
+}
+function applyCurrentEnginePreference() {
+  const track = currentTrack();
+  if (!track || !isLocal(track)) return;
+  const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  const wasPlaying = !audio.paused;
+  playTrack(track.id, wasPlaying, { keepQueue: true, resumeAt: position, skipHistory: true });
+}
+function openSettings() {
+  syncSettingsUI();
+  $("#settings-dialog").showModal();
+  renderDiagnostics();
+}
+
 function renderFormatCapabilities() {
   const formats = [
     ["MP3", "audio/mpeg"], ["M4A / MP4 audio", "audio/mp4"], ["AAC", "audio/aac"],
