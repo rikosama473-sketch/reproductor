@@ -203,7 +203,7 @@ function bindRenderedActions(root) {
       playTrack(button.dataset.play, true, playlist ? { queueIds: playlist.trackIds } : {});
     };
     button.addEventListener("click", event => { event.stopPropagation(); play(); });
-    button.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); play(); } });
+    button.addEventListener("keydown", event => { if (button.tagName !== "BUTTON" && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); play(); } });
   });
   root.querySelectorAll("[data-favorite]").forEach(button => button.addEventListener("click", async event => {
     event.stopPropagation();
