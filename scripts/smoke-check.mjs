@@ -227,7 +227,7 @@ assert.match(html, /id="app-update-now"/, "PWA update notice must provide a deli
 assert.match(app, /const hadController = Boolean\(navigator\.serviceWorker\.controller\)/, "First-ever service worker installation should not be mistaken for an app update");
 assert.match(app, /if \(!hadController \|\| updatePromptShown\) return;/, "PWA update prompt should be shown only once after an actual controller replacement");
 assert.match(app, /app-update-now[\s\S]*?window\.location\.reload\(\)/, "The update action must reload the page to synchronize its HTML and JavaScript");
-assert.match(app, /defaultAudio\.volume = audioPrefs\.volume;\s*equalizedAudio\.volume = audioPrefs\.volume;\s*\$\("#expanded-volume-bar"\)\.value = String\(audioPrefs\.volume\)/, "Mute/unmute must keep the expanded volume slider in sync with the actual volume setting");
+assert.match(app, /setOutputVolume\(audioPrefs\.volume\);\s*\$\("#expanded-volume-bar"\)\.value = String\(audioPrefs\.volume\)/, "Mute/unmute must route through the shared output volume controller and keep the expanded slider in sync");
 assert.match(sw, /ritmo-shell-v14/, "PWA shell cache should advance with the update prompt and mute sync fixes");
 console.log("PWA update prompt and expanded mute synchronization checks passed.");
 
