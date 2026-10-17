@@ -115,12 +115,25 @@ export async function saveTrack(track) { return storeTransaction(TRACKS, "readwr
 export async function saveManyTracks(tracks) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(TRACKS, "readwrite");
-    const store = tx.objectStore(TRACKS);
-    for (const track of tracks) store.put(track);
-    tx.oncomplete = () => resolve(tracks.length);
-    tx.onerror = () => reject(tx.error || new Error("No se pudieron guardar los archivos."));
-    tx.onabort = () => reject(tx.error || new Error("Se canceló la importación."));
+    let tx;
+    let operationError = null;
+    try {
+      tx = db.transaction(TRACKS, "readwrite");
+      // Observe the transaction before scheduling writes so a synchronous setup
+      // failure can abort and roll back any earlier requests in this batch.
+      tx.oncomplete = () => resolve(tracks.length);
+      tx.onerror = () => reject(operationError || tx.error || new Error("No se pudieron guardar los archivos."));
+      tx.onabort = () => reject(operationError || tx.error || new Error("Se canceló la importación."));
+      const store = tx.objectStore(TRACKS);
+      for (const track of tracks) store.put(track);
+    } catch (error) {
+      operationError = error;
+      if (tx) {
+        try { tx.abort(); } catch { reject(error); }
+      } else {
+        reject(error);
+      }
+    }
   });
 }
 export async function deleteTrack(trackId) { return storeTransaction(TRACKS, "readwrite", store => store.delete(trackId)); }
