@@ -18,7 +18,11 @@ function openDatabase() {
     try {
       request = indexedDB.open(DB_NAME, DB_VERSION);
     } catch (error) {
-      if (databasePromise === openingPromise) databasePromise = null;
+      // The promise executor runs before openingPromise is assigned, so reset
+      // the singleton in a microtask after the assignment has completed.
+      queueMicrotask(() => {
+        if (databasePromise === openingPromise) databasePromise = null;
+      });
       reject(error);
       return;
     }
