@@ -398,3 +398,26 @@ Cuando se quitaba la pista activa o se cambiaba del audio nativo al reproductor 
 ### Validación y límites
 
 Las nuevas pruebas verifican las asignaciones de limpieza y que los caminos de eliminación/cambio de reproductor la invoquen. No pretenden demostrar que todos los sistemas operativos actualicen instantáneamente sus paneles multimedia; eso sigue dependiendo de la implementación concreta del navegador y del sistema.
+
+
+## Pasada adicional — errores del reproductor incrustado de YouTube (17 de octubre de 2026)
+
+### Hallazgo
+
+La integración comprobaba si el video aparecía como incrustable en la YouTube Data API, pero la IFrame Player API no tenía un manejador `onError`. La disponibilidad puede cambiar y el API oficial informa códigos propios: video no disponible, bloqueo de reproducción incrustada, fallo del reproductor HTML5 o ausencia de `HTTP Referer`/identificación del cliente (código 153). Sin manejar esos eventos, Ritmo no podía explicar el problema aunque ya mostrara un enlace para abrir la fuente oficial.
+
+### Corrección aplicada
+
+- Se añadieron mensajes específicos y acciones recomendadas para los códigos 2, 5, 100, 101, 150 y 153, más un mensaje seguro para códigos desconocidos.
+- Se escucha `onAutoplayBlocked` para diferenciar las políticas de reproducción automática del error de disponibilidad y guiar al usuario a los controles del reproductor o a YouTube.
+- Se fija explícitamente `strict-origin-when-cross-origin` en el iframe antes de asignar la URL, sin desactivar la protección de referrer. El código 153 sigue requiriendo revisar cómo se sirve la web y si el navegador/extensiones bloquean el encabezado; la app no puede anular esas políticas.
+- Se agregaron pruebas unitarias para los códigos documentados, una comprobación de integración y un nuevo módulo a la shell offline. La caché pasa a `ritmo-shell-v17`.
+
+### Fuentes de ingeniería consultadas
+
+- Google for Developers, [YouTube IFrame Player API — eventos y códigos de error](https://developers.google.com/youtube/iframe_api_reference): documenta `onError`, los códigos 2, 5, 100, 101, 150 y 153, y el evento `onAutoplayBlocked`.
+- Google for Developers, [historial de revisiones de la IFrame Player API](https://developers.google.com/youtube/iframe_api_revision_history): registra la incorporación del código 153 el 9 de julio de 2025 y el evento `onAutoplayBlocked` el 20 de noviembre de 2023.
+
+### Validación y límites
+
+La nueva prueba comprueba que cada código conocido tiene un diagnóstico accionable y que la aplicación conecta los eventos al mensaje. CI sigue siendo una prueba automatizada, no una garantía de que cada video o combinación de navegador esté disponible; la comprobación final del reproductor depende de YouTube y de las restricciones aplicables a cada video.

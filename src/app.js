@@ -2,6 +2,7 @@ import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, 
 import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession } from "./media-session-state.js";
+import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -888,13 +889,26 @@ function attachYoutubePlayer(frame) {
         onReady: event => {
           const iframe = event.target.getIframe();
           iframe.title = "Reproductor oficial de YouTube";
+          iframe.referrerPolicy = "strict-origin-when-cross-origin";
           iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
           iframe.setAttribute("allowfullscreen", "");
           if (event.target.getPlayerState() === window.YT.PlayerState.PLAYING) {
             youtubeHistory.recordPlaying(event.target.getVideoData()?.video_id);
           }
         },
-        onStateChange: recordConfirmedYoutubePlayback
+        onStateChange: recordConfirmedYoutubePlayback,
+        onError: event => {
+          const session = youtubeHistory.getCurrentSession();
+          if (!session) return;
+          let failedVideoId = "";
+          try { failedVideoId = event.target?.getVideoData?.()?.video_id || ""; } catch {}
+          if (failedVideoId && failedVideoId !== session.videoId) return;
+          setYoutubeStatus(readableYoutubePlayerError(event.data), "error");
+        },
+        onAutoplayBlocked: () => {
+          if (!youtubeHistory.getCurrentSession()) return;
+          setYoutubeStatus("El navegador bloqueó el inicio automático. Probá el control Reproducir del reproductor o usá «Abrir en YouTube»; este bloqueo depende de la política del navegador.", "info");
+        }
       }
     });
   } catch {
@@ -1668,6 +1682,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   // Selecting a YouTube video supersedes any native-audio request still awaiting play().
   cancelPendingPlaybackIntent();
   const frame = $("#youtube-iframe");
+  frame.referrerPolicy = "strict-origin-when-cross-origin";
   const sessionId = youtubeHistory.select(videoId, title);
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
