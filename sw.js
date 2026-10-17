@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v5";
+const CACHE_NAME = "ritmo-shell-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -18,11 +18,25 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
-    if (response && response.ok && (request.destination === "document" || request.destination === "script" || request.destination === "style" || request.destination === "image" || request.destination === "manifest")) {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+  event.respondWith((async () => {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    try {
+      const response = await fetch(request);
+      if (response && response.ok && (request.destination === "document" || request.destination === "script" || request.destination === "style" || request.destination === "image" || request.destination === "manifest")) {
+        const copy = response.clone();
+        // Keep the service worker alive while a runtime cache write completes,
+        // and swallow quota/storage errors instead of creating an unhandled rejection.
+        const cacheWrite = caches.open(CACHE_NAME).then(cache => cache.put(request, copy)).catch(() => {});
+        event.waitUntil(cacheWrite);
+      }
+      return response;
+    } catch {
+      if (request.mode === "navigate") {
+        const offlinePage = await caches.match("./index.html");
+        if (offlinePage) return offlinePage;
+      }
+      throw new Error("Recurso no disponible sin conexión");
     }
-    return response;
-  }).catch(() => request.mode === "navigate" ? caches.match("./index.html") : Promise.reject(new Error("Recurso no disponible sin conexión")))));
+  })());
 });
