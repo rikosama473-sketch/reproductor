@@ -118,7 +118,7 @@ function trackRow(track, index) {
     '<div class="track-copy"><strong>' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div></div>' +
     '<span class="source-tag' + (isLocal(track) ? "" : " stream") + '">' + (isLocal(track) ? "Offline" : "Online") + '</span>' +
     '<span class="track-duration">' + (track.duration ? formatTime(track.duration) : "—") + '</span>' +
-    '<div class="track-actions"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button><button class="row-icon' + favClass + '" data-favorite="' + escapeHTML(track.id) + '" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div>';
+    '<div class="track-actions"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + (track.kind === "url" ? '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión (si está permitido)" aria-label="Guardar audio online sin conexión">⇩</button>' : '') + '<button class="row-icon' + favClass + '" data-favorite="' + escapeHTML(track.id) + '" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div>';
 }
 function bindRenderedActions(root) {
   root.querySelectorAll("[data-play]").forEach(button => {
@@ -155,6 +155,10 @@ function bindRenderedActions(root) {
     } catch (error) { toast(error.message || "No se pudo eliminar la canción."); }
   }));
 
+  root.querySelectorAll("[data-download-track]").forEach(button => button.addEventListener("click", event => {
+    event.stopPropagation();
+    downloadStreamOffline(button.dataset.downloadTrack);
+  }));
   root.querySelectorAll("[data-add-playlist]").forEach(button => button.addEventListener("click", async event => {
     event.stopPropagation();
     const track = getTrack(button.dataset.addPlaylist);
@@ -748,6 +752,77 @@ async function readMp3Tags(file) {
     return parsed;
   } catch { return fallback; }
 }
+async function downloadStreamOffline(trackId) {
+  const source = getTrack(trackId);
+  if (!source || source.kind !== "url") return;
+  if (!confirm("¿El sitio autoriza descargar y guardar este audio para escucharlo sin conexión? Solo se guardará si el servidor permite una descarga directa.")) return;
+  if (!navigator.onLine) { toast("Necesitás conexión para guardar esta fuente."); return; }
+  const MAX_DOWNLOAD_BYTES = 150 * 1024 * 1024;
+  let reader = null;
+  try {
+    const response = await fetch(source.url, { mode: "cors", credentials: "omit", cache: "no-store" });
+    if (!response.ok) throw new Error("El servidor respondió " + response.status + ".");
+    const rawType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const filename = (() => {
+      try { return decodeURIComponent(new URL(source.url).pathname.split("/").pop() || "audio-offline"); }
+      catch { return "audio-offline"; }
+    })();
+    const isAudioExtension = /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|caf|3gp|amr)$/i.test(filename);
+    if (rawType.startsWith("text/") || rawType.includes("html") ||
+        (!rawType.startsWith("audio/") && !(rawType === "application/octet-stream" && isAudioExtension) && !isAudioExtension)) {
+      throw new Error("La URL no parece entregar un archivo de audio directo.");
+    }
+    const declaredLength = Number(response.headers.get("content-length") || 0);
+    if (declaredLength > MAX_DOWNLOAD_BYTES) throw new Error("El archivo supera el límite local de 150 MB por descarga.");
+    const chunks = [];
+    let total = 0;
+    if (response.body?.getReader) {
+      reader = response.body.getReader();
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        total += part.value.byteLength;
+        if (total > MAX_DOWNLOAD_BYTES) {
+          await reader.cancel();
+          throw new Error("El archivo supera el límite local de 150 MB por descarga.");
+        }
+        chunks.push(part.value);
+      }
+    } else {
+      const blob = await response.blob();
+      if (blob.size > MAX_DOWNLOAD_BYTES) throw new Error("El archivo supera el límite local de 150 MB por descarga.");
+      chunks.push(blob);
+      total = blob.size;
+    }
+    if (!total) throw new Error("El servidor devolvió un archivo vacío.");
+    const blob = new Blob(chunks, { type: rawType.startsWith("audio/") ? rawType : "application/octet-stream" });
+    const storage = await estimateStorage();
+    if (storage?.quota && storage.usage + blob.size > storage.quota * 0.95) {
+      throw new Error("No queda espacio suficiente en el navegador. Liberá almacenamiento antes de descargar.");
+    }
+    const offlineTrack = {
+      id: id(), kind: "file", name: filename, title: source.title || titleFromFilename(filename),
+      artist: source.artist || "Fuente online", album: source.album || "", blob, size: blob.size,
+      mimeType: blob.type || rawType || "application/octet-stream", lastModified: Date.now(),
+      favorite: false, addedAt: Date.now(), duration: source.duration || 0, lastPlayedAt: 0,
+      downloadedFromUrl: source.url
+    };
+    await saveTrack(offlineTrack);
+    state.tracks = await getAllTracks();
+    try { await requestPersistentStorage(); } catch {}
+    render();
+    toast("Audio guardado en tu biblioteca offline (" + formatBytes(blob.size) + ").");
+  } catch (error) {
+    const message = error instanceof TypeError
+      ? "No se pudo descargar: el servidor puede bloquear las descargas del navegador (CORS) o requerir permiso. Ritmo no intenta eludir esa restricción."
+      : (error.message || "No se pudo guardar la fuente offline.");
+    toast(message);
+    showPlaybackStatus(message, "warning", false);
+  } finally {
+    try { reader?.releaseLock(); } catch {}
+  }
+}
+
 async function importFiles(fileList) {
   const files = [...fileList].filter(file => file.type.startsWith("audio/") || /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file.name));
   if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
