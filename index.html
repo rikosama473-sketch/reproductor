@@ -173,6 +173,26 @@
             <div class="youtube-ad-note"><span>◈</span><p><strong>Sin suscripciones ni anuncios de Ritmo.</strong> Para usar las protecciones ant anuncios de Brave, abrí YouTube en Brave con Shields activado. Una web no puede activar Shields por su cuenta ni suprimir legalmente los anuncios del reproductor incrustado.</p></div>
           </section>
 
+          <section class="open-audio-section" aria-labelledby="open-audio-title">
+            <div class="youtube-section-heading">
+              <div class="youtube-heading-icon">♫</div>
+              <div class="youtube-heading-copy">
+                <div class="eyebrow">CATÁLOGO ABIERTO</div>
+                <h2 id="open-audio-title">Explorar música <span>con licencia abierta.</span></h2>
+                <p>Buscá grabaciones de Internet Archive que declaran licencia Creative Commons. Sin clave API ni suscripción.</p>
+              </div>
+              <span class="free-pill"><span>✓</span> Búsqueda gratuita</span>
+            </div>
+            <form id="archive-search-form" class="archive-search-form">
+              <label class="archive-search-box" for="archive-query"><span>⌕</span><input id="archive-query" type="search" maxlength="100" autocomplete="off" placeholder="Artista, género, banda sonora, instrumento…" aria-label="Buscar música con licencia Creative Commons" required></label>
+              <button type="submit" class="button button-primary" id="archive-search-button">Buscar catálogo <span>→</span></button>
+            </form>
+            <p id="archive-status" class="archive-status" role="status" aria-live="polite">La búsqueda filtra audios con una licencia Creative Commons declarada en los metadatos de Internet Archive. Antes de usar una pista, revisá la licencia y las condiciones de la ficha original.</p>
+            <div id="archive-results" class="archive-results"></div>
+            <button type="button" id="archive-load-more" class="button button-soft archive-load-more" hidden>Cargar más resultados ↓</button>
+            <p class="archive-rights-note">Las condiciones pueden variar por obra. Ritmo muestra la licencia declarada por el archivo y te lleva a la fuente; no garantiza que los metadatos de terceros sean infalibles. Las pistas se añaden como enlaces de streaming; para guardarlas offline, utilizá la descarga original cuando esté autorizada y luego importá el archivo.</p>
+          </section>
+
           <div class="online-card">
             <div class="online-card-top"><div class="source-symbol">↗</div><div><h2>Agregar enlace de audio</h2><p>Usá una URL directa a un archivo o stream de audio (MP3, OGG, WAV, M4A, AAC). No se admiten páginas de descarga ni enlaces de YouTube en este campo.</p></div></div>
             <form id="url-form" class="url-form"><label for="stream-title">Nombre para mostrar <span>(opcional)</span></label><input id="stream-title" class="form-input" maxlength="120" placeholder="Ej. Mi radio favorita"><label for="stream-url">URL de audio o radio <span>https://…</span></label><input id="stream-url" class="form-input" type="url" required placeholder="https://dominio.com/audio.mp3" autocomplete="url"><div class="url-form-bottom"><span class="form-hint">Las fuentes deben ser accesibles y compatibles con tu navegador.</span><button class="button button-primary" type="submit">Guardar fuente <span>→</span></button></div><p class="form-message" id="url-message" role="status"></p></form>
