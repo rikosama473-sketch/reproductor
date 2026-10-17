@@ -46,6 +46,7 @@ assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadat
 assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
+assert.match(html, /id="library-no-results"/, "Library search should expose a no-matches empty state");
 assert.match(sw, /ritmo-shell-v7/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
@@ -156,5 +157,8 @@ assert.match(app, /catch \(error\) \{\s*track\.favorite = previousFavorite;\s*re
 assert.match(app, /list\.trackIds = previousTrackIds;\s*list\.updatedAt = previousUpdatedAt;\s*renderPlaylists\(\);/, "Failed playlist writes must restore both membership and modification timestamp");
 assert.match(app, /const currentVolume = Number\(\$\("#volume-bar"\)\.value\);\s*const fadedVolume = currentVolume \* Math\.max\(0, 1 - step \/ steps\)/, "The sleep fade must use the current slider value instead of a stale volume captured when the timer started");
 assert.match(app, /const restoredVolume = Number\(\$\("#volume-bar"\)\.value\);\s*defaultAudio\.volume = restoredVolume;\s*equalizedAudio\.volume = restoredVolume;/, "Sleep-timer completion must preserve any volume change made while it was running");
-console.log("Third-pass regressions passed: failed-storage rollback for favorites/playlists and live volume during sleep timer.");
+assert.match(app, /const visibleLibraryTracks = sortedForView\("library"\);/, "Library rendering should reuse the filtered track list when deciding empty-state visibility");
+assert.match(app, /library-no-results/, "The app should show a distinct empty state when the library search has no matches");
+assert.match(app, /visibleLibraryTracks\.length === 0/, "No-match state should only appear when a non-empty library query has zero results");
+console.log("Third-pass regressions passed: failed-storage rollback, live sleep-timer volume, and empty library search state.");
 
