@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v24";
+const CACHE_NAME = "ritmo-shell-v25";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -34,6 +34,16 @@ self.addEventListener("fetch", event => {
     }
     try {
       const response = await fetch(request);
+      // A deployment can briefly return 404/5xx for a shell asset. HTTP errors
+      // do not enter catch(), so prefer the last known-good cache copy for those.
+      if (response && !response.ok && (response.status === 404 || response.status >= 500)) {
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        if (request.mode === "navigate") {
+          const offlinePage = await caches.match("./index.html");
+          if (offlinePage) return offlinePage;
+        }
+      }
       if (response && response.ok && (request.destination === "document" || request.destination === "script" || request.destination === "style" || request.destination === "image" || request.destination === "manifest")) {
         const copy = response.clone();
         // Keep the service worker alive while a runtime cache write completes,

@@ -376,3 +376,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .app-boot-error-card { padding: 20px; }
 }
 @media (max-width: 380px) { .bottom-player { gap: 4px; padding-left: 7px; padding-right: 7px; } .bottom-player #player-favorite { display: none; } .mobile-tab { font-size: 9px; } }
+
+/* Short guidance for Android's scoped folder picker. */
+.storage-picker-note { margin: 10px 0 0; max-width: 560px; color: #aaa4b8; font-size: 12px; line-height: 1.5; }
+.storage-picker-note strong { color: #d6c8ff; font-weight: 700; }
+@media (max-width: 820px) { .storage-picker-note { max-width: 100%; font-size: 11px; } }

@@ -120,4 +120,32 @@ function request(url, { mode = "no-cors", destination = "image", method = "GET" 
   assert.ok(app.trace[0].startsWith("cache-match:"), "image resources should remain cache-first");
 }
 
-console.log("Service-worker freshness tests passed: network-first shell, stale-cache recovery, offline deep-link fallback, cache-first images.");
+// Regression: an HTTP 404 for a cached script must not send HTML/error text to the JS loader.
+{
+  const scriptUrl = "https://example.test/app/src/app.js";
+  const app = createHarness({ network: async () => new Response("not-found-html", { status: 404 }) });
+  app.cache(scriptUrl, "known-good-script");
+  const response = await app.runFetch(request(scriptUrl, { destination: "script" }));
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "known-good-script");
+  assert.ok(app.trace.includes("cache-match:/app/src/app.js"));
+}
+
+// Regression: a server error during a deployment uses the cached document shell.
+{
+  const app = createHarness({ network: async () => new Response("deployment-in-progress", { status: 503 }) });
+  app.cache(shellUrl, "last-known-good-shell");
+  const response = await app.runFetch(request(shellUrl, { mode: "navigate", destination: "document" }));
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "last-known-good-shell");
+}
+
+// Auth/permission errors are not treated as transient deployment failures.
+{
+  const scriptUrl = "https://example.test/app/src/app.js";
+  const app = createHarness({ network: async () => new Response("forbidden", { status: 403 }) });
+  app.cache(scriptUrl, "old-script");
+  const response = await app.runFetch(request(scriptUrl, { destination: "script" }));
+  assert.equal(response.status, 403);
+}
+console.log("Service-worker tests passed: freshness, offline fallback, deployment 404/5xx recovery and cache-first images.");

@@ -33,6 +33,7 @@ let nativePlaybackPollTimer = null;
 let nativePlaybackPollInFlight = false;
 let youtubeSearchRequestId = 0;
 let archiveSearchRequestId = 0;
+let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
 const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
@@ -677,6 +678,11 @@ async function renderStorageStatus() {
     if (estimate?.quota) node.textContent += " Espacio: " + formatBytes(estimate.usage) + " usados de " + formatBytes(estimate.quota) + ".";
   } catch { node.textContent = "No se pudo consultar el permiso o la cuota de almacenamiento."; }
 }
+function serviceWorkerDiagnosticStatus() {
+  if (!("serviceWorker" in navigator)) return "No disponible en este navegador";
+  if (location.protocol === "file:") return "Requiere HTTPS o localhost";
+  return serviceWorkerStatus || (navigator.serviceWorker.controller ? "Controlador activo" : "Todavía no controla esta página");
+}
 async function renderDiagnostics() {
   const rows = [
     ["Motor Android Media3", nativePlaybackPlugin() ? "Disponible en la APK" : "Solo reproducción del navegador"],
@@ -685,7 +691,7 @@ async function renderDiagnostics() {
     ["Ecualizador local", (window.AudioContext || window.webkitAudioContext) ? "Disponible para archivos locales" : "No disponible en este navegador"],
     ["Mantener pantalla despierta", navigator.wakeLock ? "API disponible; requiere que Ritmo esté visible" : "No compatible en este navegador"],
     ["IndexedDB", "indexedDB" in window ? "Disponible en este navegador" : "No disponible"],
-    ["Service Worker / modo sin conexión", "serviceWorker" in navigator ? "API disponible" : "No disponible"],
+    ["Service Worker / modo sin conexión", serviceWorkerDiagnosticStatus()],
     ["Conexión", navigator.onLine ? "Conectado" : "Sin conexión"],
     ["Fuente actual", currentTrack() ? (isLocal(currentTrack()) ? "Archivo local" : "Fuente online") : "No hay una canción activa"]
   ];
@@ -2428,12 +2434,34 @@ async function init() {
     // a reload in the middle of playback.
     const hadController = Boolean(navigator.serviceWorker.controller);
     let updatePromptShown = false;
+    serviceWorkerStatus = hadController ? "Controlador activo" : "Registrando…";
+    const refreshServiceWorkerDiagnostic = () => {
+      if ($("#settings-dialog")?.open) {
+        renderDiagnostics().catch(error => console.warn("No se pudo actualizar el diagnóstico del Service Worker.", error));
+      }
+    };
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!hadController || updatePromptShown) return;
-      updatePromptShown = true;
-      $("#app-update-banner").hidden = false;
+      serviceWorkerStatus = "Controlador activo; modo sin conexión disponible";
+      if (hadController && !updatePromptShown) {
+        updatePromptShown = true;
+        $("#app-update-banner").hidden = false;
+      }
+      refreshServiceWorkerDiagnostic();
     });
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js").then(registration => {
+      serviceWorkerStatus = registration.active
+        ? "Registrado y activo"
+        : "Registrado; activación pendiente";
+      refreshServiceWorkerDiagnostic();
+    }).catch(error => {
+      serviceWorkerStatus = "Error de registro; modo sin conexión no garantizado";
+      console.warn("No se pudo registrar el Service Worker; el modo sin conexión no está garantizado.", error);
+      refreshServiceWorkerDiagnostic();
+    });
+  } else {
+    serviceWorkerStatus = "serviceWorker" in navigator
+      ? "Requiere HTTPS o localhost"
+      : "No disponible en este navegador";
   }
   const [tracksResult, historyResult, playlistsResult] = await Promise.allSettled([
     getAllTracks(),

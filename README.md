@@ -11,6 +11,10 @@ Ritmo es una aplicación web progresiva (PWA), sin framework ni dependencias de 
 - PWA instalable, shell cacheado mediante Service Worker y biblioteca local disponible sin internet después de importar los archivos.
 - Interfaz responsive para escritorio, móvil y tablet; atajos de teclado básicos.
 
+## Investigación técnica y soluciones a errores
+
+El informe [`docs/technical-error-research-2026-10-18.md`](docs/technical-error-research-2026-10-18.md) relaciona documentación oficial y changelogs con riesgos reales de Ritmo, y describe las pruebas añadidas en `main`.
+
 ## Publicar la versión online
 
 El workflow `.github/workflows/deploy-pages.yml` publica el sitio estático en GitHub Pages cuando los cambios llegan a `main`. En la primera publicación, si el repositorio no tiene Pages habilitado, abrí **Settings → Pages** y seleccioná **GitHub Actions** como fuente de publicación; luego ejecutá el workflow `Deploy Ritmo to GitHub Pages` desde la pestaña Actions.
