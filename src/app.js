@@ -18,13 +18,19 @@ const audioOutputVolume = createAudioOutputVolumeController({
   getAudioContext: () => audioContext
 });
 function setOutputVolume(value) {
-  return audioOutputVolume.setVolume(value);
+  const result = audioOutputVolume.setVolume(value);
+  if (state.nativePlayback?.active) {
+    nativePlaybackPlugin()?.setVolume({ volume: Math.max(0, Math.min(1, Number(value) || 0)) }).catch(() => {});
+  }
+  return result;
 }
 let screenWakeLock = null;
 let playbackRequestId = 0;
 // Identifies a play() request that has not reached confirmed playback yet.
 // Pause must cancel intent even while the media element still reports paused.
 let pendingPlaybackRequestId = null;
+let nativePlaybackPollTimer = null;
+let nativePlaybackPollInFlight = false;
 let youtubeSearchRequestId = 0;
 let archiveSearchRequestId = 0;
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
@@ -50,7 +56,8 @@ function loadAudioPreferences() {
 const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
-const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, nativeMusicPlugin: null };
+const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, nativeMusicPlugin: null, nativePlayerPlugin: null,
+  nativePlayback: { active: false, isPlaying: false, currentTime: 0, duration: 0, playbackState: "idle", trackId: null, endedHandled: false } };
  
 const LIBRARY_VIEW_KEY = "ritmo.library-view.v1";
 let libraryMode = (() => {
@@ -131,6 +138,96 @@ function nativeMusicPlugin() {
   }
   return state.nativeMusicPlugin;
 }
+function nativePlaybackPlugin() {
+  const bridge = window.Capacitor;
+  if (!isNativeAndroidShell() || typeof bridge?.nativePromise !== "function") return null;
+  if (!state.nativePlayerPlugin) {
+    const invoke = method => options => bridge.nativePromise("RitmoPlayback", method, options || {});
+    state.nativePlayerPlugin = {
+      play: invoke("play"), pause: invoke("pause"), resume: invoke("resume"),
+      seekTo: invoke("seekTo"), setVolume: invoke("setVolume"),
+      getState: invoke("getState"), stop: invoke("stop")
+    };
+  }
+  return state.nativePlayerPlugin;
+}
+function playbackIsPaused() {
+  return state.nativePlayback.active ? !state.nativePlayback.isPlaying : audio.paused;
+}
+function playbackCurrentTime() {
+  return state.nativePlayback.active ? Math.max(0, Number(state.nativePlayback.currentTime) || 0) : audio.currentTime;
+}
+function playbackDuration() {
+  return state.nativePlayback.active
+    ? (Number(state.nativePlayback.duration) > 0 ? Number(state.nativePlayback.duration) : Number.NaN)
+    : audio.duration;
+}
+function seekPlayback(seconds) {
+  const position = Math.max(0, Number(seconds) || 0);
+  if (state.nativePlayback.active) {
+    state.nativePlayback.currentTime = position;
+    const plugin = nativePlaybackPlugin();
+    if (plugin?.seekTo) plugin.seekTo({ positionMs: Math.round(position * 1000) }).catch(error => {
+      showPlaybackStatus(error?.message || "No se pudo cambiar la posición de reproducción.", "warning", true);
+    });
+    updatePlayer();
+    updateMediaSession();
+    return;
+  }
+  try { audio.currentTime = position; } catch {}
+}
+function stopNativePlayback() {
+  const wasActive = state.nativePlayback.active;
+  if (nativePlaybackPollTimer) clearInterval(nativePlaybackPollTimer);
+  nativePlaybackPollTimer = null;
+  nativePlaybackPollInFlight = false;
+  state.nativePlayback = { active: false, isPlaying: false, currentTime: 0, duration: 0, playbackState: "idle", trackId: null, endedHandled: false };
+  if (wasActive) {
+    const plugin = nativePlaybackPlugin();
+    return plugin?.stop().catch(() => {}) || Promise.resolve();
+  }
+  return Promise.resolve();
+}
+function acceptNativePlaybackState(result) {
+  if (!state.nativePlayback.active || state.nativePlayback.trackId !== state.currentId || !result) return;
+  state.nativePlayback.isPlaying = Boolean(result.isPlaying);
+  state.nativePlayback.playbackState = String(result.playbackState || "idle");
+  state.nativePlayback.currentTime = Math.max(0, Number(result.positionMs) || 0) / 1000;
+  const duration = Math.max(0, Number(result.durationMs) || 0) / 1000;
+  if (duration > 0) {
+    state.nativePlayback.duration = duration;
+    const track = currentTrack();
+    if (track && Math.abs((Number(track.duration) || 0) - duration) > 1) {
+      track.duration = duration;
+      saveTrack(track).catch(() => {});
+    }
+  }
+  if (result.error) showPlaybackStatus("Android no pudo reproducir esta pista: " + result.error, "error", true);
+  else if (state.nativePlayback.playbackState === "ready") showPlaybackStatus("");
+  if (state.nativePlayback.playbackState === "ended" && !state.nativePlayback.endedHandled) {
+    state.nativePlayback.endedHandled = true;
+    const track = currentTrack();
+    if (state.repeat === "one" && track) playTrack(track.id, true, { keepQueue: true, skipHistory: true, forceReload: true });
+    else nextTrack(1);
+  }
+  updatePlayer();
+  updateMediaSession();
+}
+function startNativePlaybackPolling() {
+  if (nativePlaybackPollTimer) clearInterval(nativePlaybackPollTimer);
+  const poll = async () => {
+    if (!state.nativePlayback.active || nativePlaybackPollInFlight) return;
+    const plugin = nativePlaybackPlugin();
+    if (!plugin?.getState) return;
+    nativePlaybackPollInFlight = true;
+    try { acceptNativePlaybackState(await plugin.getState()); }
+    catch (error) { if (state.nativePlayback.active) showPlaybackStatus(error?.message || "No se pudo consultar el estado de reproducción nativa.", "warning", true); }
+    finally { nativePlaybackPollInFlight = false; }
+  };
+  poll();
+  nativePlaybackPollTimer = setInterval(poll, 700);
+}
+
 function sourceLabel(track) { return isLocal(track) ? "En este dispositivo" : "Streaming online"; }
 function toast(message) {
   const node = $("#toast");
@@ -235,7 +332,7 @@ function trackRow(track, index) {
   const active = track.id === state.currentId;
   const favClass = track.favorite ? " is-favorite" : "";
   return '<div class="track-row' + (active ? ' currently-playing' : '') + '" data-track-row="' + escapeHTML(track.id) + '">' +
-    '<span class="track-index">' + (active && !audio.paused ? "♫" : String(index + 1).padStart(2, "0")) + '</span>' +
+    '<span class="track-index">' + (active && !playbackIsPaused() ? "♫" : String(index + 1).padStart(2, "0")) + '</span>' +
     '<div class="track-main" data-play="' + escapeHTML(track.id) + '" role="button" tabindex="0" aria-label="Reproducir ' + escapeHTML(track.title) + '">' + coverHTML(track) +
     '<div class="track-copy"><strong>' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div></div>' +
     '<span class="source-tag' + (isLocal(track) ? "" : " stream") + '">' + (isLocal(track) ? "Offline" : "Online") + '</span>' +
@@ -497,7 +594,7 @@ function mediaErrorMessage(track, error) {
 function retryCurrentPlayback() {
   const track = currentTrack();
   if (!track) return;
-  const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  const position = Number.isFinite(playbackCurrentTime()) ? playbackCurrentTime() : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true, forceReload: true });
 }
 
@@ -507,7 +604,7 @@ function retryCurrentPlayback() {
 function resumeCurrentTrack() {
   const track = currentTrack();
   if (!track) return;
-  const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  const position = Number.isFinite(playbackCurrentTime()) ? playbackCurrentTime() : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true });
 }
 function cancelPendingPlaybackIntent() {
@@ -518,7 +615,10 @@ function pauseCurrentTrack() {
   // Cancel asynchronous intent as well as pausing current media. A late
   // AudioContext.resume() or play() continuation must not restart the track.
   cancelPendingPlaybackIntent();
-  audio.pause();
+  if (state.nativePlayback.active) {
+    state.nativePlayback.isPlaying = false;
+    nativePlaybackPlugin()?.pause().catch(error => showPlaybackStatus(error?.message || "No se pudo pausar el audio.", "warning", true));
+  } else audio.pause();
   updatePlayer();
   updateMediaSession();
 }
@@ -578,6 +678,7 @@ async function renderStorageStatus() {
 }
 async function renderDiagnostics() {
   const rows = [
+    ["Motor Android Media3", nativePlaybackPlugin() ? "Disponible en la APK" : "Solo reproducción del navegador"],
     ["Audio nativo", defaultAudio.canPlayType ? "Disponible" : "No disponible"],
     ["Controles de pantalla bloqueada", "mediaSession" in navigator ? "API disponible (depende del navegador y sistema)" : "No disponible en este navegador"],
     ["Ecualizador local", (window.AudioContext || window.webkitAudioContext) ? "Disponible para archivos locales" : "No disponible en este navegador"],
@@ -636,7 +737,7 @@ function startSleepTimer(minutes) {
   state.sleepTimer = setTimeout(() => {
     state.sleepTimer = null;
     state.sleepEndsAt = null;
-    if (audioPrefs.fadeOutAtEnd && !audio.paused) {
+    if (audioPrefs.fadeOutAtEnd && !playbackIsPaused()) {
       let step = 0;
       const steps = 20;
       state.sleepFadeTimer = setInterval(() => {
@@ -652,8 +753,7 @@ function startSleepTimer(minutes) {
           // The timer must cancel requests that are preparing to play, not
           // merely pause media elements that have not started yet.
           cancelPendingPlaybackIntent();
-          defaultAudio.pause();
-          equalizedAudio.pause();
+          pauseCurrentTrack();
           const restoredVolume = Number($("#volume-bar").value);
           setOutputVolume(restoredVolume);
           stopYoutubePlayback();
@@ -676,8 +776,8 @@ function startSleepTimer(minutes) {
 function applyCurrentEnginePreference() {
   const track = currentTrack();
   if (!track || !isLocal(track)) return;
-  const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-  const wasPlaying = !audio.paused;
+  const position = Number.isFinite(playbackCurrentTime()) ? playbackCurrentTime() : 0;
+  const wasPlaying = !playbackIsPaused();
   playTrack(track.id, wasPlaying, { keepQueue: true, resumeAt: position, skipHistory: true });
 }
 function openSettings() {
@@ -793,6 +893,10 @@ async function clearPlaybackHistory() {
   catch (error) { toast(error.message || "No se pudo limpiar el historial."); }
 }
 function updateMediaSession() {
+  if (state.nativePlayback.active) {
+    if ("mediaSession" in navigator) clearMediaSession(navigator.mediaSession, state);
+    return;
+  }
   if (!("mediaSession" in navigator)) return;
   const track = currentTrack();
   if (!track) { clearMediaSession(navigator.mediaSession, state); return; }
@@ -805,9 +909,9 @@ function updateMediaSession() {
       state.mediaSessionTrackId = track.id;
     } catch {}
   }
-  try { navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing"; } catch {}
-  if (Number.isFinite(audio.duration) && audio.duration > 0 && typeof navigator.mediaSession.setPositionState === "function") {
-    try { navigator.mediaSession.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate || 1 }); } catch {}
+  try { navigator.mediaSession.playbackState = playbackIsPaused() ? "paused" : "playing"; } catch {}
+  if (Number.isFinite(playbackDuration()) && playbackDuration() > 0 && typeof navigator.mediaSession.setPositionState === "function") {
+    try { navigator.mediaSession.setPositionState({ duration: playbackDuration(), position: Math.min(playbackCurrentTime(), playbackDuration()), playbackRate: audio.playbackRate || 1 }); } catch {}
   }
 }
 function setupMediaSession() {
@@ -815,9 +919,9 @@ function setupMediaSession() {
   const handlers = {
     play: () => resumeCurrentTrack(), pause: () => pauseCurrentTrack(), stop: () => pauseCurrentTrack(),
     previoustrack: () => $("#previous-button").click(), nexttrack: () => $("#next-button").click(),
-    seekbackward: details => { audio.currentTime = Math.max(0, audio.currentTime - (details.seekOffset || 10)); },
-    seekforward: details => { const step = details.seekOffset || 10; audio.currentTime = Number.isFinite(audio.duration) ? Math.min(audio.duration, audio.currentTime + step) : audio.currentTime + step; },
-    seekto: details => { if (Number.isFinite(audio.duration) && Number.isFinite(details.seekTime)) audio.currentTime = Math.max(0, Math.min(audio.duration, details.seekTime)); }
+    seekbackward: details => { seekPlayback(Math.max(0, playbackCurrentTime() - (details.seekOffset || 10))); },
+    seekforward: details => { const step = details.seekOffset || 10; seekPlayback(Number.isFinite(playbackDuration()) ? Math.min(playbackDuration(), playbackCurrentTime() + step) : playbackCurrentTime() + step); },
+    seekto: details => { if (Number.isFinite(playbackDuration()) && Number.isFinite(details.seekTime)) seekPlayback(Math.max(0, Math.min(playbackDuration(), details.seekTime))); }
   };
   for (const [action, handler] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(action, handler); } catch {} }
 }
@@ -859,16 +963,16 @@ function updatePlayer() {
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
   $("#player-favorite").classList.toggle("is-favorite", Boolean(track?.favorite));
   $("#player-favorite").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Marcar favorito");
-  $("#play-button").textContent = audio.paused ? "▶" : "Ⅱ";
-  $("#play-button").setAttribute("aria-label", audio.paused ? "Reproducir" : "Pausar");
+  $("#play-button").textContent = playbackIsPaused() ? "▶" : "Ⅱ";
+  $("#play-button").setAttribute("aria-label", playbackIsPaused() ? "Reproducir" : "Pausar");
   $("#shuffle-button").classList.toggle("active", state.shuffle);
   $("#repeat-button").classList.toggle("active", state.repeat !== "off");
   $("#repeat-button").setAttribute("aria-label", "Repetición: " + ({ off: "desactivada", all: "toda la cola", one: "una canción" }[state.repeat]));
   $("#repeat-button").textContent = state.repeat === "one" ? "↻¹" : "↻";
   const isOnline = track && !isLocal(track);
-  $("#current-time").textContent = formatTime(audio.currentTime);
-  $("#duration-time").textContent = formatTime(Number.isFinite(audio.duration) ? audio.duration : track?.duration);
-  $("#seek-bar").value = Number.isFinite(audio.duration) && audio.duration > 0 ? String(Math.round(audio.currentTime / audio.duration * 1000)) : "0";
+  $("#current-time").textContent = formatTime(playbackCurrentTime());
+  $("#duration-time").textContent = formatTime(Number.isFinite(playbackDuration()) ? playbackDuration() : track?.duration);
+  $("#seek-bar").value = Number.isFinite(playbackDuration()) && playbackDuration() > 0 ? String(Math.round(playbackCurrentTime() / playbackDuration() * 1000)) : "0";
   const expandedTitle = $("#expanded-title");
   if (expandedTitle) {
     $("#expanded-title").textContent = track ? track.title : "Todavía no suena nada";
@@ -880,14 +984,14 @@ function updatePlayer() {
     $("#expanded-favorite-button").classList.toggle("is-favorite", Boolean(track?.favorite));
     $("#expanded-favorite-button").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Agregar a favoritos");
     $("#expanded-play-button").disabled = !track;
-    $("#expanded-play-button").textContent = audio.paused ? "▶" : "Ⅱ";
-    $("#expanded-play-button").setAttribute("aria-label", audio.paused ? "Reproducir" : "Pausar");
+    $("#expanded-play-button").textContent = playbackIsPaused() ? "▶" : "Ⅱ";
+    $("#expanded-play-button").setAttribute("aria-label", playbackIsPaused() ? "Reproducir" : "Pausar");
     $("#expanded-previous-button").disabled = !state.tracks.length;
     $("#expanded-next-button").disabled = !state.tracks.length;
     $("#expanded-seek-bar").disabled = !track;
-    $("#expanded-current-time").textContent = formatTime(audio.currentTime);
-    $("#expanded-duration-time").textContent = formatTime(Number.isFinite(audio.duration) ? audio.duration : track?.duration);
-    $("#expanded-seek-bar").value = Number.isFinite(audio.duration) && audio.duration > 0 ? String(Math.round(audio.currentTime / audio.duration * 1000)) : "0";
+    $("#expanded-current-time").textContent = formatTime(playbackCurrentTime());
+    $("#expanded-duration-time").textContent = formatTime(Number.isFinite(playbackDuration()) ? playbackDuration() : track?.duration);
+    $("#expanded-seek-bar").value = Number.isFinite(playbackDuration()) && playbackDuration() > 0 ? String(Math.round(playbackCurrentTime() / playbackDuration() * 1000)) : "0";
     $("#expanded-volume-bar").value = $("#volume-bar").value;
     $("#expanded-shuffle-button").classList.toggle("active", state.shuffle);
     $("#expanded-repeat-button").classList.toggle("active", state.repeat !== "off");
@@ -1005,7 +1109,8 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
-  if (track.nativeUri) {
+  let useNativePlayer = Boolean(track.nativeUri && nativePlaybackPlugin() && !audioPrefs.equalizerEnabled);
+  if (track.nativeUri && !useNativePlayer) {
     const plugin = nativeMusicPlugin();
     if (!plugin?.resolveAudioPath) {
       pendingPlaybackRequestId = null;
@@ -1028,51 +1133,97 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       return;
     }
   }
+  if (!useNativePlayer && state.nativePlayback.active) await stopNativePlayback();
   if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
   state.currentId = track.id;
   try {
-    let desiredEngine = isLocal(track) && audioPrefs.equalizerEnabled ? equalizedAudio : defaultAudio;
-    if (desiredEngine === equalizedAudio) {
+    if (useNativePlayer) {
+      // Pass MediaStore/SAF URI directly to Media3 instead of copying audio into app cache.
+      for (const engine of [defaultAudio, equalizedAudio]) {
+        engine.pause();
+        engine.removeAttribute("src");
+        engine.load();
+      }
+      audio = defaultAudio;
+      releaseUnusedObjectURLs(null);
+      state.nativePlayback = {
+        active: true, isPlaying: false, currentTime: Math.max(0, Number(options.resumeAt) || 0),
+        duration: Math.max(0, Number(track.duration) || 0), playbackState: "buffering",
+        trackId: track.id, endedHandled: false
+      };
       try {
-        await ensureAudioProcessing();
+        const nativePlayer = nativePlaybackPlugin();
+        await nativePlayer.play({
+          uri: track.nativeUri, title: track.title || track.name || "Audio sin título",
+          artist: track.artist || "Artista desconocido", album: track.album || "Ritmo",
+          autoplay: Boolean(autoplay),
+          positionMs: Math.max(0, Math.round((Number(options.resumeAt) || 0) * 1000)),
+          volume: Math.max(0, Math.min(1, Number($("#volume-bar").value) || 0))
+        });
         if (!isCurrentPlaybackRequest()) return;
-      } catch (error) {
+        startNativePlaybackPolling();
+        acceptNativePlaybackState(await nativePlayer.getState());
+      } catch (nativeError) {
+        await stopNativePlayback();
         if (!isCurrentPlaybackRequest()) return;
-        audioPrefs.equalizerEnabled = false;
-        saveAudioPreferences();
-        syncSettingsUI();
-        desiredEngine = defaultAudio;
-        toast(error.message || "Ecualizador no disponible; se usará el audio original.");
+        // Keep the previous WebView route as a fallback for unusual document providers.
+        const libraryPlugin = nativeMusicPlugin();
+        if (!libraryPlugin?.resolveAudioPath) throw nativeError;
+        toast("El reproductor nativo no abrió este archivo; probando la reproducción compatible.");
+        const resolved = await libraryPlugin.resolveAudioPath({ uri: track.nativeUri, name: track.name });
+        if (!isCurrentPlaybackRequest()) return;
+        track.nativePath = String(resolved?.path || "");
+        if (!track.nativePath) throw nativeError;
+        await saveTrack(track);
+        useNativePlayer = false;
       }
     }
-    if (!isCurrentPlaybackRequest()) return;
-    if (desiredEngine !== audio) {
-      const previousEngine = audio;
-      previousEngine.pause();
-      previousEngine.removeAttribute("src");
-      previousEngine.load();
-      audio = desiredEngine;
+    if (!useNativePlayer) {
+      if (state.nativePlayback.active) await stopNativePlayback();
+      let desiredEngine = isLocal(track) && audioPrefs.equalizerEnabled ? equalizedAudio : defaultAudio;
+      if (desiredEngine === equalizedAudio) {
+        try {
+          await ensureAudioProcessing();
+          if (!isCurrentPlaybackRequest()) return;
+        } catch (error) {
+          if (!isCurrentPlaybackRequest()) return;
+          audioPrefs.equalizerEnabled = false;
+          saveAudioPreferences();
+          syncSettingsUI();
+          desiredEngine = defaultAudio;
+          toast(error.message || "Ecualizador no disponible; se usará el audio original.");
+        }
+      }
+      if (!isCurrentPlaybackRequest()) return;
+      if (desiredEngine !== audio) {
+        const previousEngine = audio;
+        previousEngine.pause();
+        previousEngine.removeAttribute("src");
+        previousEngine.load();
+        audio = desiredEngine;
+      }
+      setOutputVolume(Number($("#volume-bar").value));
+      const url = trackURL(track);
+      const resolvedURL = new URL(url, location.href).href;
+      if (audio.src !== resolvedURL || options.forceReload) {
+        audio.src = url;
+        audio.load();
+      }
+      releaseUnusedObjectURLs(isLocal(track) ? track.id : null);
+      if (Number.isFinite(options.resumeAt) && options.resumeAt > 0) {
+        const targetEngine = audio;
+        const restorePosition = () => {
+          try { targetEngine.currentTime = Number.isFinite(targetEngine.duration) && targetEngine.duration > 0 ? Math.min(options.resumeAt, targetEngine.duration) : options.resumeAt; } catch {}
+        };
+        if (targetEngine.readyState >= 1) restorePosition();
+        else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
+      }
+      if (autoplay) await audio.play();
+      if (!isCurrentPlaybackRequest()) return;
+
     }
-    setOutputVolume(Number($("#volume-bar").value));
-    const url = trackURL(track);
-    const resolvedURL = new URL(url, location.href).href;
-    if (audio.src !== resolvedURL || options.forceReload) {
-      audio.src = url;
-      audio.load();
-    }
-    releaseUnusedObjectURLs(isLocal(track) ? track.id : null);
-    if (Number.isFinite(options.resumeAt) && options.resumeAt > 0) {
-      const targetEngine = audio;
-      const restorePosition = () => {
-        try { targetEngine.currentTime = Number.isFinite(targetEngine.duration) && targetEngine.duration > 0 ? Math.min(options.resumeAt, targetEngine.duration) : options.resumeAt; } catch {}
-      };
-      if (targetEngine.readyState >= 1) restorePosition();
-      else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
-    }
-    if (autoplay) await audio.play();
-    if (!isCurrentPlaybackRequest()) return;
     pendingPlaybackRequestId = null;
     showPlaybackStatus("");
     if (autoplay && !options.skipHistory) {
@@ -1091,6 +1242,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
     updatePlayer();
   } catch (error) {
     if (!isCurrentPlaybackRequest()) return;
+    if (useNativePlayer) void stopNativePlayback();
     pendingPlaybackRequestId = null;
     const extension = (track.name || track.url || "").split(/[?#]/)[0].split(".").pop()?.toUpperCase();
     const message = error?.name === "NotAllowedError"
@@ -1451,6 +1603,7 @@ async function removeCurrent() {
   cancelPendingPlaybackIntent();
   const track = currentTrack();
   if (!track) return;
+  await stopNativePlayback();
   audio.pause();
   audio.removeAttribute("src");
   audio.load();
@@ -1938,6 +2091,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
       // claim that the selected video was actually played in the history.
     });
   }
+  void stopNativePlayback();
   audio.pause();
   audio.removeAttribute("src");
   audio.load();
@@ -2069,7 +2223,7 @@ function bindEvents() {
   $("#expanded-repeat-button").addEventListener("click", () => $("#repeat-button").click());
   $("#expanded-favorite-button").addEventListener("click", () => $("#player-favorite").click());
   $("#expanded-seek-bar").addEventListener("input", event => {
-    if (Number.isFinite(audio.duration)) audio.currentTime = audio.duration * Number(event.target.value) / 1000;
+    if (Number.isFinite(playbackDuration())) seekPlayback(playbackDuration() * Number(event.target.value) / 1000);
   });
   $("#expanded-volume-bar").addEventListener("input", event => {
     $("#volume-bar").value = event.target.value;
@@ -2082,14 +2236,14 @@ function bindEvents() {
   });
   $("#play-button").addEventListener("click", () => {
     if (!currentTrack()) return;
-    // A request can be pending while audio.paused is still true. Treat a tap
+    // A request can be pending while playbackIsPaused() is still true. Treat a tap
     // during that window as cancellation, not as another Play request.
-    if (pendingPlaybackRequestId !== null || !audio.paused) pauseCurrentTrack();
+    if (pendingPlaybackRequestId !== null || !playbackIsPaused()) pauseCurrentTrack();
     else resumeCurrentTrack();
     updatePlayer();
   });
   $("#previous-button").addEventListener("click", () => {
-    if (audio.currentTime > 3) audio.currentTime = 0;
+    if (playbackCurrentTime() > 3) seekPlayback(0);
     else nextTrack(-1);
   });
   $("#next-button").addEventListener("click", () => nextTrack(1));
@@ -2114,7 +2268,7 @@ function bindEvents() {
       toast("No se pudo guardar el favorito.");
     }
   });
-  $("#seek-bar").addEventListener("input", event => { if (Number.isFinite(audio.duration)) audio.currentTime = audio.duration * Number(event.target.value) / 1000; });
+  $("#seek-bar").addEventListener("input", event => { if (Number.isFinite(playbackDuration())) seekPlayback(playbackDuration() * Number(event.target.value) / 1000); });
   $("#volume-bar").addEventListener("input", event => {
     const volume = Number(event.target.value);
     audioPrefs.volume = volume;
@@ -2137,7 +2291,7 @@ function bindEvents() {
     // Mobile browsers may suspend a Web Audio graph while the app is hidden.
     // Try resuming on return; if autoplay policy rejects it, the retry action
     // will resume the context from the user's next explicit interaction.
-    if (audio === equalizedAudio && audioContext && !audio.paused && audioContext.state !== "running") {
+    if (audio === equalizedAudio && audioContext && !playbackIsPaused() && audioContext.state !== "running") {
       audioContext.resume().then(() => {
         if (audioContext?.state === "running") showPlaybackStatus("");
         else showPlaybackStatus("El motor de sonido sigue suspendido. Tocá Reintentar para reanudar el audio.", "warning", true);
@@ -2243,8 +2397,8 @@ function bindEvents() {
     if (event.target.matches("input,textarea") || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.code === "Space" && currentTrack()) { event.preventDefault(); $("#play-button").click(); }
     if (event.key === "/") { event.preventDefault(); showView("library"); $("#library-search").focus(); }
-    if (event.key === "ArrowRight" && currentTrack() && Number.isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
-    if (event.key === "ArrowLeft" && currentTrack()) audio.currentTime = Math.max(0, audio.currentTime - 5);
+    if (event.key === "ArrowRight" && currentTrack() && Number.isFinite(playbackDuration())) seekPlayback(Math.min(playbackDuration(), playbackCurrentTime() + 5));
+    if (event.key === "ArrowLeft" && currentTrack()) seekPlayback(Math.max(0, playbackCurrentTime() - 5));
   });
 }
 async function init() {

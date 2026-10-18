@@ -91,3 +91,20 @@ Fuentes comparadas:
 - [Capacitor: registro de plugins Android personalizados](https://capacitorjs.com/docs/v6/android/custom-code) — documenta el registro del plugin nativo en MainActivity y el enlace desde JavaScript.
 
 Las pruebas de paquete ahora verifican el recurso real que se entrega, no solo la existencia de llamadas a nativePromise en el código fuente. La reproducción en hardware físico sigue siendo la comprobación final de dispositivo.
+
+
+## Reproducción nativa de Android con Media3 (2026-10-18)
+
+La revisión confirmó que el acceso a la biblioteca ya usa MediaStore y el selector SAF, pero las pistas descubiertas se reproducían mediante el elemento HTML `audio` del WebView. Ahora la APK puede entregar directamente las URI de MediaStore/SAF a AndroidX Media3/ExoPlayer:
+- La interfaz, las listas, el historial y el almacenamiento local siguen en HTML/CSS/JavaScript.
+- `RitmoPlaybackPlugin` comunica los controles de la interfaz con el motor nativo; `RitmoPlaybackService` usa `MediaSessionService` para sesión del sistema y reproducción en segundo plano.
+- Solo las pistas locales descubiertas por Android usan Media3 cuando el ecualizador web no está activo. Los streams online, los archivos guardados en IndexedDB y el ecualizador conservan el motor WebView.
+- Si Media3 no abre una URI de un proveedor de documentos, Ritmo intenta la ruta previa de resolución a caché.
+
+La dependencia está fijada a Media3 1.11.1. Android recomienda Media3 para aplicaciones multimedia nuevas; las notas oficiales de septiembre de 2026 registran correcciones de reproducción atascada, concurrencia y extracción MP3:
+- [Android Developers: ExoPlayer / Media3](https://developer.android.com/media/media3/exoplayer/hello-world)
+- [Android Developers: reproducción en segundo plano con MediaSessionService](https://developer.android.com/media/media3/session/background-playback?hl=es)
+- [Android Developers: formatos multimedia compatibles](https://developer.android.com/media/platform/supported-formats?hl=es)
+- [AndroidX Media: notas de versión oficiales](https://github.com/androidx/media/blob/release/RELEASENOTES.md)
+
+Las pruebas automáticas no sustituyen una verificación en teléfono real de los permisos, URI de proveedores/fabricantes, controles de notificación y continuidad al bloquear la pantalla.
