@@ -422,6 +422,7 @@ function bindRenderedActions(root) {
       toast(error.message || "No se pudo actualizar la lista.");
     }
   }));
+}
 function renderTrackList(selector, list, emptySelector) {
   const root = $(selector);
   root.innerHTML = list.map((track, index) => trackRow(track, index)).join("");

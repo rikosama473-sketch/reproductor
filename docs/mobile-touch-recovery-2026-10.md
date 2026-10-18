@@ -28,3 +28,9 @@ La inspección del código fuente confirmó que la línea anterior a function re
 ## Validación
 
 La prueba web reprodujo el bloqueo total; las correcciones nuevas quedan cubiertas por validaciones de sintaxis y regresión en GitHub Actions. Luego se vuelve a probar la página desplegada en modo táctil. Esto no sustituye una prueba física sobre el modelo exacto de Xiaomi del usuario.
+
+## Segunda corrección detectada en la verificación posterior
+
+Una segunda pasada en el navegador, después de arreglar la secuencia literal antes de `function render()`, mostró `Unexpected end of input` al final del módulo. La causa adicional era un cierre `}` ausente al terminar `bindRenderedActions()`, antes de `function renderTrackList()`. Por ello, los siguientes renderizadores y el arranque quedaban dentro del bloque equivocado, y el archivo no podía inicializarse en el navegador.
+
+Se añadió la llave de cierre, se amplió la prueba móvil para comprobar que `bindRenderedActions()` termina antes del siguiente renderizador y se elevó la caché PWA a `ritmo-shell-v24`. La validación estática previa había pasado a pesar de este defecto de estructura; por eso se incorporó una aserción estructural explícita y se volverá a realizar una prueba con navegador, no solo con CI.
