@@ -35,6 +35,17 @@ public class RitmoPlaybackPlugin extends Plugin {
         return controllerFuture;
     }
 
+    private void discardControllerFuture(ListenableFuture<MediaController> future) {
+        boolean shouldRelease;
+        synchronized (this) {
+            shouldRelease = controllerFuture == future;
+            if (shouldRelease) controllerFuture = null;
+        }
+        // Only the code that still owns this future may release/reset it. This
+        // prevents concurrent failed calls from clearing a newer controller.
+        if (shouldRelease) MediaController.releaseFuture(future);
+    }
+
     private interface ControllerAction {
         void run(MediaController controller);
     }
@@ -47,13 +58,36 @@ public class RitmoPlaybackPlugin extends Plugin {
             return;
         }
         future.addListener(() -> mainHandler.post(() -> {
+            final MediaController controller;
             try {
-                action.run(future.get());
+                controller = future.get();
+            } catch (Exception error) {
+                // A failed buildAsync() future is terminal. Clear it so a later
+                // tap can establish a fresh connection instead of failing forever.
+                discardControllerFuture(future);
+                call.reject("No se pudo conectar con el reproductor Android. Volvé a intentar.", error);
+                return;
+            }
+            try {
+                action.run(controller);
             } catch (Exception error) {
                 call.reject("Falló el motor de reproducción Android: " +
                     (error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()), error);
             }
         }), Runnable::run);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        final ListenableFuture<MediaController> future;
+        synchronized (this) {
+            future = controllerFuture;
+            controllerFuture = null;
+        }
+        // Releasing the controller unbinds this bridge from MediaSessionService;
+        // it deliberately does not stop the service's player or background audio.
+        if (future != null) MediaController.releaseFuture(future);
+        super.handleOnDestroy();
     }
 
     @PluginMethod

@@ -32,6 +32,10 @@ assert.match(playbackPlugin, /androidx\.media3\.session\.MediaController/, "El p
 assert.match(playbackPlugin, /setMediaItem\(/, "El plugin debe entregar la URI al reproductor nativo");
 assert.match(playbackService, /extends MediaSessionService/, "La reproducción en segundo plano debe usar MediaSessionService");
 assert.match(playbackService, /new ExoPlayer\.Builder/, "El servicio debe usar ExoPlayer");
+assert.match(playbackPlugin, /MediaController\\.releaseFuture\\(future\\)/, "El puente debe liberar el controlador Media3 al destruirse");
+assert.match(playbackPlugin, /protected void handleOnDestroy\\(\\)/, "El puente debe limpiar el controlador al terminar su ciclo de vida");
+assert.match(playbackPlugin, /shouldRelease = controllerFuture == future/, "Un futuro fallido no debe borrar una conexión más nueva");
+assert.match(playbackPlugin, /discardControllerFuture\\(future\\)[\\s\\S]*?Volvé a intentar/, "Una conexión fallida debe permitir un nuevo intento");
 assert.match(prep, /const pluginClasses = \["RitmoMusicLibraryPlugin", "RitmoPlaybackPlugin"\]/, "El build debe enumerar ambos plugins Android para su registro");
 assert.match(prep, /registerPlugin\(" \+ name \+ "\.class\);/, "El build debe registrar dinámicamente ambos plugins Android");
 assert.match(prep, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/, "El empaquetado debe declarar el servicio multimedia");
