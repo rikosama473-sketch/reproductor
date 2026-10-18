@@ -111,3 +111,38 @@ Referencia de plataforma: [Android — acceso a documentos y archivos compartido
 - `scripts/android-music-library-check.mjs` ahora exige el límite de MediaStore, la señal `truncated`, el aviso al usuario y la clave SHA-256.
 - La batería común `npm run validate` ejecuta el check; el workflow Android también debe superarlo antes de ejecutar `assembleDebug`.
 - Estas pruebas automatizadas inspeccionan el contrato y el empaquetado; no sustituyen una medición en el Xiaomi físico.
+
+
+## Seguimiento de incidencias públicas y riesgos de compatibilidad — 18 de octubre de 2026
+
+Esta sección registra problemas de mantenedores publicados después de la revisión inicial. Una incidencia externa se trata como señal para comprobar un riesgo, no como prueba de que Ritmo tenga el mismo defecto.
+
+### 7. Capacitor Android: eventos al destruir o recrear un WebView
+
+Referencia: [ionic-team/capacitor #8562 — eval() runs on a destroyed WebView after activity recreate](https://github.com/ionic-team/capacitor/issues/8562) (incidencia abierta; reportada el 11 de agosto de 2026).
+
+El reporte describe eventos `pause`/`appStateChange` que intentan ejecutar JavaScript cuando una Activity se recrea y el WebView anterior ya está siendo destruido. No demuestra que la aplicación Ritmo reproduzca esa secuencia, por lo que no se cambia el código de Capacitor a ciegas.
+
+**Comprobación para Ritmo:** el puente de reproducción debe liberar su futuro/controlador en `handleOnDestroy()`, no reutilizar un futuro de conexión fallido y permitir una conexión nueva tras un fallo. Estas garantías ya están cubiertas en la revisión [MediaController lifecycle](./technical-error-research-2026-10-mediacontroller-lifecycle.md). La siguiente prueba física recomendada es abrir música local, enviar la app a segundo plano, provocar una recreación/cambio de configuración y volver; verificar que el audio no se duplique ni que los controles queden desconectados. No se declara superada sin dispositivo real.
+
+### 8. GitHub Actions: retirada definitiva del runtime Node 20
+
+Referencia: [GitHub Changelog — Node 20 is no longer available in GitHub Actions](https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-in-github-actions/).
+
+Desde el 23 de septiembre de 2026, las JavaScript Actions usan Node 24 en runners hospedados; las acciones antiguas que dependían de Node 20 pueden fallar. En Ritmo, los workflows de `main` usan `actions/checkout@v7`, `actions/setup-node@v7` y `actions/setup-java@v6`; el `node-version: 22` configura Node para ejecutar el proyecto y no el runtime interno de las acciones. Se mantiene esta separación y se verifica cada workflow tras los cambios, en vez de modificar versiones sin comprobar compatibilidad.
+
+### 9. Media Session y reproducción automática: degradación compatible, no promesas universales
+
+Referencias: [MDN — Media Session API](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API) y [MDN — Autoplay guide](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay).
+
+La API Media Session tiene disponibilidad desigual entre navegadores, y `play()` puede rechazarse si el usuario no ha interactuado o si las políticas del navegador bloquean la reproducción. Por ello, Ritmo debe tratar los controles de pantalla bloqueada como una capacidad opcional del navegador y conservar el botón de reproducción visible, los errores recuperables y el reintento explícito. No se intenta sortear las políticas de autoplay ni prometer reproducción en segundo plano donde el sistema no la permite.
+
+### Estado de entrega comprobado
+
+Al revisar `main`, el commit `9788ec508d0de1340b64d23e00c1b65265db1673` tenía completadas correctamente estas tres ejecuciones:
+
+- [Validate Ritmo #162](https://github.com/rikosama473-sketch/reproductor/actions/runs/39144498209) — éxito.
+- [Build Ritmo Android APK #41](https://github.com/rikosama473-sketch/reproductor/actions/runs/39144498128) — éxito.
+- [Deploy Ritmo to GitHub Pages #65](https://github.com/rikosama473-sketch/reproductor/actions/runs/39144498135) — éxito.
+
+Esto confirma las comprobaciones automatizadas y la publicación del commit en Pages; no sustituye las pruebas en teléfonos físicos ni confirma que un proveedor externo de audio esté disponible permanentemente.
