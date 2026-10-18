@@ -146,3 +146,22 @@ Al revisar `main`, el commit `9788ec508d0de1340b64d23e00c1b65265db1673` tenía c
 - [Deploy Ritmo to GitHub Pages #65](https://github.com/rikosama473-sketch/reproductor/actions/runs/39144498135) — éxito.
 
 Esto confirma las comprobaciones automatizadas y la publicación del commit en Pages; no sustituye las pruebas en teléfonos físicos ni confirma que un proveedor externo de audio esté disponible permanentemente.
+
+
+### 10. Capacitor Android: selector interrumpido si el proceso muere
+
+Referencia: [ionic-team/capacitor #8592 — resultado de `<input type="file">` perdido al morir el proceso](https://github.com/ionic-team/capacitor/issues/8592) (abierta; reportada en septiembre de 2026).
+
+El informe reproduce una pérdida de callback cuando Android mata el proceso mientras está abierto un selector externo; al recrear la Activity, el resultado puede llegar al sistema pero no a la página web. El caso documentado es el selector de archivos web de Capacitor y no prueba que afecte al selector nativo de MediaStore de Ritmo.
+
+**Decisión para Ritmo:** no cambiar el selector ni añadir permisos amplios sin una reproducción. La ruta Android principal de biblioteca usa el plugin nativo de MediaStore, mientras que los inputs web son una ruta distinta. Para comprobar la diferencia, probar en un Android con presión de memoria: abrir el selector web, dejar Ritmo en segundo plano, provocar que el sistema recupere memoria y regresar. La interfaz debe informar si no llegó ningún archivo y permitir reabrir el selector; en la ruta nativa, comprobar también que la biblioteca pueda volver a consultarse tras reanudación. Si se reproduce solo en el selector web, aislar esa ruta y añadir recuperación explícita antes de tocar el puente nativo.
+
+### 11. Confirmación de CI del commit de investigación
+
+La actualización documental anterior ya fue ejecutada por los tres workflows en `main`; los tres terminaron en éxito para `fb0af277c3c4b73552c8fcb31ba22e1ea27a08c4`:
+
+- [Validate Ritmo](https://github.com/rikosama473-sketch/reproductor/actions/runs/39150930743) — éxito.
+- [Build Ritmo Android APK](https://github.com/rikosama473-sketch/reproductor/actions/runs/39150930737) — éxito.
+- [Deploy Ritmo to GitHub Pages](https://github.com/rikosama473-sketch/reproductor/actions/runs/39150930750) — éxito.
+
+Estos checks son posteriores a los del commit previo y confirman que la actualización del informe no rompió validación, compilación Android ni despliegue. No equivalen a pruebas físicas de la recreación de Activity o de muerte de proceso descritas arriba.
