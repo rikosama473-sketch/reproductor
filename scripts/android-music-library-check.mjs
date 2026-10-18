@@ -28,8 +28,8 @@ assert.match(playbackPlugin, /androidx\.media3\.session\.MediaController/, "El p
 assert.match(playbackPlugin, /setMediaItem\(/, "El plugin debe entregar la URI al reproductor nativo");
 assert.match(playbackService, /extends MediaSessionService/, "La reproducción en segundo plano debe usar MediaSessionService");
 assert.match(playbackService, /new ExoPlayer\.Builder/, "El servicio debe usar ExoPlayer");
-assert.match(prep, /registerPlugin\(RitmoMusicLibraryPlugin\.class\)/, "El build debe registrar el plugin de biblioteca");
-assert.match(prep, /registerPlugin\(RitmoPlaybackPlugin\.class\)/, "El build debe registrar el reproductor nativo");
+assert.match(prep, /const pluginClasses = \["RitmoMusicLibraryPlugin", "RitmoPlaybackPlugin"\]/, "El build debe enumerar ambos plugins Android para su registro");
+assert.match(prep, /registerPlugin\(" \+ name \+ "\.class\);/, "El build debe registrar dinámicamente ambos plugins Android");
 assert.match(prep, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/, "El empaquetado debe declarar el servicio multimedia");
 assert.match(prep, /media3-exoplayer:1\.11\.1/, "El empaquetado debe fijar una versión revisada de Media3");
 assert.match(workflow, /prepare-android-native\.mjs/, "CI debe preparar los plugins antes de compilar");
