@@ -280,11 +280,13 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                 Document.COLUMN_SIZE,
                 Document.COLUMN_LAST_MODIFIED
             };
-            while (!pending.isEmpty() && files.length() < 10000) {
+            int foldersVisited = 0;
+            while (!pending.isEmpty() && files.length() < 10000 && foldersVisited < 50000) {
                 TreeFolder folder = pending.pop();
+                foldersVisited++;
                 if (folder.depth > 32) continue;
                 Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folder.documentId);
-                try (Cursor cursor = resolver.query(childrenUri, projection, null, null, Document.COLUMN_DISPLAY_NAME + " COLLATE NOCASE ASC")) {
+                try (Cursor cursor = queryTreeChildren(resolver, childrenUri, projection)) {
                     if (cursor == null) continue;
                     int idColumn = cursor.getColumnIndex(Document.COLUMN_DOCUMENT_ID);
                     int nameColumn = cursor.getColumnIndex(Document.COLUMN_DISPLAY_NAME);
@@ -320,12 +322,39 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("files", files);
             response.put("treeUri", treeUri.toString());
+            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= 50000);
             call.resolve(response);
         } catch (SecurityException error) {
             call.reject("Android no permitió leer la carpeta. Volvé a elegirla y concedé acceso.", error);
         } catch (Exception error) {
             call.reject("No se pudo explorar la carpeta de música seleccionada.", error);
         }
+    }
+
+    /**
+     * Document providers vary: some reject sortOrder, and some reject optional
+     * columns such as COLUMN_LAST_MODIFIED. Retry with fewer assumptions.
+     */
+    private Cursor queryTreeChildren(ContentResolver resolver, Uri childrenUri, String[] projection) {
+        String sortOrder = Document.COLUMN_DISPLAY_NAME + " COLLATE NOCASE ASC";
+        try {
+            Cursor cursor = resolver.query(childrenUri, projection, null, null, sortOrder);
+            if (cursor != null) return cursor;
+        } catch (RuntimeException ignored) {
+            // Retry without sort order.
+        }
+        try {
+            Cursor cursor = resolver.query(childrenUri, projection, null, null, null);
+            if (cursor != null) return cursor;
+        } catch (RuntimeException ignored) {
+            // Retry without optional metadata columns.
+        }
+        String[] minimumProjection = {
+            Document.COLUMN_DOCUMENT_ID,
+            Document.COLUMN_DISPLAY_NAME,
+            Document.COLUMN_MIME_TYPE
+        };
+        return resolver.query(childrenUri, minimumProjection, null, null, null);
     }
 
     private static boolean isAudioFile(String filename, String mime) {

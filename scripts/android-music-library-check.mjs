@@ -20,6 +20,10 @@ assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo
 assert.match(java, /ACTION_OPEN_DOCUMENT/, "La importación debe abrir el selector de archivos");
 assert.match(java, /ACTION_OPEN_DOCUMENT_TREE/, "La app debe permitir elegir una carpeta completa");
 assert.match(java, /listAudioFromTree/, "La app debe explorar la carpeta seleccionada");
+assert.match(java, /queryTreeChildren\(resolver, childrenUri, projection\)/, "La exploración SAF debe usar una consulta compatible con proveedores distintos");
+assert.match(java, /minimumProjection/, "El escaneo SAF debe tolerar proveedores que rechazan columnas opcionales");
+assert.match(java, /foldersVisited < 50000/, "La búsqueda de carpetas debe limitar trabajo para proteger el dispositivo");
+assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interfaz debe informar cuando una carpeta es demasiado grande para escanearla completa");
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
 assert.match(app, /bridge\.nativePromise\("RitmoPlayback", method/, "La reproducción Android debe usar Media3");
 assert.match(app, /nativePlayer\.play\(/, "Las pistas locales deben entregarse al motor nativo");

@@ -2,6 +2,8 @@ package com.rikosama473.ritmo;
 
 import android.content.ComponentName;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
@@ -20,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 @CapacitorPlugin(name = "RitmoPlayback")
 public class RitmoPlaybackPlugin extends Plugin {
     private ListenableFuture<MediaController> controllerFuture;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private synchronized ListenableFuture<MediaController> controllerFuture() {
         if (controllerFuture == null) {
@@ -43,13 +46,14 @@ public class RitmoPlaybackPlugin extends Plugin {
             call.reject("No se pudo conectar con el reproductor Android.", error);
             return;
         }
-        future.addListener(() -> {
-            try { action.run(future.get()); }
-            catch (Exception error) {
+        future.addListener(() -> mainHandler.post(() -> {
+            try {
+                action.run(future.get());
+            } catch (Exception error) {
                 call.reject("Falló el motor de reproducción Android: " +
                     (error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage()), error);
             }
-        }, Runnable::run);
+        }), Runnable::run);
     }
 
     @PluginMethod

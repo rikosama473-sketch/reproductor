@@ -111,3 +111,18 @@ Las pruebas automáticas no sustituyen una verificación en teléfono real de lo
 
 
 La integración de Media3 cambió la lógica del reproductor web, por lo que el shell offline se incrementó de `ritmo-shell-v20` a `ritmo-shell-v21` para que instalaciones web existentes no sigan usando el JavaScript cacheado anterior.
+
+
+## Segunda pasada de resiliencia Android (2026-10-18)
+
+La revisión del selector de carpetas encontró variaciones entre proveedores SAF:
+- La consulta de hijos ya no depende de que el proveedor acepte un orden SQL. Ritmo intenta la consulta ordenada, luego sin orden y finalmente con una proyección mínima (`DOCUMENT_ID`, `DISPLAY_NAME`, `MIME_TYPE`) si el proveedor rechaza columnas opcionales.
+- Se limita la exploración a 50.000 carpetas visitadas y 10.000 pistas para evitar escaneos descontrolados en árboles muy grandes. La interfaz informa cuando los resultados son parciales y sugiere elegir una subcarpeta.
+- Las acciones del controlador Media3 se despachan al hilo principal de Android, y el servicio libera el reproductor antes de la sesión siguiendo el ciclo de vida documentado por Android.
+
+Referencias de casos reales y soluciones publicadas por mantenedores:
+- Capawesome File Picker 8.0.4 corrigió el caso Android de `COLUMN_LAST_MODIFIED` ausente; 8.0.3 corrigió URI `file://` no legibles en algunos fabricantes: [changelog oficial](https://github.com/capawesome-team/capacitor-plugins/blob/main/packages/file-picker/CHANGELOG.md).
+- Android explica el servicio multimedia, los permisos de primer plano y la notificación de medios: [MediaSessionService](https://developer.android.com/media/media3/session/background-playback?hl=es).
+- AndroidX publicó la lista de cambios de Media3 1.11.1 con correcciones de reproducción y extractores: [notas oficiales](https://developer.android.com/jetpack/androidx/releases/media3).
+
+Ritmo aplica estas defensas en su propio plugin; no agrega una dependencia de selector de archivos adicional. La validación estática no reemplaza las pruebas con dispositivos y proveedores OEM reales.

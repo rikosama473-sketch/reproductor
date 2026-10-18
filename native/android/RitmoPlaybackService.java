@@ -31,8 +31,9 @@ public class RitmoPlaybackService extends MediaSessionService {
 
     @Override
     public void onDestroy() {
-        if (mediaSession != null) { mediaSession.release(); mediaSession = null; }
+        // Media3's documented lifecycle releases the player before the session.
         if (player != null) { player.release(); player = null; }
+        if (mediaSession != null) { mediaSession.release(); mediaSession = null; }
         super.onDestroy();
     }
 }

@@ -1550,7 +1550,9 @@ async function browseAudioFolder() {
     state.tracks = await getAllTracks();
     render();
     showView("library");
-    toast("Encontré " + scanned.length + " audios en la carpeta. Tocá una canción para reproducirla.");
+    toast(result?.truncated
+      ? "Mostré " + scanned.length + " audios. La carpeta es muy grande; elegí una subcarpeta para ver el resto."
+      : "Encontré " + scanned.length + " audios en la carpeta. Tocá una canción para reproducirla.");
   } catch (error) {
     const message = error?.message || "No se pudo explorar esa carpeta de música.";
     toast(message);
