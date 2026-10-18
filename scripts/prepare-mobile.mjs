@@ -54,7 +54,7 @@ await writeFile(path.join(webDir, "index.html"), html, "utf8");
 const requiredFiles = [
   "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
   "src/app.js", "src/storage.js", "src/youtube-history.js",
-  "src/audio-output-volume.js", "src/media-session-state.js",
+  "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js",
   "src/youtube-player-errors.js", "assets/icon.svg"
 ];
 for (const name of requiredFiles) {

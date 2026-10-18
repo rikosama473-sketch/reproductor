@@ -160,7 +160,7 @@
             </form>
             <div class="youtube-shortcuts">
               <button type="button" id="youtube-open-search" class="text-button">Abrir búsqueda en YouTube ↗</button>
-              <span>Sin clave API podés buscar en YouTube directamente.</span>
+              <span>Sin clave API, Buscar abre la búsqueda oficial de YouTube automáticamente.</span>
             </div>
             <div id="youtube-status" class="youtube-status" role="status" aria-live="polite">La búsqueda integrada usa la API oficial de YouTube. También podés abrir la búsqueda pública sin configurar nada.</div>
             <div id="youtube-results" class="youtube-results"></div>
@@ -290,9 +290,10 @@
     <p class="dialog-muted">Los ajustes se guardan únicamente en este navegador. El ecualizador se aplica a archivos locales; las fuentes externas conservan su reproducción directa para evitar que las restricciones CORS las dejen mudas.</p>
 
     <section class="settings-section">
-      <div class="settings-section-heading"><div><h3>Ecualizador</h3><p>Personalizá graves, voces y agudos de los archivos que importaste.</p></div>
+      <div class="settings-section-heading"><div><h3>Ecualizador</h3><p>Elegí un perfil Acústico, Pop, Rock, Clásico, Jazz, Graves o Voces; después ajustá graves, medios y agudos a mano.</p></div>
         <label class="settings-switch"><input type="checkbox" id="eq-enabled"><span>Activar</span></label>
       </div>
+      <label class="eq-control" for="eq-preset"><span>Preajuste de sonido</span><select id="eq-preset" class="form-input" aria-label="Preajuste de ecualizador"><option value="custom">Personalizado</option><option value="flat">Plano</option><option value="acoustic">Acústico</option><option value="pop">Pop</option><option value="rock">Rock</option><option value="classical">Clásico</option><option value="jazz">Jazz</option><option value="bass">Más graves</option><option value="vocal">Voces</option></select></label>
       <label class="eq-control" for="eq-bass"><span>Graves</span><output id="eq-bass-value">0 dB</output><input id="eq-bass" type="range" min="-12" max="12" step="1" value="0"></label>
       <label class="eq-control" for="eq-mid"><span>Medios / voces</span><output id="eq-mid-value">0 dB</output><input id="eq-mid" type="range" min="-12" max="12" step="1" value="0"></label>
       <label class="eq-control" for="eq-treble"><span>Agudos</span><output id="eq-treble-value">0 dB</output><input id="eq-treble" type="range" min="-12" max="12" step="1" value="0"></label>

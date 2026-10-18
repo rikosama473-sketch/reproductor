@@ -3,6 +3,7 @@ import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
+import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -35,13 +36,14 @@ let youtubeSearchRequestId = 0;
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
-const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
     return {
       ...DEFAULT_AUDIO_PREFS,
       ...(saved && typeof saved === "object" ? saved : {}),
+      eqPreset: (saved && (saved.eqPreset === "custom" || Object.prototype.hasOwnProperty.call(EQUALIZER_PRESETS, saved.eqPreset))) ? saved.eqPreset : "custom",
       bass: Math.max(-12, Math.min(12, Number(saved?.bass) || 0)),
       mid: Math.max(-12, Math.min(12, Number(saved?.mid) || 0)),
       treble: Math.max(-12, Math.min(12, Number(saved?.treble) || 0)),
@@ -153,18 +155,32 @@ function nativePlaybackPlugin() {
   return state.nativePlayerPlugin;
 }
 function playbackIsPaused() {
-  return state.nativePlayback.active ? !state.nativePlayback.isPlaying : audio.paused;
+  if (state.nativePlayback.active) return !state.nativePlayback.isPlaying;
+  if (youtubeHistory.getCurrentSession()) return youtubeMediaPlaybackState !== "playing";
+  return audio.paused;
 }
 function playbackCurrentTime() {
-  return state.nativePlayback.active ? Math.max(0, Number(state.nativePlayback.currentTime) || 0) : audio.currentTime;
+  if (state.nativePlayback.active) return Math.max(0, Number(state.nativePlayback.currentTime) || 0);
+  if (youtubeHistory.getCurrentSession() && youtubePlayer?.getCurrentTime) {
+    try { return Math.max(0, Number(youtubePlayer.getCurrentTime()) || 0); } catch {}
+  }
+  return audio.currentTime;
 }
 function playbackDuration() {
-  return state.nativePlayback.active
-    ? (Number(state.nativePlayback.duration) > 0 ? Number(state.nativePlayback.duration) : Number.NaN)
-    : audio.duration;
+  if (state.nativePlayback.active) return Number(state.nativePlayback.duration) > 0 ? Number(state.nativePlayback.duration) : Number.NaN;
+  if (youtubeHistory.getCurrentSession() && youtubePlayer?.getDuration) {
+    try { const duration = Number(youtubePlayer.getDuration()); return duration > 0 && Number.isFinite(duration) ? duration : Number.NaN; } catch {}
+  }
+  return audio.duration;
 }
 function seekPlayback(seconds) {
   const position = Math.max(0, Number(seconds) || 0);
+  if (!state.nativePlayback.active && youtubeHistory.getCurrentSession()) {
+    try { if (youtubePlayer?.seekTo) youtubePlayer.seekTo(position, true); } catch {}
+    updatePlayer();
+    updateMediaSession();
+    return;
+  }
   if (state.nativePlayback.active) {
     state.nativePlayback.currentTime = position;
     const plugin = nativePlaybackPlugin();
@@ -605,7 +621,13 @@ function retryCurrentPlayback() {
 // source while a newer selection is still preparing its engine.
 function resumeCurrentTrack() {
   const track = currentTrack();
-  if (!track) return;
+  if (!track) {
+    if (youtubeHistory.getCurrentSession()) {
+      try { if (youtubePlayer?.playVideo) youtubePlayer.playVideo(); }
+      catch { toast("No se pudo reanudar el video de YouTube."); }
+    }
+    return;
+  }
   const position = Number.isFinite(playbackCurrentTime()) ? playbackCurrentTime() : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true });
 }
@@ -614,6 +636,14 @@ function cancelPendingPlaybackIntent() {
   pendingPlaybackRequestId = null;
 }
 function pauseCurrentTrack() {
+  if (!currentTrack() && youtubeHistory.getCurrentSession()) {
+    cancelPendingPlaybackIntent();
+    youtubeMediaPlaybackState = "paused";
+    try { if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo(); } catch {}
+    updatePlayer();
+    updateMediaSession();
+    return;
+  }
   // Cancel asynchronous intent as well as pausing current media. A late
   // AudioContext.resume() or play() continuation must not restart the track.
   cancelPendingPlaybackIntent();
@@ -654,6 +684,7 @@ function bindAudioEngineEvents(element) {
 }
 function syncSettingsUI() {
   $("#eq-enabled").checked = audioPrefs.equalizerEnabled;
+  $("#eq-preset").value = audioPrefs.eqPreset || "custom";
   $("#eq-bass").value = String(audioPrefs.bass);
   $("#eq-mid").value = String(audioPrefs.mid);
   $("#eq-treble").value = String(audioPrefs.treble);
@@ -906,26 +937,38 @@ function updateMediaSession() {
   }
   if (!("mediaSession" in navigator)) return;
   const track = currentTrack();
-  if (!track) { clearMediaSession(navigator.mediaSession, state); return; }
-  if (state.mediaSessionTrackId !== track.id && "MediaMetadata" in window) {
+  const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
+  if (!track && !youtubeSession) { clearMediaSession(navigator.mediaSession, state); return; }
+  const sessionKey = youtubeSession ? "youtube:" + youtubeSession.sessionId : track.id;
+  if (state.mediaSessionTrackId !== sessionKey && "MediaMetadata" in window) {
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: track.title || "Audio sin título", artist: track.artist || "Artista desconocido", album: track.album || "Ritmo",
+        title: youtubeSession ? (youtubeSession.title || "Video de YouTube") : (track.title || "Audio sin título"),
+        artist: youtubeSession ? "YouTube" : (track.artist || "Artista desconocido"),
+        album: youtubeSession ? "Ritmo · YouTube" : (track.album || "Ritmo"),
         artwork: [{ src: new URL("./assets/icon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
       });
-      state.mediaSessionTrackId = track.id;
+      state.mediaSessionTrackId = sessionKey;
     } catch {}
   }
-  try { navigator.mediaSession.playbackState = playbackIsPaused() ? "paused" : "playing"; } catch {}
-  if (Number.isFinite(playbackDuration()) && playbackDuration() > 0 && typeof navigator.mediaSession.setPositionState === "function") {
-    try { navigator.mediaSession.setPositionState({ duration: playbackDuration(), position: Math.min(playbackCurrentTime(), playbackDuration()), playbackRate: audio.playbackRate || 1 }); } catch {}
+  if (youtubeSession) {
+    const playbackState = youtubeMediaPlaybackState === "playing" ? "playing" :
+      youtubeMediaPlaybackState === "ended" ? "none" : "paused";
+    try { navigator.mediaSession.playbackState = playbackState; } catch {}
+  } else {
+    try { navigator.mediaSession.playbackState = playbackIsPaused() ? "paused" : "playing"; } catch {}
+  }
+  const duration = playbackDuration();
+  if (Number.isFinite(duration) && duration > 0 && typeof navigator.mediaSession.setPositionState === "function") {
+    try { navigator.mediaSession.setPositionState({ duration, position: Math.min(playbackCurrentTime(), duration), playbackRate: audio.playbackRate || 1 }); } catch {}
   }
 }
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const handlers = {
     play: () => resumeCurrentTrack(), pause: () => pauseCurrentTrack(), stop: () => pauseCurrentTrack(),
-    previoustrack: () => $("#previous-button").click(), nexttrack: () => $("#next-button").click(),
+    previoustrack: () => { if (youtubeHistory.getCurrentSession()) seekPlayback(0); else $("#previous-button").click(); },
+    nexttrack: () => { if (!youtubeHistory.getCurrentSession()) $("#next-button").click(); },
     seekbackward: details => { seekPlayback(Math.max(0, playbackCurrentTime() - (details.seekOffset || 10))); },
     seekforward: details => { const step = details.seekOffset || 10; seekPlayback(Number.isFinite(playbackDuration()) ? Math.min(playbackDuration(), playbackCurrentTime() + step) : playbackCurrentTime() + step); },
     seekto: details => { if (Number.isFinite(playbackDuration()) && Number.isFinite(details.seekTime)) seekPlayback(Math.max(0, Math.min(playbackDuration(), details.seekTime))); }
@@ -959,12 +1002,14 @@ function render() {
 }
 function updatePlayer() {
   const track = currentTrack();
-  $("#player-title").textContent = track ? track.title : "Todavía no suena nada";
-  $("#player-artist").textContent = track ? (track.artist || sourceLabel(track)) : "Elegí una canción de tu biblioteca";
-  $("#play-button").disabled = !track;
+  const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
+  const hasMedia = Boolean(track || youtubeSession);
+  $("#player-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : "Todavía no suena nada";
+  $("#player-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : "Elegí una canción de tu biblioteca";
+  $("#play-button").disabled = !hasMedia;
   $("#previous-button").disabled = !state.tracks.length;
   $("#next-button").disabled = !state.tracks.length;
-  $("#seek-bar").disabled = !track;
+  $("#seek-bar").disabled = !hasMedia;
   $("#player-favorite").disabled = !track;
   $("#player-cover").className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "");
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
@@ -982,20 +1027,20 @@ function updatePlayer() {
   $("#seek-bar").value = Number.isFinite(playbackDuration()) && playbackDuration() > 0 ? String(Math.round(playbackCurrentTime() / playbackDuration() * 1000)) : "0";
   const expandedTitle = $("#expanded-title");
   if (expandedTitle) {
-    $("#expanded-title").textContent = track ? track.title : "Todavía no suena nada";
-    $("#expanded-artist").textContent = track ? (track.artist || sourceLabel(track)) : "Elegí una canción de tu biblioteca";
+    $("#expanded-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : "Todavía no suena nada";
+    $("#expanded-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : "Elegí una canción de tu biblioteca";
     $("#expanded-cover").className = "expanded-cover-art " + (track ? coverClass(track) : "tone-purple");
     $("#expanded-art-backdrop").className = "immersive-backdrop " + (track ? coverClass(track) : "tone-purple");
     $("#expanded-favorite-button").disabled = !track;
     $("#expanded-favorite-button").textContent = track?.favorite ? "♥" : "♡";
     $("#expanded-favorite-button").classList.toggle("is-favorite", Boolean(track?.favorite));
     $("#expanded-favorite-button").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Agregar a favoritos");
-    $("#expanded-play-button").disabled = !track;
+    $("#expanded-play-button").disabled = !hasMedia;
     $("#expanded-play-button").textContent = playbackIsPaused() ? "▶" : "Ⅱ";
     $("#expanded-play-button").setAttribute("aria-label", playbackIsPaused() ? "Reproducir" : "Pausar");
     $("#expanded-previous-button").disabled = !state.tracks.length;
     $("#expanded-next-button").disabled = !state.tracks.length;
-    $("#expanded-seek-bar").disabled = !track;
+    $("#expanded-seek-bar").disabled = !hasMedia;
     $("#expanded-current-time").textContent = formatTime(playbackCurrentTime());
     $("#expanded-duration-time").textContent = formatTime(Number.isFinite(playbackDuration()) ? playbackDuration() : track?.duration);
     $("#expanded-seek-bar").value = Number.isFinite(playbackDuration()) && playbackDuration() > 0 ? String(Math.round(playbackCurrentTime() / playbackDuration() * 1000)) : "0";
@@ -1004,7 +1049,7 @@ function updatePlayer() {
     $("#expanded-repeat-button").classList.toggle("active", state.repeat !== "off");
     $("#expanded-repeat-button").textContent = state.repeat === "one" ? "↻¹" : "↻";
     $("#expanded-repeat-button").setAttribute("aria-label", "Repetición: " + ({ off: "desactivada", all: "toda la cola", one: "una canción" }[state.repeat]));
-    $("#expanded-source-label").textContent = track ? (isLocal(track) ? "Archivo local · disponible sin conexión" : "Fuente online · requiere conexión") : "Listo cuando vos quieras";
+    $("#expanded-source-label").textContent = track ? (isLocal(track) ? "Archivo local · disponible sin conexión" : "Fuente online · requiere conexión") : youtubeSession ? "YouTube · requiere conexión" : "Listo cuando vos quieras";
   }
   updateMuteButton();
 }
@@ -1020,12 +1065,47 @@ function updateConnection() {
 }
 let youtubePlayer = null;
 let youtubePlayerApiPromise = null;
+let youtubeMediaPlaybackState = "none";
+let youtubeProgressTimer = null;
+
+function startYoutubeProgressUpdates() {
+  if (youtubeProgressTimer !== null) return;
+  youtubeProgressTimer = setInterval(() => {
+    if (!youtubeHistory.getCurrentSession() || youtubeMediaPlaybackState !== "playing") {
+      clearInterval(youtubeProgressTimer);
+      youtubeProgressTimer = null;
+      return;
+    }
+    updatePlayer();
+    updateMediaSession();
+  }, 1000);
+}
 
 function recordConfirmedYoutubePlayback(event) {
-  if (!window.YT || event.data !== window.YT.PlayerState.PLAYING) return;
+  if (!window.YT || !event || !youtubeHistory.getCurrentSession()) return;
   const player = event.target;
-  if (typeof player?.getPlayerState === "function" && player.getPlayerState() !== window.YT.PlayerState.PLAYING) return;
-  youtubeHistory.recordPlaying(player?.getVideoData?.()?.video_id);
+  const actualVideoId = player?.getVideoData?.()?.video_id || "";
+  const selected = youtubeHistory.getCurrentSession();
+  if (actualVideoId && selected.videoId !== actualVideoId) return;
+  const eventState = event.data;
+  if (eventState === window.YT.PlayerState.PLAYING) {
+    if (typeof player?.getPlayerState === "function" && player.getPlayerState() !== window.YT.PlayerState.PLAYING) return;
+    youtubeMediaPlaybackState = "playing";
+    youtubeHistory.recordPlaying(actualVideoId);
+    startYoutubeProgressUpdates();
+  } else if (eventState === window.YT.PlayerState.PAUSED) {
+    youtubeMediaPlaybackState = "paused";
+  } else if (eventState === window.YT.PlayerState.ENDED) {
+    youtubeMediaPlaybackState = "ended";
+  } else if (eventState === window.YT.PlayerState.BUFFERING) {
+    youtubeMediaPlaybackState = "buffering";
+  } else if (eventState === window.YT.PlayerState.CUED) {
+    youtubeMediaPlaybackState = "paused";
+  } else {
+    return;
+  }
+  updatePlayer();
+  updateMediaSession();
 }
 
 function attachYoutubePlayer(frame) {
@@ -1040,7 +1120,7 @@ function attachYoutubePlayer(frame) {
           iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
           iframe.setAttribute("allowfullscreen", "");
           if (event.target.getPlayerState() === window.YT.PlayerState.PLAYING) {
-            youtubeHistory.recordPlaying(event.target.getVideoData()?.video_id);
+            recordConfirmedYoutubePlayback({ target: event.target, data: window.YT.PlayerState.PLAYING });
           }
         },
         onStateChange: recordConfirmedYoutubePlayback,
@@ -1091,6 +1171,10 @@ function ensureYoutubePlayerApi() {
 
 function stopYoutubePlayback() {
   youtubeHistory.cancel();
+  youtubeMediaPlaybackState = "none";
+  if (youtubeProgressTimer !== null) clearInterval(youtubeProgressTimer);
+  youtubeProgressTimer = null;
+  if ("mediaSession" in navigator) clearMediaSession(navigator.mediaSession, state);
   const frame = $("#youtube-iframe");
   if (youtubePlayer) {
     try { youtubePlayer.stopVideo(); } catch {}
@@ -2010,13 +2094,14 @@ async function searchYoutube(pageToken = "") {
   }
   const key = youtubeApiKey();
   if (!key) {
-    setYoutubeStatus("La búsqueda integrada necesita una clave API personal. Podés guardarla en «Configurar búsqueda integrada» o abrir los resultados públicos de YouTube con el botón de arriba.", "info");
+    setYoutubeStatus("No hay clave API guardada. Abrí la búsqueda pública de YouTube; para ver resultados dentro de Ritmo necesitás configurar la YouTube Data API.", "info");
     $("#youtube-open-search").classList.add("needs-attention");
     $("#youtube-results").innerHTML = "";
     state.youtubeNextPageToken = null;
     loadButton.hidden = true;
     button.disabled = false;
     button.innerHTML = 'Buscar <span>→</span>';
+    openExternal(youtubeSearchURL(query));
     return;
   }
   if (!pageToken) {
@@ -2091,6 +2176,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   const frame = $("#youtube-iframe");
   frame.referrerPolicy = "strict-origin-when-cross-origin";
   const sessionId = youtubeHistory.select(videoId, title);
+  youtubeMediaPlaybackState = "buffering";
   $("#youtube-current-title").textContent = title;
   $("#youtube-current-link").href = youtubeVideoURL(videoId);
   const origin = location.origin && location.origin !== "null" ? "&origin=" + encodeURIComponent(location.origin) : "";
@@ -2351,19 +2437,50 @@ function bindEvents() {
   for (const [controlId, key] of [["eq-bass", "bass"], ["eq-mid", "mid"], ["eq-treble", "treble"]]) {
     $("#" + controlId).addEventListener("input", event => {
       audioPrefs[key] = Number(event.target.value);
+      audioPrefs.eqPreset = "custom";
       saveAudioPreferences();
       syncSettingsUI();
     });
   }
+  $("#eq-preset").addEventListener("change", async event => {
+    const presetName = event.target.value;
+    if (presetName === "custom") {
+      audioPrefs.eqPreset = "custom";
+      saveAudioPreferences();
+      return;
+    }
+    const values = getEqualizerPreset(presetName);
+    if (!values) {
+      audioPrefs.eqPreset = "custom";
+      syncSettingsUI();
+      return;
+    }
+    Object.assign(audioPrefs, values, { eqPreset: presetName, equalizerEnabled: true });
+    saveAudioPreferences();
+    syncSettingsUI();
+    const track = currentTrack();
+    if (track && isLocal(track)) {
+      try { await ensureAudioProcessing(); }
+      catch (error) {
+        audioPrefs.equalizerEnabled = false;
+        saveAudioPreferences();
+        syncSettingsUI();
+        $("#eq-status").textContent = error.message || "No se pudo iniciar el ecualizador.";
+        return;
+      }
+      applyCurrentEnginePreference();
+    }
+    $("#eq-status").textContent = "Preajuste «" + EQUALIZER_PRESETS[presetName].label + "» aplicado a archivos locales.";
+  });
   $("#limiter-toggle").addEventListener("change", event => {
     audioPrefs.limiter = event.target.checked;
     saveAudioPreferences();
     applyAudioGraphPreferences();
   });
   $("#eq-reset").addEventListener("click", () => {
-    audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = true;
+    audioPrefs.eqPreset = "flat"; audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = true;
     saveAudioPreferences(); syncSettingsUI();
-    $("#eq-status").textContent = "Ecualizador restablecido.";
+    $("#eq-status").textContent = "Ecualizador restablecido al perfil Plano.";
   });
   $("#keep-screen-awake").addEventListener("change", async event => {
     audioPrefs.keepScreenAwake = event.target.checked;

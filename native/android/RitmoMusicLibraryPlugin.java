@@ -199,12 +199,16 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         JSArray files = new JSArray();
         ContentResolver resolver = getContext().getContentResolver();
         for (Uri uri : uris) {
+            boolean persisted = false;
             try {
                 resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                persisted = true;
             } catch (Exception ignored) {
                 // Some document providers grant temporary access only; resolve/copy immediately.
             }
-            files.put(describePickedUri(uri, resolver));
+            JSObject file = describePickedUri(uri, resolver);
+            file.put("persisted", persisted);
+            files.put(file);
         }
         JSObject response = new JSObject();
         response.put("files", files);
