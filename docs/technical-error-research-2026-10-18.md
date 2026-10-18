@@ -165,3 +165,28 @@ La actualización documental anterior ya fue ejecutada por los tres workflows en
 - [Deploy Ritmo to GitHub Pages](https://github.com/rikosama473-sketch/reproductor/actions/runs/39150930750) — éxito.
 
 Estos checks son posteriores a los del commit previo y confirman que la actualización del informe no rompió validación, compilación Android ni despliegue. No equivalen a pruebas físicas de la recreación de Activity o de muerte de proceso descritas arriba.
+
+
+## Revisión adicional de compatibilidad Android 14–16 — 18 de octubre de 2026
+
+### 12. Android Developers: requisitos de servicios de reproducción en segundo plano
+
+Referencias oficiales:
+- [Tipos de servicios en primer plano — Android Developers](https://developer.android.com/develop/background-work/services/fgs/service-types)
+- [Cambios en los servicios en primer plano por versión de Android](https://developer.android.com/develop/background-work/services/fgs/changes)
+
+Android 14 (API 34) exige que una app que apunta a esa versión o posterior declare el tipo apropiado del servicio multimedia y el permiso específico `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, además de `FOREGROUND_SERVICE`. Android 15 añade restricciones a ciertos servicios iniciados desde `BOOT_COMPLETED`; la regla no significa que un reproductor no pueda continuar una sesión multimedia iniciada por el usuario.
+
+**Comprobación en Ritmo:** el generador nativo declara `android:foregroundServiceType="mediaPlayback"`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK`; el servicio usa Media3 `MediaSessionService`. No se encontró un receptor `BOOT_COMPLETED` que intente arrancar audio al encender el teléfono. Las pruebas automatizadas verifican el permiso, el tipo de servicio y la dependencia Media3. Por tanto, esta revisión no requiere añadir permisos ni cambiar el servicio.
+
+### 13. Incidencia pública de Capacitor: el selector web puede perder su resultado al morir el proceso
+
+Referencia: [Capacitor #8592 — resultado de selector perdido tras muerte del proceso](https://github.com/ionic-team/capacitor/issues/8592).
+
+El reporte del mantenedor describe una ruta `<input type="file">` que puede quedar sin callback si Android mata el proceso durante el selector externo. La ruta de importación Android de Ritmo usa `ACTION_OPEN_DOCUMENT` mediante `RitmoMusicLibraryPlugin`, mientras que la web usa un input HTML distinto. Esta separación reduce la probabilidad de que el reporte sea directamente aplicable, pero no sustituye una prueba en hardware.
+
+**Prueba de regresión recomendada:** probar ambas rutas por separado bajo presión de memoria en Android 14 o posterior: abrir el selector, dejar Ritmo en segundo plano, permitir que el sistema recupere memoria y volver. Comprobar que el usuario reciba una respuesta clara y pueda abrir el selector otra vez. Si falla solo el input web, la corrección debe quedarse en esa ruta y no cambiar el puente nativo sin evidencia.
+
+### Validación tras esta revisión
+
+El commit `9e7dccdaf076c9d09ab295a6f3ac38faea9f4bd1` fue validado por los tres workflows: [Validate Ritmo](https://github.com/rikosama473-sketch/reproductor/actions/runs/39156092968), [Build Ritmo Android APK](https://github.com/rikosama473-sketch/reproductor/actions/runs/39156093018) y [Deploy Ritmo to GitHub Pages](https://github.com/rikosama473-sketch/reproductor/actions/runs/39156093001); todos finalizaron con éxito. Esta sección documenta una comprobación adicional de fuentes oficiales y no cambia el código de la aplicación. Las pruebas físicas de muerte de proceso y reproducción en segundo plano siguen pendientes.
