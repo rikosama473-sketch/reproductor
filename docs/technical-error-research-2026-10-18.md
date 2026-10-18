@@ -190,3 +190,50 @@ El reporte del mantenedor describe una ruta `<input type="file">` que puede qued
 ### Validación tras esta revisión
 
 El commit `9e7dccdaf076c9d09ab295a6f3ac38faea9f4bd1` fue validado por los tres workflows: [Validate Ritmo](https://github.com/rikosama473-sketch/reproductor/actions/runs/39156092968), [Build Ritmo Android APK](https://github.com/rikosama473-sketch/reproductor/actions/runs/39156093018) y [Deploy Ritmo to GitHub Pages](https://github.com/rikosama473-sketch/reproductor/actions/runs/39156093001); todos finalizaron con éxito. Esta sección documenta una comprobación adicional de fuentes oficiales y no cambia el código de la aplicación. Las pruebas físicas de muerte de proceso y reproducción en segundo plano siguen pendientes.
+
+
+## Revisión de compatibilidad basada en incidencias de mantenedores — 18 de octubre de 2026
+
+### 14. Android: confirmar que la reproducción en segundo plano usa el tipo de servicio correcto
+
+Fuentes primarias:
+- [Android Developers — declarar servicios en primer plano](https://developer.android.com/develop/background-work/services/fgs/declare)
+- [Android Developers — tipos de servicios en primer plano](https://developer.android.com/develop/background-work/services/fgs/service-types)
+
+La documentación oficial especifica que Android 14/API 34 requiere declarar el tipo del servicio y su permiso específico. Para reproducción, el tipo correcto es `mediaPlayback`, con `FOREGROUND_SERVICE_MEDIA_PLAYBACK` además de `FOREGROUND_SERVICE`. En Android 15 o superior, no se debe intentar iniciar un servicio de reproducción multimedia desde un receptor `BOOT_COMPLETED`; esto no impide continuar una reproducción iniciada por el usuario.
+
+**Verificación del repositorio:** el generador Android de Ritmo declara ambos permisos y `android:foregroundServiceType="mediaPlayback"`; el servicio de reproducción usa Media3 `MediaSessionService`. La revisión del código no encontró un receptor `BOOT_COMPLETED` que inicie reproducción. No se añadieron permisos ni receptores nuevos porque no serían una corrección justificada.
+
+### 15. Incidencia abierta de Capacitor: pérdida del resultado de un selector tras muerte del proceso
+
+Fuente del mantenedor:
+- [Capacitor #8592 — resultado de `<input type="file">` perdido si Android mata el proceso durante el selector](https://github.com/ionic-team/capacitor/issues/8592)
+
+El reporte describe un fallo reproducible en Capacitor donde el callback del selector web vive solo en memoria y se pierde si Android destruye el proceso mientras la actividad externa está abierta. Es una incidencia abierta del proyecto Capacitor, no una prueba de que Ritmo tenga ese defecto.
+
+**Aplicabilidad en Ritmo:** la ruta Android de importación usa `ACTION_OPEN_DOCUMENT` a través de `RitmoMusicLibraryPlugin`; el selector HTML de la web es una ruta distinta. No se debe afirmar que el plugin nativo está afectado por un issue que describe el callback de `input type=file`.
+
+**Prueba de regresión manual pendiente:** en Android 14+, abrir el selector web, mandar Ritmo a segundo plano, simular presión de memoria o permitir que el sistema mate el proceso, volver y confirmar que la interfaz no queda bloqueada y permite reabrir el selector. Repetir por separado con el selector nativo. Si solo falla el selector web, limitar la solución a esa ruta; no añadir permisos amplios ni reescribir el plugin sin reproducción.
+
+### 16. Capacitor: regresión de SystemBars/safe area reportada en 8.5.2
+
+Fuente del mantenedor:
+- [Capacitor #8623 — valores de safe-area no cero cuando WebView no está en edge-to-edge](https://github.com/ionic-team/capacitor/issues/8623)
+
+El issue abierto describe una posible regresión de SystemBars en Capacitor 8.5.2. No se debe trasladar automáticamente a Ritmo: la app fija Capacitor 8.5.3 y el reporte señala específicamente el comportamiento de SystemBars en 8.5.2. No hay evidencia en la inspección actual que justifique bajar de versión o modificar márgenes CSS por conjetura.
+
+**Acción proporcional:** si aparecen espacios superiores/inferiores incorrectos en un dispositivo, registrar Android/API, fabricante, modo edge-to-edge y versión real de Capacitor; luego reproducir con una compilación de diagnóstico antes de tocar el layout. La existencia del issue se registra como riesgo de compatibilidad, no como defecto confirmado de Ritmo.
+
+### 17. GitHub Actions: el runtime de las acciones no es el runtime del proyecto
+
+Fuente primaria:
+- [GitHub Changelog — Node 20 ya no está disponible en Actions desde el 23 de septiembre de 2026](https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-in-github-actions/)
+
+GitHub retiró Node 20 como runtime de JavaScript Actions; las acciones deben migrarse a versiones que soporten Node 24. Esto es distinto de `actions/setup-node` configurando Node 22 para ejecutar las pruebas de Ritmo. Los workflows actuales de `main` usan versiones principales actuales de `checkout`, `setup-node` y `setup-java`; la verificación del commit más reciente confirma que los tres workflows pasan. Se mantiene la configuración actual en lugar de confundir ambos runtimes o cambiar versiones sin una incompatibilidad demostrada.
+
+### Resultado y decisión
+
+- **Defecto nuevo confirmado en código durante esta revisión:** ninguno de los issues externos citados prueba por sí solo un defecto equivalente en Ritmo.
+- **Cambios de código:** ninguno; evitar una modificación especulativa es más seguro que añadir permisos, cambiar el selector nativo o alterar el layout sin reproducción.
+- **Cobertura automatizada:** los tres workflows de `main` pasaron para `b4ea623b9f855fbaf2318af86e00c8f5276f7f3b`: [Validate](https://github.com/rikosama473-sketch/reproductor/actions/runs/39157332750), [Build Android APK](https://github.com/rikosama473-sketch/reproductor/actions/runs/39157332706) y [Deploy GitHub Pages](https://github.com/rikosama473-sketch/reproductor/actions/runs/39157332704).
+- **Pendiente fuera de CI:** prueba en un teléfono físico bajo presión de memoria y prueba de reproducción con pantalla bloqueada. No se declara que esos casos estén verificados sin el dispositivo.
