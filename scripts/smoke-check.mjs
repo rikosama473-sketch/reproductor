@@ -232,7 +232,7 @@ assert.match(sw, /ritmo-shell-v25/, "PWA shell cache must refresh for the keyboa
 assert.match(html, /id="app-update-banner"/, "PWA should announce when an updated controller is taking over an already-controlled page");
 assert.match(html, /id="app-update-now"/, "PWA update notice must provide a deliberate reload action");
 assert.match(app, /const hadController = Boolean\(navigator\.serviceWorker\.controller\)/, "First-ever service worker installation should not be mistaken for an app update");
-assert.match(app, /if \(!hadController \|\| updatePromptShown\) return;/, "PWA update prompt should be shown only once after an actual controller replacement");
+assert.match(app, /if \(hadController && !updatePromptShown\) \{[\s\S]*?updatePromptShown = true;[\s\S]*?\$\("#app-update-banner"\)\.hidden = false;/, "PWA update prompt should be shown only once after an actual controller replacement");
 assert.match(app, /app-update-now[\s\S]*?window\.location\.reload\(\)/, "The update action must reload the page to synchronize its HTML and JavaScript");
 assert.match(app, /setOutputVolume\(audioPrefs\.volume\);\s*\$\("#expanded-volume-bar"\)\.value = String\(audioPrefs\.volume\)/, "Mute/unmute must route through the shared output volume controller and keep the expanded slider in sync");
 assert.match(sw, /ritmo-shell-v25/, "PWA shell cache should advance with the update prompt and mute sync fixes");
