@@ -193,11 +193,11 @@ assert.match(storage, /A helper callback can throw after it has already queued a
 assert.match(app, /async function removeCurrent\(\) \{\s*\/\/[\s\S]*cancelPendingPlaybackIntent\(\);/, "Removing a selected track must invalidate any pending play request");
 assert.match(app, /function resumeCurrentTrack\(\) \{[\s\S]*playTrack\(track\.id, true, \{ keepQueue: true, resumeAt: position, skipHistory: true \}\);/, "Resume actions must pass through request-aware track selection");
 assert.match(app, /function cancelPendingPlaybackIntent\(\) \{\s*playbackRequestId \+= 1;\s*pendingPlaybackRequestId = null;/, "Pausing must invalidate pending play requests and clear their intent");
-assert.match(app, /function pauseCurrentTrack\(\) \{[\s\S]*cancelPendingPlaybackIntent\(\);\s*audio\.pause\(\);/, "Explicit pause must cancel async playback before pausing the media element");
+assert.match(app, /function pauseCurrentTrack\(\) \{[\s\S]*cancelPendingPlaybackIntent\(\);[\s\S]*state\.nativePlayback\.active[\s\S]*nativePlaybackPlugin\(\)\?\.pause\(\)[\s\S]*else audio\.pause\(\);/, "Explicit pause must cancel async playback and pause the active HTML or Media3 engine");
 assert.match(app, /pendingPlaybackRequestId = autoplay \? requestId : null;/, "Autoplay requests must expose their pending intent before asynchronous setup");
-assert.match(app, /pendingPlaybackRequestId !== null \|\| !audio\.paused\) pauseCurrentTrack\(\);/, "The play button must cancel in-flight requests even while the element still reports paused");
+assert.match(app, /pendingPlaybackRequestId !== null \|\| !playbackIsPaused\(\)\) pauseCurrentTrack\(\);/, "The play button must cancel in-flight requests even while the selected engine reports paused");
 assert.match(app, /play: \(\) => resumeCurrentTrack\(\), pause: \(\) => pauseCurrentTrack\(\), stop: \(\) => pauseCurrentTrack\(\)/, "Media Session pause/stop must use the same request cancellation logic");
-assert.match(app, /cancelPendingPlaybackIntent\(\);\s*defaultAudio\.pause\(\);\s*equalizedAudio\.pause\(\);/, "Sleep fade completion must invalidate playback requests before stopping both audio engines");
+assert.match(app, /cancelPendingPlaybackIntent\(\);\s*pauseCurrentTrack\(\);/, "Sleep fade completion must invalidate requests and stop whichever playback engine is active");
 assert.match(app, /if \(state\.repeat === "one"\) \{ element\.currentTime = 0; resumeCurrentTrack\(\); \}/, "Repeat-one restart must use the request-aware player");
 console.log("Fifth-pass regressions passed: service-worker cache invalidation, abortable writes and request-safe resume/removal.");
 
