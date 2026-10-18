@@ -108,3 +108,6 @@ La dependencia está fijada a Media3 1.11.1. Android recomienda Media3 para apli
 - [AndroidX Media: notas de versión oficiales](https://github.com/androidx/media/blob/release/RELEASENOTES.md)
 
 Las pruebas automáticas no sustituyen una verificación en teléfono real de los permisos, URI de proveedores/fabricantes, controles de notificación y continuidad al bloquear la pantalla.
+
+
+La integración de Media3 cambió la lógica del reproductor web, por lo que el shell offline se incrementó de `ritmo-shell-v20` a `ritmo-shell-v21` para que instalaciones web existentes no sigan usando el JavaScript cacheado anterior.
