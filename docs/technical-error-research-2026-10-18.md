@@ -57,3 +57,29 @@ Desde el 23 de septiembre de 2026, los runners ya no ejecutan JavaScript Actions
 - No se actualizan dependencias nativas por intuición; las versiones se comparan con la publicación oficial.
 - La nueva cobertura automática comprueba recuperación de 404/5xx en el shell, conserva 403 y verifica el diagnóstico del registro del worker.
 - CI no certifica todos los modelos Xiaomi. La comprobación final requiere el dispositivo real para permisos, carpetas, formatos, reproducción local y pantalla bloqueada.
+
+## Corrección adicional del proceso de entrega — 18 de octubre de 2026
+
+### Hallazgo: compilación Android separada de la batería de regresiones
+
+Los workflows de validación y de APK arrancaban por separado al recibir cada push. El workflow Android compilaba y publicaba el artefacto sin ejecutar por sí mismo los tests de shell, IndexedDB, reproducción y navegación táctil. Aunque ambos workflows existían, su estado no era un gate común: una compilación podía progresar aunque la validación independiente estuviera fallando.
+
+**Cambio aplicado:** se centralizaron comprobaciones de sintaxis y suites de regresión en `scripts/validate.mjs`, invocado por `npm run validate`. El workflow Validate y el build Android ejecutan ahora exactamente esa batería; la compilación no llega a `assembleDebug` ni sube una APK si falla la validación. La batería incluye empaquetado web, pruebas de caché, IndexedDB, límites de historial, diagnóstico de Media3 y pruebas táctiles.
+
+### Hallazgo: el formato ES Module dependía de detección automática de Node
+
+Los logs de CI habían mostrado `MODULE_TYPELESS_PACKAGE_JSON` al importar fuentes `.js` que contienen `import`/`export`. Node podía volver a analizar los archivos como módulos, pero esa detección implícita genera advertencias y trabajo extra.
+
+**Cambio aplicado:** `package.json` declara explícitamente `"type": "module"`; la fuente JavaScript de Ritmo ya usa sintaxis ES Module. El nuevo ejecutor agrupa comprobaciones y detiene la batería ante el primer fallo.
+
+### Documentación primaria revisada
+
+- Node.js, [Modules: Packages — determining module system](https://nodejs.org/api/packages.html): recomienda declarar explícitamente `type` para evitar detección ambigua y definir cómo interpretar archivos `.js`.
+- GitHub, [workflow jobs and dependencies](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-jobs): documenta cómo hacer que las fases dependientes se ejecuten solo tras el éxito de sus predecesoras; en Ritmo se comparte la misma batería para que la validación del build no diverja.
+- GitHub Changelog, [Node 20 is no longer available in GitHub Actions](https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-on-github-actions/): desde el 23 de septiembre de 2026 las GitHub Actions ya no pueden usar Node 20; los workflows de Ritmo mantienen acciones actualizadas y usan Node 22 para ejecutar las pruebas del proyecto.
+- Capacitor Android, [changelog oficial](https://github.com/ionic-team/capacitor/blob/main/android/CHANGELOG.md): 8.5.3 (7 de octubre de 2026) fue solo un version bump; 8.5.2 incluye correcciones de null checks en permisos y System Bars. Ritmo ya fija 8.5.3, por lo que no se cambió a una versión no verificada.
+- AndroidX Media3, [notas oficiales de versión](https://developer.android.com/jetpack/androidx/releases/media3): Media3 1.11.1 (10 de septiembre de 2026) documenta, entre otras correcciones, un bloqueo de reproducción al precalentar un renderer secundario. Ritmo ya fija 1.11.1; se conserva hasta que una incidencia concreta justifique una actualización compatible.
+
+### Limitaciones
+
+CI valida código y empaquetado, no sustituye una prueba en el Xiaomi físico. El flujo de APK mantiene firma de depuración y el audio remoto sigue sujeto a CORS, disponibilidad del proveedor y políticas del sistema.

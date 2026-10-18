@@ -40,6 +40,9 @@ jobs:
       - name: Install pinned Capacitor dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Run the shared validation and regression suite
+        run: npm run validate
+
       - name: Prepare web assets
         run: npm run prepare:web
 
