@@ -39,6 +39,7 @@
         <p>Tu biblioteca permanece en este navegador. Sin cuenta ni seguimiento.</p>
       </div>
     </aside>
+    <button class="mobile-sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Cerrar menú" hidden></button>
 
     <main class="main-area">
       <header class="topbar">
@@ -68,7 +69,7 @@
               <h1>El sonido de<br>estar <em>en tu mundo.</em></h1>
               <p>Tu colección, tus descubrimientos y tus momentos. Todo en un solo lugar, incluso cuando no hay conexión.</p>
               <div class="hero-actions">
-                <div class="page-intro-actions"><button class="button button-primary" id="hero-import"><span>＋</span> Importar archivos</button><button class="button button-soft" type="button" data-scan-device-music>Buscar música del teléfono</button><button class="button button-soft" type="button" data-pick-audio-folder>Elegir carpeta de música</button><button class="button button-soft" type="button" data-pick-audio-folder>Elegir carpeta de música</button></div>
+                <div class="page-intro-actions"><button class="button button-primary" id="hero-import"><span>＋</span> Importar archivos</button><button class="button button-soft" type="button" data-scan-device-music>Buscar música del teléfono</button><button class="button button-soft" type="button" data-pick-audio-folder>Elegir carpeta de música</button></div>
                 <button class="button button-ghost" data-go-view="library">Explorar biblioteca <span>↗</span></button>
               </div>
               <div class="hero-footnote"><span class="mini-check">✓</span> Sin cuenta <span class="foot-sep">·</span> Sin rastreo <span class="foot-sep">·</span> Modo offline</div>
@@ -217,6 +218,14 @@
     <button class="icon-button playback-status-close" id="playback-status-close" type="button" aria-label="Cerrar aviso">×</button>
   </div>
 
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Navegación táctil">
+    <button class="nav-item mobile-tab active" type="button" data-view="home" aria-label="Inicio"><span class="nav-icon" aria-hidden="true">⌂</span><span>Inicio</span></button>
+    <button class="nav-item mobile-tab" type="button" data-view="library" aria-label="Mi biblioteca"><span class="nav-icon" aria-hidden="true">▤</span><span>Biblioteca</span></button>
+    <button class="nav-item mobile-tab" type="button" data-view="favorites" aria-label="Favoritos"><span class="nav-icon" aria-hidden="true">♡</span><span>Favoritos</span></button>
+    <button class="nav-item mobile-tab" type="button" data-view="playlists" aria-label="Mis listas"><span class="nav-icon" aria-hidden="true">☷</span><span>Listas</span></button>
+    <button class="mobile-tab mobile-more-toggle" id="mobile-more-toggle" type="button" aria-label="Más opciones" aria-expanded="false"><span class="nav-icon" aria-hidden="true">•••</span><span>Más</span></button>
+  </nav>
+
   <div class="bottom-player" id="bottom-player">
     <div class="now-playing">
       <div class="cover-thumb cover-placeholder" id="player-cover"><span>♫</span></div>
@@ -321,6 +330,35 @@
   </dialog>
 
   <dialog id="info-dialog" class="app-dialog"><div class="dialog-top"><div class="brand-mark"><span>R</span></div><button class="icon-button" id="close-info" aria-label="Cerrar">✕</button></div><div class="eyebrow">HECHO PARA ESCUCHAR</div><h2>Ritmo<span>.</span></h2><p>Un reproductor personal, ligero y centrado en tu privacidad. Tu biblioteca se almacena en este navegador; no se suben tus archivos a un servidor.</p><p class="dialog-muted">El funcionamiento offline requiere instalar o abrir la aplicación una vez con conexión. El navegador puede limitar el almacenamiento disponible y permitir que se borre desde sus ajustes.</p><button class="button button-primary dialog-close" id="close-info-bottom">Entendido</button></dialog>
+  <div class="app-boot-error" id="app-boot-error" role="alert" aria-live="assertive" hidden>
+    <div class="app-boot-error-card">
+      <div class="eyebrow">RITMO · RECUPERACIÓN</div>
+      <h2>La aplicación no pudo iniciarse.</h2>
+      <p id="app-boot-error-message">Hubo un error al cargar el reproductor. Recargá la aplicación para volver a intentarlo.</p>
+      <button class="button button-primary" type="button" id="app-boot-reload">Recargar aplicación</button>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const panel = document.getElementById("app-boot-error");
+      const detail = document.getElementById("app-boot-error-message");
+      const reload = document.getElementById("app-boot-reload");
+      let reported = false;
+      const report = () => {
+        if (reported || window.__ritmoAppReady || !panel) return;
+        reported = true;
+        if (detail) detail.textContent = "Ritmo no pudo cargar su código. Recargá la aplicación; si el problema continúa, cerrala por completo y volvé a abrirla.";
+        panel.hidden = false;
+      };
+      if (reload) reload.addEventListener("click", () => window.location.reload());
+      window.addEventListener("error", event => {
+        if (!window.__ritmoAppReady && ((event.filename && /\/src\/app\.js(?:$|\?)/.test(event.filename)) || event.target?.tagName === "SCRIPT")) report();
+      }, true);
+      window.addEventListener("unhandledrejection", () => {
+        if (!window.__ritmoAppReady) report();
+      });
+    })();
+  </script>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>

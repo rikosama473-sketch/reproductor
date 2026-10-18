@@ -925,7 +925,7 @@ function setupMediaSession() {
   };
   for (const [action, handler] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(action, handler); } catch {} }
 }
-\nfunction render() {
+function render() {
   const all = state.tracks;
   $("#library-count").textContent = String(all.length);
   $("#stat-total").innerHTML = all.length + ' <small>canciones</small>';
@@ -1093,6 +1093,18 @@ function stopYoutubePlayback() {
   const wrap = $("#youtube-player-wrap");
   if (wrap) wrap.hidden = true;
 }
+function setMobileMenuOpen(open) {
+  const sidebar = $("#sidebar");
+  if (!sidebar) return;
+  const isOpen = Boolean(open);
+  sidebar.classList.toggle("open", isOpen);
+  const scrim = $("#sidebar-scrim");
+  if (scrim) scrim.hidden = !isOpen;
+  const more = $("#mobile-more-toggle");
+  if (more) more.setAttribute("aria-expanded", String(isOpen));
+  const toggle = $("#menu-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", String(isOpen));
+}
 function showView(view) {
   if (!viewNames[view]) return;
   if (view !== "online") stopYoutubePlayback();
@@ -1100,7 +1112,7 @@ function showView(view) {
   document.querySelectorAll(".view-panel").forEach(node => { node.hidden = node.id !== view + "-view"; });
   document.querySelectorAll(".nav-item").forEach(node => node.classList.toggle("active", node.dataset.view === view));
   $("#page-crumb").textContent = viewNames[view];
-  $("#sidebar").classList.remove("open");
+  setMobileMenuOpen(false);
   if (view === "library") $("#library-search").focus({ preventScroll: true });
 }
 async function playTrack(trackId, autoplay = true, options = {}) {
@@ -2119,7 +2131,7 @@ function updateYoutubeKeyStatus(message = "") {
 
 function bindEvents() {
   $("#volume-bar").value = String(audioPrefs.volume);
-  setOutputVolume(audioPrefs.volume);
+  try { setOutputVolume(audioPrefs.volume); } catch (error) { console.warn("No se pudo restaurar el volumen inicial; la interfaz seguirá disponible.", error); }
   if (audioPrefs.volume > 0.001) audioPrefs.lastAudibleVolume = audioPrefs.volume;
   document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
   document.querySelectorAll("[data-go-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.goView)));
@@ -2133,7 +2145,9 @@ function bindEvents() {
   document.querySelectorAll("[data-pick-audio-folder]").forEach(button => {
     button.addEventListener("click", browseAudioFolder);
   });
-  $("#menu-toggle").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
+  $("#menu-toggle").addEventListener("click", () => setMobileMenuOpen(!$("#sidebar").classList.contains("open")));
+  $("#sidebar-scrim").addEventListener("click", () => setMobileMenuOpen(false));
+  $("#mobile-more-toggle").addEventListener("click", () => setMobileMenuOpen(!$("#sidebar").classList.contains("open")));
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });
   folderPicker.addEventListener("change", async () => { await importFiles(folderPicker.files); folderPicker.value = ""; });
   $("#youtube-search-form").addEventListener("submit", event => { event.preventDefault(); searchYoutube(); });
@@ -2440,6 +2454,7 @@ async function init() {
   render();
   syncSettingsUI();
   showView("home");
+  window.__ritmoAppReady = true;
   estimateStorage().then(result => {
     if (result?.quota) {
       const used = formatBytes(result.usage);

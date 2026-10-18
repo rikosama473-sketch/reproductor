@@ -106,6 +106,10 @@ La búsqueda es un filtro de metadatos, no una garantía legal absoluta: verific
 
 > Auditoría técnica de ciclo de vida de Media3, recuperación del controlador y fuentes oficiales (18/10/2026): [informe técnico](docs/technical-error-research-2026-10-mediacontroller-lifecycle.md).
 
+## Uso en teléfonos táctiles
+
+Ritmo incluye navegación inferior para pantallas pequeñas y zonas de toque grandes. Si el reproductor no logra iniciar, aparecerá un aviso de recuperación con opción para recargar en vez de dejar botones aparentemente muertos. La compatibilidad exacta debe comprobarse en el navegador o WebView de cada teléfono.
+
 ## APK para Android
 
 Ritmo también puede empaquetarse como aplicación Android con Capacitor. Cada cambio enviado a `main` ejecuta el workflow **Build Ritmo Android APK**, que compila un APK de depuración, verifica su firma y publica el archivo más una suma SHA-256 en el artefacto de esa ejecución.

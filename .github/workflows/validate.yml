@@ -31,6 +31,7 @@ jobs:
           node --check scripts/youtube-player-errors-check.mjs
           node --check scripts/prepare-mobile.mjs
           node --check scripts/mobile-package-check.mjs
+          node --check scripts/mobile-touch-check.mjs
           node --check scripts/configure-android.mjs
           node --check scripts/prepare-android-native.mjs
           node --check scripts/android-music-library-check.mjs
@@ -52,6 +53,7 @@ jobs:
           node scripts/youtube-player-errors-check.mjs
           node scripts/prepare-mobile.mjs
           node scripts/mobile-package-check.mjs
+          node scripts/mobile-touch-check.mjs
           node scripts/android-music-library-check.mjs
           node scripts/service-worker-fetch-check.mjs
           node scripts/history-limit-check.mjs
