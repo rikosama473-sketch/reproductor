@@ -223,7 +223,7 @@ console.log("GitHub Actions Node 24 compatibility checks passed.");
 assert.match(app, /createYoutubeHistoryController/, "YouTube history must be gated by confirmed playback state");
 assert.doesNotMatch((app.match(/function playYoutubeVideo[\s\S]*?function updateYoutubeKeyStatus/) || [""])[0], /addHistoryEntry\(/, "Selecting a YouTube result must not directly write history");
 assert.match(app, /onStateChange: recordConfirmedYoutubePlayback/, "The official YouTube player API must observe state changes");
-assert.match(app, /event\.data !== window\.YT\.PlayerState\.PLAYING/, "History must only record confirmed YouTube PLAYING events");
+assert.match(app, /eventState === window\.YT\.PlayerState\.PLAYING[\s\S]*youtubeHistory\.recordPlaying\(actualVideoId\)/, "YouTube history must only record confirmed PLAYING events for the selected video");
 assert.match(sw, /src\/youtube-history\.js/, "The imported YouTube history controller must be cached for offline app-shell loading");
 console.log("YouTube history is bound to confirmed playback-state events.");
 
