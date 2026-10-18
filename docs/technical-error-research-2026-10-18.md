@@ -83,3 +83,31 @@ Los logs de CI habían mostrado `MODULE_TYPELESS_PACKAGE_JSON` al importar fuent
 ### Limitaciones
 
 CI valida código y empaquetado, no sustituye una prueba en el Xiaomi físico. El flujo de APK mantiene firma de depuración y el audio remoto sigue sujeto a CORS, disponibilidad del proveedor y políticas del sistema.
+
+## Refuerzo de rendimiento y caché de audio — 18 de octubre de 2026
+
+### MediaStore: límite explícito para bibliotecas grandes
+
+**Riesgo detectado en el código:** `listAudio()` recorría todas las filas de `MediaStore.Audio.Media` y construía un `JSArray` completo antes de devolverlo a JavaScript. En teléfonos con bibliotecas enormes, esto puede provocar picos de memoria y pausas evitables; a diferencia del escaneo SAF, el resultado no tenía un límite.
+
+**Cambio aplicado:** se limitó el resultado inicial a 10.000 registros y se añadió el campo `truncated` a la respuesta. La interfaz avisa cuando se alcanzó el límite y recomienda elegir Música o una subcarpeta para acotar la consulta. El límite protege el puente nativo; no solicita permisos más amplios ni modifica los archivos originales.
+
+Referencia de plataforma: [Android — acceso a documentos y archivos compartidos](https://developer.android.com/training/data-storage/shared/documents-files?authuser=104) advierte que recorrer árboles grandes mediante `ACTION_OPEN_DOCUMENT_TREE` puede afectar al rendimiento y documenta restricciones del selector en Android 11+. El mismo criterio de limitar trabajo se aplicó al resultado MediaStore de Ritmo.
+
+### Caché de audio: clave estable más resistente a colisiones
+
+**Riesgo detectado en el código:** la copia fallback a caché identificaba cada URI mediante `String.hashCode()`, un hash de 32 bits. Dos cadenas distintas pueden compartir ese hash; si ya existía un archivo no vacío con esa clave, la aplicación podía reutilizarlo para otra URI.
+
+**Cambio aplicado:** la clave ahora deriva de SHA-256 sobre la URI UTF-8, reduciendo drásticamente la posibilidad práctica de colisión y manteniendo el nombre reproducible entre sesiones.
+
+### Relación con correcciones publicadas por mantenedores
+
+- El [changelog oficial de Capacitor Android](https://github.com/ionic-team/capacitor/blob/main/android/CHANGELOG.md) incluye correcciones sobre comprobaciones nulas de permisos en 8.5.2 (11 de septiembre de 2026) y la concesión explícita de permisos URI en 8.4.2 (14 de julio de 2026). Ritmo conserva Capacitor 8.5.3, sin actualización arbitraria.
+- El [changelog de Capawesome File Picker](https://github.com/capawesome-team/capacitor-plugins/blob/main/packages/file-picker/CHANGELOG.md) registra una corrección por ausencia de `COLUMN_LAST_MODIFIED` en Android 8.0.4 y una solución para URI `file://` ilegibles en ciertos fabricantes en 8.0.3. Ritmo no depende de ese plugin; esos cambios se usan como guía de compatibilidad OEM, no como prueba de que el mismo fallo esté presente.
+- Las [notas oficiales de Media3](https://developer.android.com/jetpack/androidx/releases/media3?authuser=86) muestran correcciones de bloqueo y concurrencia en 1.11.1/1.11.0. Como Ritmo ya fija Media3 1.11.1, esa versión se conserva sin actualizar dependencias a ciegas.
+
+### Pruebas añadidas
+
+- `scripts/android-music-library-check.mjs` ahora exige el límite de MediaStore, la señal `truncated`, el aviso al usuario y la clave SHA-256.
+- La batería común `npm run validate` ejecuta el check; el workflow Android también debe superarlo antes de ejecutar `assembleDebug`.
+- Estas pruebas automatizadas inspeccionan el contrato y el empaquetado; no sustituyen una medición en el Xiaomi físico.

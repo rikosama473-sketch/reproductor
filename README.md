@@ -15,6 +15,8 @@ Ritmo es una aplicación web progresiva (PWA), sin framework ni dependencias de 
 
 El informe [`docs/technical-error-research-2026-10-18.md`](docs/technical-error-research-2026-10-18.md) relaciona documentación oficial y changelogs con riesgos reales de Ritmo, y describe las pruebas añadidas en `main`.
 
+La búsqueda MediaStore limita la primera carga a 10.000 resultados y avisa si la biblioteca es mayor; las rutas de copia de audio usan una clave SHA-256 basada en la URI.
+
 ## Validación de cambios
 
 La validación y la compilación Android comparten la misma batería de regresión mediante `npm run validate`. La APK no se genera si fallan las pruebas de sintaxis, almacenamiento, PWA o navegación táctil.

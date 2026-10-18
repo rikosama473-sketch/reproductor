@@ -1504,7 +1504,9 @@ async function scanDeviceMusic() {
     state.tracks = await getAllTracks();
     render();
     showView("library");
-    toast("Encontré " + files.length + " archivos de audio. Usá Buscar en biblioteca para filtrar por artista, canción o MP3.");
+    toast(result?.truncated
+      ? "Encontré los primeros " + files.length + " archivos de audio. La biblioteca es muy grande; elegí Música o una subcarpeta para limitar la búsqueda."
+      : "Encontré " + files.length + " archivos de audio. Usá Buscar en biblioteca para filtrar por artista, canción o MP3.");
   } catch (error) {
     const message = error?.message || "No se pudo consultar la biblioteca de música de Android.";
     toast(message);

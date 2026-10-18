@@ -31,6 +31,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -45,6 +47,8 @@ import java.util.Set;
     }
 )
 public class RitmoMusicLibraryPlugin extends Plugin {
+    private static final int MAX_MEDIASTORE_RESULTS = 10000;
+
     private String audioPermissionAlias() {
         return Build.VERSION.SDK_INT >= 33 ? "audio" : "legacyAudio";
     }
@@ -104,6 +108,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             MediaStore.Audio.Media.DATE_MODIFIED
         };
         JSArray files = new JSArray();
+        boolean truncated = false;
         ContentResolver resolver = getContext().getContentResolver();
         try (Cursor cursor = resolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -121,6 +126,10 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                 int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
                 int modifiedCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED);
                 while (cursor.moveToNext()) {
+                    if (files.length() >= MAX_MEDIASTORE_RESULTS) {
+                        truncated = true;
+                        break;
+                    }
                     long mediaId = cursor.getLong(idCol);
                     String name = columnString(cursor, nameCol);
                     if (name == null || name.trim().isEmpty()) name = "audio-" + mediaId;
@@ -146,6 +155,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             }
             JSObject result = new JSObject();
             result.put("files", files);
+            result.put("truncated", truncated);
             call.resolve(result);
         } catch (SecurityException error) {
             call.reject("Android denegó el acceso a la biblioteca de audio. Autorizá Música y audio en Ajustes.", error);
@@ -420,7 +430,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("No se pudo crear la caché de audio.");
         String safeName = originalName.replaceAll("[^A-Za-z0-9._-]", "_");
         if (safeName.isEmpty()) safeName = "audio";
-        String key = Integer.toUnsignedString(uri.toString().hashCode());
+        String key = sha256Hex(uri.toString());
         File output = new File(folder, key + "-" + safeName);
         if (output.isFile() && output.length() > 0) return output.getAbsolutePath();
         File temporary = new File(folder, key + ".tmp");
@@ -450,6 +460,18 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             }
         }
         return output.getAbsolutePath();
+    }
+
+    private static String sha256Hex(String value) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+        char[] hex = "0123456789abcdef".toCharArray();
+        char[] output = new char[digest.length * 2];
+        for (int i = 0; i < digest.length; i++) {
+            int current = digest[i] & 0xff;
+            output[i * 2] = hex[current >>> 4];
+            output[i * 2 + 1] = hex[current & 0x0f];
+        }
+        return new String(output);
     }
 
     private static String columnString(Cursor cursor, int column) {
