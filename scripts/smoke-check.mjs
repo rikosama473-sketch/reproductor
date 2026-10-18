@@ -7,6 +7,7 @@ const storage = fs.readFileSync(new URL("../src/storage.js", import.meta.url), "
 const audioVolume = fs.readFileSync(new URL("../src/audio-output-volume.js", import.meta.url), "utf8");
 const youtubePlayerErrors = fs.readFileSync(new URL("../src/youtube-player-errors.js", import.meta.url), "utf8");
 const eqPresets = fs.readFileSync(new URL("../src/equalizer-presets.js", import.meta.url), "utf8");
+const nativeMusicPluginSource = fs.readFileSync(new URL("../native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
 const sw = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const deployWorkflow = fs.readFileSync(new URL("../.github/workflows/deploy-pages.yml", import.meta.url), "utf8");
 const validateWorkflow = fs.readFileSync(new URL("../.github/workflows/validate.yml", import.meta.url), "utf8");
@@ -54,7 +55,8 @@ assert.match(app, /youtubeMediaPlaybackState = "playing"/, "Confirmed YouTube pl
 assert.match(app, /title: youtubeSession \? \(youtubeSession\.title \|\| "Video de YouTube"\)/, "YouTube playback must publish its title to Media Session");
 assert.match(app, /youtubePlayer\?\.pauseVideo/, "OS pause actions should be routed to the official YouTube player");
 assert.match(app, /openExternal\(youtubeSearchURL\(query\)\);\s*return;/, "Submitting YouTube search without an API key must open official search instead of silently returning empty results");
-assert.match(app, /file\.put\("persisted", persisted\)/, "Android picker must report when URI permission can be persisted");
+assert.match(nativeMusicPluginSource, /file\.put\("persisted", persisted\)/, "Android picker must report when URI permission can be persisted");
+assert.match(app, /if \(item\.persisted === true\)[\s\S]*nativeUri: uri,/, "Persistable Android selections must be stored as native tracks instead of copied into WebView blobs");
 assert.match(app, /function renderFormatCapabilities/, "The app should report device audio format support");
 assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
 assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
@@ -70,7 +72,7 @@ console.log("History, playlists, mobile controls, and offline format checks pass
 assert.match(html, /id="settings-dialog"/, "Settings dialog should exist");
 assert.match(html, /id="eq-enabled"/, "Audio settings must expose equalizer enable control");
 assert.match(html, /id="eq-preset"/, "Audio settings must expose selectable equalizer presets");
-assert.match(eqPresets, /acoustic:[\s\S]*rock:[\s\S]*pop:[\s\S]*classical:[\s\S]*jazz:/, "Equalizer must provide genre presets");
+assert.match(eqPresets, /acoustic:[\s\S]*pop:[\s\S]*rock:[\s\S]*classical:[\s\S]*jazz:/, "Equalizer must provide genre presets");
 assert.match(app, /getEqualizerPreset\(presetName\)/, "Preset selection must apply a real equalizer profile");
 assert.match(app, /audioPrefs\.eqPreset = "custom"/, "Manual slider changes must identify the setting as custom");
 assert.match(html, /id="eq-bass"/, "Audio settings must expose bass adjustment");

@@ -1507,23 +1507,60 @@ async function openAudioImport() {
     const result = await plugin.pickAudioFiles();
     const selected = Array.isArray(result?.files) ? result.files : [];
     if (!selected.length) return;
-    let imported = 0;
+    const knownNativeUris = new Set(state.tracks.filter(track => track.nativeUri).map(track => track.nativeUri));
+    const nativeTracks = [];
+    const fallbackFiles = [];
     for (const item of selected) {
       if (!item?.uri || !item?.name) continue;
-      const resolved = item.path ? { path: item.path } : await plugin.resolveAudioPath({ uri: item.uri, name: item.name });
+      const uri = String(item.uri);
+      if (item.persisted === true) {
+        if (knownNativeUris.has(uri)) continue;
+        knownNativeUris.add(uri);
+        const name = String(item.name);
+        nativeTracks.push({
+          id: "android-picked-audio-" + id(),
+          kind: "file",
+          name,
+          sourcePath: uri,
+          nativeUri: uri,
+          nativePath: "",
+          title: String(item.title || titleFromFilename(name)),
+          artist: String(item.artist || "Artista desconocido"),
+          album: String(item.album || ""),
+          size: Math.max(0, Number(item.size) || 0),
+          mimeType: String(item.mimeType || "application/octet-stream"),
+          lastModified: Number(item.lastModified) || Date.now(),
+          favorite: false,
+          addedAt: Date.now() + nativeTracks.length,
+          duration: Math.max(0, Number(item.duration) || 0) / 1000,
+          lastPlayedAt: 0
+        });
+        continue;
+      }
+      // Some document providers grant temporary access only; copy the audio now.
+      const resolved = item.path ? { path: item.path } : await plugin.resolveAudioPath({ uri, name: item.name });
       const localURL = window.Capacitor.convertFileSrc(resolved.path);
       const response = await fetch(localURL);
       if (!response.ok) throw new Error("Android no pudo leer " + item.name + ".");
       const blob = await response.blob();
       if (!blob.size) throw new Error("El archivo está vacío o el proveedor no permitió leer " + item.name + ".");
-      const file = new File([blob], item.name, {
+      fallbackFiles.push(new File([blob], item.name, {
         type: item.mimeType || blob.type || "application/octet-stream",
         lastModified: Number(item.lastModified) || Date.now()
-      });
-      await importFiles([file]);
-      imported += 1;
+      }));
     }
-    if (imported) toast("Importación desde el selector de Android terminada: " + imported + " archivo(s).");
+    if (nativeTracks.length) {
+      for (let offset = 0; offset < nativeTracks.length; offset += 100) {
+        await saveManyTracks(nativeTracks.slice(offset, offset + 100));
+      }
+      state.tracks = await getAllTracks();
+      render();
+      toast(nativeTracks.length + " archivo(s) agregado(s) con reproducción nativa y controles del sistema.");
+    }
+    if (fallbackFiles.length) await importFiles(fallbackFiles);
+    if (!nativeTracks.length && !fallbackFiles.length) {
+      toast("Los archivos seleccionados ya están en tu biblioteca o el proveedor no devolvió un acceso reutilizable.");
+    }
   } catch (error) {
     const message = error?.message || "No se pudieron abrir los archivos seleccionados.";
     toast(message);
