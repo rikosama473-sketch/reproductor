@@ -389,55 +389,60 @@ public class RitmoMusicLibraryPlugin extends Plugin {
 
     @PluginMethod
     public void pruneAudioCache(PluginCall call) {
-        JSArray rawKeepPaths = call.getArray("keepPaths");
-        Set<String> keepPaths = new HashSet<>();
-        if (rawKeepPaths != null) {
-            for (int i = 0; i < rawKeepPaths.length(); i++) {
-                try {
-                    String rawPath = rawKeepPaths.optString(i, "");
-                    if (rawPath != null && !rawPath.trim().isEmpty()) {
-                        keepPaths.add(new File(rawPath).getCanonicalPath());
-                    }
-                } catch (Exception ignored) {
-                    // Ignore malformed paths; only files inside the managed cache can be deleted.
-                }
-            }
-        }
-
-        try {
-            File folder = new File(getContext().getCacheDir(), "ritmo-audio").getCanonicalFile();
-            int deleted = 0;
-            int failed = 0;
-            int skippedRecent = 0;
-            if (folder.isDirectory()) {
-                File[] entries = folder.listFiles();
-                long cutoff = System.currentTimeMillis() - AUDIO_CACHE_ORPHAN_GRACE_MS;
-                if (entries != null) {
-                    for (File entry : entries) {
-                        File candidate = entry.getCanonicalFile();
-                        // Never follow a symlink or delete a file outside Ritmo's audio cache.
-                        if (!candidate.isFile() || candidate.getParentFile() == null ||
-                            !candidate.getParentFile().equals(folder)) continue;
-                        if (keepPaths.contains(candidate.getPath())) continue;
-                        // Protect audio resolved/imported in the last hour from import/cleanup races.
-                        if (candidate.lastModified() >= cutoff) {
-                            skippedRecent++;
-                            continue;
-                        }
-                        if (candidate.delete()) deleted++;
-                        else failed++;
-                    }
-                }
-            }
-
+        final JSArray rawKeepPaths = call.getArray("keepPaths");
+        Thread worker = new Thread(() -> {
             JSObject result = new JSObject();
-            result.put("deleted", deleted);
-            result.put("failed", failed);
-            result.put("skippedRecent", skippedRecent);
-            call.resolve(result);
-        } catch (Exception error) {
-            call.reject("No se pudo limpiar la caché local de audio.", error);
-        }
+            try {
+                synchronized (RitmoMusicLibraryPlugin.this) {
+                    Set<String> keepPaths = new HashSet<>();
+                    if (rawKeepPaths != null) {
+                        for (int i = 0; i < rawKeepPaths.length(); i++) {
+                            try {
+                                String rawPath = rawKeepPaths.optString(i, "");
+                                if (rawPath != null && !rawPath.trim().isEmpty()) {
+                                    keepPaths.add(new File(rawPath).getCanonicalPath());
+                                }
+                            } catch (Exception ignored) {
+                                // Ignore malformed paths; only files inside the managed cache can be deleted.
+                            }
+                        }
+                    }
+
+                    File folder = new File(getContext().getCacheDir(), "ritmo-audio").getCanonicalFile();
+                    int deleted = 0;
+                    int failed = 0;
+                    int skippedRecent = 0;
+                    if (folder.isDirectory()) {
+                        File[] entries = folder.listFiles();
+                        long cutoff = System.currentTimeMillis() - AUDIO_CACHE_ORPHAN_GRACE_MS;
+                        if (entries != null) {
+                            for (File entry : entries) {
+                                File candidate = entry.getCanonicalFile();
+                                // Never follow a symlink or delete a file outside Ritmo's audio cache.
+                                if (!candidate.isFile() || candidate.getParentFile() == null ||
+                                    !candidate.getParentFile().equals(folder)) continue;
+                                if (keepPaths.contains(candidate.getPath())) continue;
+                                // Protect audio resolved/imported in the last hour from import/cleanup races.
+                                if (candidate.lastModified() >= cutoff) {
+                                    skippedRecent++;
+                                    continue;
+                                }
+                                if (candidate.delete()) deleted++;
+                                else failed++;
+                            }
+                        }
+                    }
+
+                    result.put("deleted", deleted);
+                    result.put("failed", failed);
+                    result.put("skippedRecent", skippedRecent);
+                }
+                call.resolve(result);
+            } catch (Exception error) {
+                call.reject("No se pudo limpiar la caché local de audio.", error);
+            }
+        }, "RitmoPruneAudioCache");
+        worker.start();
     }
 
     @PluginMethod

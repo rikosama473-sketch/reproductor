@@ -23,3 +23,5 @@ Documentación oficial de Android: [Acceder a archivos específicos de la app](h
 ## Protección adicional contra importaciones simultáneas
 
 La resolución de archivos de proveedores se ejecuta en hilos de trabajo. Las copias que no reutilizan un archivo existente ahora pasan por un método sincronizado, evitando que dos solicitudes del mismo URI escriban a la vez en el temporal compartido `.tmp`. La prueba de regresión verifica que esa exclusión se mantenga.
+
+La inspección de rendimiento también detectó que enumerar y borrar archivos de caché de forma síncrona podía bloquear la interfaz en bibliotecas grandes. Ahora el recorrido se ejecuta en el hilo `RitmoPruneAudioCache` y comparte exclusión mutua con la copia de audio, evitando bloquear la interfaz y evitando borrar temporales durante una resolución concurrente.
