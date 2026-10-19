@@ -1,5 +1,7 @@
 package com.rikosama473.ritmo;
 
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.media.audiofx.Equalizer;
 
 import androidx.media3.common.AudioAttributes;
@@ -44,7 +46,15 @@ public class RitmoPlaybackService extends MediaSessionService {
                 applyNativeEqualizer();
             }
         });
-        mediaSession = new MediaSession.Builder(this, player).build();
+        Intent sessionActivityIntent = new Intent(this, MainActivity.class);
+        sessionActivityIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent sessionActivity = PendingIntent.getActivity(
+            this, 0, sessionActivityIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        mediaSession = new MediaSession.Builder(this, player)
+            .setSessionActivity(sessionActivity)
+            .build();
     }
 
     public static void configureEqualizer(boolean enabled, int bass, int mid, int treble) {

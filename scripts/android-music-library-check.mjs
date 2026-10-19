@@ -72,6 +72,8 @@ assert.match(playbackPlugin, /setMediaId\(rawUri == null \|\| rawUri\.trim\(\)\.
 assert.match(playbackPlugin, /Uri\.fromFile\(audioFile\)/, "Media3 should support the local path copied for providers that cannot keep URI permission");
 assert.match(playbackPlugin, /!audioFile\.isFile\(\) \|\| !audioFile\.canRead\(\)/, "Unreadable cached paths must fail clearly so the web audio fallback can be used");
 assert.match(playbackService, /extends MediaSessionService/, "La reproducción en segundo plano debe usar MediaSessionService");
+assert.match(playbackService, /PendingIntent\.getActivity\([\s\S]*MainActivity\.class[\s\S]*FLAG_IMMUTABLE/, "The media notification needs a safe Activity PendingIntent to return to Ritmo");
+assert.match(playbackService, /setSessionActivity\(sessionActivity\)/, "Media3 should expose the app return target to system controls");
 assert.match(playbackService, /new ExoPlayer\.Builder/, "El servicio debe usar ExoPlayer");
 const serviceDestroyStart = playbackService.indexOf("public void onDestroy()");
 const serviceDestroyEnd = playbackService.indexOf("\n    }", serviceDestroyStart);
