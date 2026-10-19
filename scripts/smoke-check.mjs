@@ -63,6 +63,8 @@ assert.match(storage, /createObjectStore\(PLAYLISTS/, "Storage should persist pl
 assert.match(app, /function renderHistory/, "The app should render recent playback history");
 assert.match(app, /function renderPlaylists/, "The app should render named playlists");
 assert.match(app, /function setupMediaSession/, "The app should expose mobile/system media controls");
+assert.match(app, /if \(!useNativePlayer && state\.nativePlayback\.active\) \{\s*await stopNativePlayback\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;\s*\}/, "A stale request must stop after awaiting the previous native session");
+assert.match(app, /if \(state\.nativePlayback\.active\) \{\s*await stopNativePlayback\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;\s*\}\s*let desiredEngine/, "A stale request must not replace the active engine after native shutdown");
 assert.match(app, /const isNativeDirectStream = track\.kind === "url"/, "Direct audio URLs should try native Android playback when compatible");
 assert.match(app, /const nativeUri = track\.nativeUri \|\| \(track\.kind === "url" \? track\.url : ""\)/, "Media3 must receive the direct audio URL");
 assert.match(app, /forceWebPlayback: true/, "Native direct-stream errors must retain a browser playback fallback");

@@ -1302,7 +1302,10 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       return;
     }
   }
-  if (!useNativePlayer && state.nativePlayback.active) await stopNativePlayback();
+  if (!useNativePlayer && state.nativePlayback.active) {
+    await stopNativePlayback();
+    if (!isCurrentPlaybackRequest()) return;
+  }
   if (!$("#youtube-player-wrap").hidden) stopYoutubePlayback();
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
@@ -1376,7 +1379,10 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       }
     }
     if (!useNativePlayer) {
-      if (state.nativePlayback.active) await stopNativePlayback();
+      if (state.nativePlayback.active) {
+        await stopNativePlayback();
+        if (!isCurrentPlaybackRequest()) return;
+      }
       let desiredEngine = isLocal(track) && audioPrefs.equalizerEnabled ? equalizedAudio : defaultAudio;
       if (desiredEngine === equalizedAudio) {
         try {
