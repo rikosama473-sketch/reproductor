@@ -55,7 +55,7 @@ const requiredFiles = [
   "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
   "src/app.js", "src/storage.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js",
-  "src/youtube-player-errors.js", "assets/icon.svg", "pngtuber-capibara.png"
+  "src/youtube-player-errors.js", "src/async-generation-gate.js", "assets/icon.svg", "pngtuber-capibara.png"
 ];
 for (const name of requiredFiles) {
   const info = await stat(path.join(webDir, name)).catch(() => null);

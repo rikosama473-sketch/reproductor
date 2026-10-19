@@ -52,9 +52,6 @@ assert.match(service, /getCenterFreq\(band\)[\s\S]*?setBandLevel\(band, \(short\
 assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
 assert.match(app, /path: nativeUri \? "" : track\.nativePath/, "Native URI streams and files should leave the path empty; path-only files should preserve the cached path");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
-assert.match(app, /let nativePlaybackPollGeneration = 0;/, "Native playback state polls must have a generation");
-assert.match(app, /function invalidateNativePlaybackPolling\(\) \{[\s\S]*?nativePlaybackPollGeneration \+= 1;/, "Playback changes must invalidate pending state polls");
-assert.match(app, /const generation = invalidateNativePlaybackPolling\(\);[\s\S]*?if \(generation !== nativePlaybackPollGeneration\) return;[\s\S]*?if \(generation === nativePlaybackPollGeneration\) nativePlaybackPollInFlight = false;/, "Late polls must not overwrite newer playback state or unlock another poll");
 assert.match(app, /document\.addEventListener\("visibilitychange",[\s\S]*?startNativePlaybackPolling\(\)/, "Returning to the app must resync native playback state immediately");
 assert.match(java, /public void pruneAudioCache\(PluginCall call\)/, "The native bridge must prune stale private audio cache files");
 assert.match(java, /AUDIO_CACHE_ORPHAN_GRACE_MS = 60L \* 60L \* 1000L/, "Cache cleanup must leave recently imported audio alone");
@@ -92,3 +89,7 @@ assert.match(prep, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/, "El empaquetado debe dec
 assert.match(prep, /media3-exoplayer:1\.11\.1/, "El empaquetado debe fijar una versión revisada de Media3");
 assert.match(workflow, /prepare-android-native\.mjs/, "CI debe preparar los plugins antes de compilar");
 console.log("Android music discovery and Media3 playback checks passed.");
+
+assert.match(app, /createAsyncGenerationGate/, "Native poll coordination must use a generation-safe gate");
+assert.match(app, /nativePlaybackPollGate\.tryStart\(generation\)/, "Each native polling generation must own its in-flight slot");
+assert.match(app, /nativePlaybackPollGate\.finish\(generation\)/, "Poll completion must release only its own generation slot");

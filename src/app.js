@@ -5,6 +5,7 @@ import { clearMediaSession } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
+import { createAsyncGenerationGate } from "./async-generation-gate.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -32,8 +33,7 @@ let playbackRequestId = 0;
 // Pause must cancel intent even while the media element still reports paused.
 let pendingPlaybackRequestId = null;
 let nativePlaybackPollTimer = null;
-let nativePlaybackPollInFlight = false;
-let nativePlaybackPollGeneration = 0;
+const nativePlaybackPollGate = createAsyncGenerationGate();
 let nativeUrlFallbackInProgressFor = null;
 let youtubeSearchRequestId = 0;
 let youtubeSearchAbortController = null;
@@ -227,11 +227,10 @@ function seekPlayback(seconds) {
   try { audio.currentTime = position; } catch {}
 }
 function invalidateNativePlaybackPolling() {
-  nativePlaybackPollGeneration += 1;
+  const generation = nativePlaybackPollGate.invalidate();
   if (nativePlaybackPollTimer) clearInterval(nativePlaybackPollTimer);
   nativePlaybackPollTimer = null;
-  nativePlaybackPollInFlight = false;
-  return nativePlaybackPollGeneration;
+  return generation;
 }
 function stopNativePlayback() {
   const wasActive = state.nativePlayback.active;
@@ -286,21 +285,24 @@ function acceptNativePlaybackState(result) {
 function startNativePlaybackPolling() {
   const generation = invalidateNativePlaybackPolling();
   const poll = async () => {
-    if (generation !== nativePlaybackPollGeneration || !state.nativePlayback.active || nativePlaybackPollInFlight) return;
+    if (!nativePlaybackPollGate.isCurrent(generation) || !state.nativePlayback.active ||
+        !nativePlaybackPollGate.tryStart(generation)) return;
     const plugin = nativePlaybackPlugin();
-    if (!plugin?.getState) return;
-    nativePlaybackPollInFlight = true;
+    if (!plugin?.getState) {
+      nativePlaybackPollGate.finish(generation);
+      return;
+    }
     try {
       const result = await plugin.getState();
-      if (generation !== nativePlaybackPollGeneration) return;
+      if (!nativePlaybackPollGate.isCurrent(generation)) return;
       acceptNativePlaybackState(result);
     } catch (error) {
-      if (generation === nativePlaybackPollGeneration && state.nativePlayback.active) {
+      if (nativePlaybackPollGate.isCurrent(generation) && state.nativePlayback.active) {
         showPlaybackStatus(error?.message || "No se pudo consultar el estado de reproducción nativa.", "warning", true);
       }
     } finally {
-      // An obsolete poll must not clear the in-flight guard for a newer session.
-      if (generation === nativePlaybackPollGeneration) nativePlaybackPollInFlight = false;
+      // A stale completion cannot release the slot acquired by a newer generation.
+      nativePlaybackPollGate.finish(generation);
     }
   };
   void poll();
