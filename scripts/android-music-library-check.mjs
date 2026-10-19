@@ -38,7 +38,11 @@ assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interf
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
 assert.match(app, /bridge\.nativePromise\("RitmoPlayback", method/, "La reproducción Android debe usar Media3");
 assert.match(app, /nativePlayer\.play\(/, "Las pistas locales deben entregarse al motor nativo");
-assert.match(app, /Boolean\(\(track\.nativeUri \|\| track\.nativePath\) && nativePlaybackPlugin\(\)\)/, "Native URI tracks should use Media3 with either native or flat EQ");
+assert.match(app, /Boolean\(!options\.forceWebPlayback &&\s*\(track\.nativeUri \|\| track\.nativePath \|\| isNativeDirectStream\) && nativePlaybackPlugin\(\)\)/, "Native files and compatible direct HTTPS streams should use Media3");
+assert.match(app, /const isNativeDirectStream = track\.kind === "url"[^\n]*\n\s*\/\^https:/, "Only HTTPS direct audio URLs are candidates for native playback");
+assert.match(app, /const nativeUri = track\.nativeUri \|\| \(track\.kind === "url" \? track\.url : ""\)/, "Direct audio URLs must be sent to the Media3 bridge");
+assert.match(app, /nativeUrlFallbackInProgressFor !== failedTrack\.id[\s\S]*?forceWebPlayback: true/, "Asynchronous Media3 errors must fall back to HTML audio only once");
+assert.match(app, /acceptNativePlaybackState\(await nativePlayer\.getState\(\)\);[\s\S]*?Never let this stale play request clear the newer request's intent/, "A stale Media3 response must not overwrite a newer fallback request");
 assert.match(app, /setEqualizer: invoke\("setEqualizer"\)/, "The JS bridge must expose live native EQ updates");
 assert.match(app, /\.\.\.nativeEqualizerPayload\(\)/, "Native playback must receive saved EQ preset values");
 assert.match(plugin, /public void setEqualizer\(PluginCall call\)/, "Android bridge must provide a live EQ method");

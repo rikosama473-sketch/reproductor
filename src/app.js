@@ -33,6 +33,7 @@ let playbackRequestId = 0;
 let pendingPlaybackRequestId = null;
 let nativePlaybackPollTimer = null;
 let nativePlaybackPollInFlight = false;
+let nativeUrlFallbackInProgressFor = null;
 let youtubeSearchRequestId = 0;
 let youtubeSearchAbortController = null;
 let archiveSearchRequestId = 0;
@@ -250,8 +251,21 @@ function acceptNativePlaybackState(result) {
       saveTrack(track).catch(() => {});
     }
   }
-  if (result.error) showPlaybackStatus("Android no pudo reproducir esta pista: " + result.error, "error", true);
-  else if (audioPrefs.equalizerEnabled && result.equalizerSupported === false) {
+  if (result.error) {
+    const failedTrack = currentTrack();
+    if (failedTrack?.kind === "url" && failedTrack.url && nativeUrlFallbackInProgressFor !== failedTrack.id) {
+      // Media3 can report HTTP/format failures asynchronously after play() returns.
+      // Try HTML audio once; it can support a different set of streaming sources.
+      nativeUrlFallbackInProgressFor = failedTrack.id;
+      const resumeAt = state.nativePlayback.currentTime;
+      toast("Android no pudo abrir esa fuente; probando el reproductor del navegador.");
+      void playTrack(failedTrack.id, true, {
+        keepQueue: true, skipHistory: true, forceReload: true, resumeAt, forceWebPlayback: true
+      });
+      return;
+    }
+    showPlaybackStatus("Android no pudo reproducir esta pista: " + result.error, "error", true);
+  } else if (audioPrefs.equalizerEnabled && result.equalizerSupported === false) {
     showPlaybackStatus("Esta pista sigue reproduciéndose en Android, pero el dispositivo no admite el ecualizador nativo. Los controles de pantalla bloqueada se mantienen.", "warning", true);
   } else if (state.nativePlayback.playbackState === "ready") showPlaybackStatus("");
   if (state.nativePlayback.playbackState === "ended" && !state.nativePlayback.endedHandled) {
@@ -1260,7 +1274,11 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
-  let useNativePlayer = Boolean((track.nativeUri || track.nativePath) && nativePlaybackPlugin());
+  if (!options.forceWebPlayback) nativeUrlFallbackInProgressFor = null;
+  const isNativeDirectStream = track.kind === "url" && typeof track.url === "string" &&
+    /^https:\/\//i.test(track.url) && !/\.m3u8(?:[?#]|$)/i.test(track.url);
+  let useNativePlayer = Boolean(!options.forceWebPlayback &&
+    (track.nativeUri || track.nativePath || isNativeDirectStream) && nativePlaybackPlugin());
   if (track.nativeUri && !useNativePlayer) {
     const plugin = nativeMusicPlugin();
     if (!plugin?.resolveAudioPath) {
@@ -1306,8 +1324,9 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       };
       try {
         const nativePlayer = nativePlaybackPlugin();
+        const nativeUri = track.nativeUri || (track.kind === "url" ? track.url : "");
         await nativePlayer.play({
-          uri: track.nativeUri || "", path: track.nativeUri ? "" : track.nativePath, title: track.title || track.name || "Audio sin título",
+          uri: nativeUri || "", path: nativeUri ? "" : track.nativePath, title: track.title || track.name || "Audio sin título",
           artist: track.artist || "Artista desconocido", album: track.album || "Ritmo",
           autoplay: Boolean(autoplay),
           positionMs: Math.max(0, Math.round((Number(options.resumeAt) || 0) * 1000)),
@@ -1317,6 +1336,9 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         if (!isCurrentPlaybackRequest()) return;
         startNativePlaybackPolling();
         acceptNativePlaybackState(await nativePlayer.getState());
+        // acceptNativePlaybackState can switch tracks or begin a web fallback.
+        // Never let this stale play request clear the newer request's intent.
+        if (!isCurrentPlaybackRequest()) return;
       } catch (nativeError) {
         await stopNativePlayback();
         if (!isCurrentPlaybackRequest()) return;
@@ -1341,6 +1363,8 @@ async function playTrack(trackId, autoplay = true, options = {}) {
               await saveTrack(track).catch(() => {});
             }
           }
+        } else if (track.kind === "url" && track.url) {
+          toast("Android no abrió esta fuente directa; probando el reproductor del navegador.");
         } else if (track.blob instanceof Blob) {
           // A cached file may have been evicted or its permissions may have changed.
           track.nativePath = "";
