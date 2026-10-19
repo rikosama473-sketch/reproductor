@@ -50,7 +50,7 @@ assert.match(service, /android\.media\.audiofx\.Equalizer/, "Native EQ must atta
 assert.match(service, /onAudioSessionIdChanged\(int audioSessionId\)/, "Native EQ must follow Media3 audio-session changes");
 assert.match(service, /getCenterFreq\(band\)[\s\S]*?setBandLevel\(band, \(short\) milliBel\)/, "Native EQ should map low/mid/high gains to device-supported bands");
 assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
-assert.match(app, /path: track\.nativeUri \? "" : track\.nativePath/, "Path-only fallback tracks should be passed to the native playback bridge");
+assert.match(app, /path: nativeUri \? "" : track\.nativePath/, "Native URI streams and files should leave the path empty; path-only files should preserve the cached path");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
 assert.match(java, /public void pruneAudioCache\(PluginCall call\)/, "The native bridge must prune stale private audio cache files");
 assert.match(java, /AUDIO_CACHE_ORPHAN_GRACE_MS = 60L \* 60L \* 1000L/, "Cache cleanup must leave recently imported audio alone");
