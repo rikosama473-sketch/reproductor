@@ -6,6 +6,7 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
+import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl } from "./online-services.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -189,11 +190,13 @@ async function applyNativeEqualizerPreferences() {
 }
 function playbackIsPaused() {
   if (state.nativePlayback.active) return !state.nativePlayback.isPlaying;
+  if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) return spotifyMediaPlaybackState !== "playing";
   if (youtubeHistory.getCurrentSession()) return youtubeMediaPlaybackState !== "playing";
   return audio.paused;
 }
 function playbackCurrentTime() {
   if (state.nativePlayback.active) return Math.max(0, Number(state.nativePlayback.currentTime) || 0);
+  if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) return Math.max(0, Number(spotifyCurrentTime) || 0);
   if (youtubeHistory.getCurrentSession() && youtubePlayer?.getCurrentTime) {
     try { return Math.max(0, Number(youtubePlayer.getCurrentTime()) || 0); } catch {}
   }
@@ -201,6 +204,7 @@ function playbackCurrentTime() {
 }
 function playbackDuration() {
   if (state.nativePlayback.active) return Number(state.nativePlayback.duration) > 0 ? Number(state.nativePlayback.duration) : Number.NaN;
+  if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) return Number.isFinite(spotifyDuration) && spotifyDuration > 0 ? spotifyDuration : Number.NaN;
   if (youtubeHistory.getCurrentSession() && youtubePlayer?.getDuration) {
     try { const duration = Number(youtubePlayer.getDuration()); return duration > 0 && Number.isFinite(duration) ? duration : Number.NaN; } catch {}
   }
@@ -208,6 +212,12 @@ function playbackDuration() {
 }
 function seekPlayback(seconds) {
   const position = Math.max(0, Number(seconds) || 0);
+  if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) {
+    try { spotifyEmbedController?.seek(Math.round(position)); } catch {}
+    updatePlayer();
+    updateMediaSession();
+    return;
+  }
   if (!state.nativePlayback.active && youtubeHistory.getCurrentSession()) {
     try { if (youtubePlayer?.seekTo) youtubePlayer.seekTo(position, true); } catch {}
     updatePlayer();
@@ -693,6 +703,10 @@ function retryCurrentPlayback() {
 function resumeCurrentTrack() {
   const track = currentTrack();
   if (!track) {
+    if (spotifyCurrentEmbed && spotifyControllerReady) {
+      try { spotifyEmbedController?.resume(); } catch { toast("Usá el botón Reproducir del widget de Spotify."); }
+      return;
+    }
     if (youtubeHistory.getCurrentSession()) {
       try { if (youtubePlayer?.playVideo) youtubePlayer.playVideo(); }
       catch { toast("No se pudo reanudar el video de YouTube."); }
@@ -707,6 +721,14 @@ function cancelPendingPlaybackIntent() {
   pendingPlaybackRequestId = null;
 }
 function pauseCurrentTrack() {
+  if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) {
+    cancelPendingPlaybackIntent();
+    spotifyMediaPlaybackState = "paused";
+    try { spotifyEmbedController?.pause(); } catch {}
+    updatePlayer();
+    updateMediaSession();
+    return;
+  }
   if (!currentTrack() && youtubeHistory.getCurrentSession()) {
     cancelPendingPlaybackIntent();
     youtubeMediaPlaybackState = "paused";
@@ -1009,14 +1031,15 @@ function updateMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const track = currentTrack();
   const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
-  if (!track && !youtubeSession) { clearMediaSession(navigator.mediaSession, state); return; }
-  const sessionKey = youtubeSession ? "youtube:" + youtubeSession.sessionId : track.id;
+  const spotifySession = !track && !youtubeSession && spotifyCurrentEmbed && spotifyControllerReady ? spotifyCurrentEmbed : null;
+  if (!track && !youtubeSession && !spotifySession) { clearMediaSession(navigator.mediaSession, state); return; }
+  const sessionKey = youtubeSession ? "youtube:" + youtubeSession.sessionId : spotifySession ? "spotify:" + spotifySession.uri : track.id;
   if (state.mediaSessionTrackId !== sessionKey && "MediaMetadata" in window) {
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: youtubeSession ? (youtubeSession.title || "Video de YouTube") : (track.title || "Audio sin título"),
-        artist: youtubeSession ? "YouTube" : (track.artist || "Artista desconocido"),
-        album: youtubeSession ? "Ritmo · YouTube" : (track.album || "Ritmo"),
+        title: youtubeSession ? (youtubeSession.title || "Video de YouTube") : spotifySession ? (spotifySession.title || spotifySession.label) : (track.title || "Audio sin título"),
+        artist: youtubeSession ? "YouTube" : spotifySession ? "Spotify · Reproductor oficial" : (track.artist || "Artista desconocido"),
+        album: youtubeSession ? "Ritmo · YouTube" : spotifySession ? "Spotify Embed" : (track.album || "Ritmo"),
         artwork: [{ src: new URL("./assets/icon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
       });
       state.mediaSessionTrackId = sessionKey;
@@ -1025,6 +1048,10 @@ function updateMediaSession() {
   if (youtubeSession) {
     const playbackState = youtubeMediaPlaybackState === "playing" ? "playing" :
       youtubeMediaPlaybackState === "ended" ? "none" : "paused";
+    try { navigator.mediaSession.playbackState = playbackState; } catch {}
+  } else if (spotifySession) {
+    const playbackState = spotifyMediaPlaybackState === "playing" ? "playing" :
+      spotifyMediaPlaybackState === "ended" ? "none" : "paused";
     try { navigator.mediaSession.playbackState = playbackState; } catch {}
   } else {
     try { navigator.mediaSession.playbackState = playbackIsPaused() ? "paused" : "playing"; } catch {}
@@ -1038,8 +1065,8 @@ function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const handlers = {
     play: () => resumeCurrentTrack(), pause: () => pauseCurrentTrack(), stop: () => pauseCurrentTrack(),
-    previoustrack: () => { if (youtubeHistory.getCurrentSession()) seekPlayback(0); else $("#previous-button").click(); },
-    nexttrack: () => { if (!youtubeHistory.getCurrentSession()) $("#next-button").click(); },
+    previoustrack: () => { if (spotifyCurrentEmbed && spotifyControllerReady) { try { spotifyEmbedController?.restart(); } catch {} } else if (youtubeHistory.getCurrentSession()) seekPlayback(0); else $("#previous-button").click(); },
+    nexttrack: () => { if (!spotifyCurrentEmbed && !youtubeHistory.getCurrentSession()) $("#next-button").click(); },
     seekbackward: details => { seekPlayback(Math.max(0, playbackCurrentTime() - (details.seekOffset || 10))); },
     seekforward: details => { const step = details.seekOffset || 10; seekPlayback(Number.isFinite(playbackDuration()) ? Math.min(playbackDuration(), playbackCurrentTime() + step) : playbackCurrentTime() + step); },
     seekto: details => { if (Number.isFinite(playbackDuration()) && Number.isFinite(details.seekTime)) seekPlayback(Math.max(0, Math.min(playbackDuration(), details.seekTime))); }
@@ -1074,21 +1101,24 @@ function render() {
 function syncCharacterCompanion(playing) {
   const companion = $("#character-companion");
   if (!companion) return;
-  const isPlaying = Boolean(playing);
+  const isPlaying = Boolean(playing || (spotifyCurrentEmbed && spotifyControllerReady && spotifyMediaPlaybackState === "playing"));
   companion.hidden = !isPlaying;
   companion.classList.toggle("is-playing", isPlaying);
 }
 function updatePlayer() {
   const track = currentTrack();
   const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
-  const hasMedia = Boolean(track || youtubeSession);
+  const spotifySession = !track && !youtubeSession ? spotifyCurrentEmbed : null;
+  const spotifyControlled = Boolean(spotifySession && spotifyControllerReady);
+  const externalSession = Boolean(youtubeSession || spotifySession);
+  const hasMedia = Boolean(track || youtubeSession || spotifyControlled);
   syncCharacterCompanion(hasMedia && !playbackIsPaused());
-  $("#player-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : "Todavía no suena nada";
-  $("#player-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : "Elegí una canción de tu biblioteca";
+  $("#player-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : spotifySession ? (spotifySession.title || spotifySession.label) : "Todavía no suena nada";
+  $("#player-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : spotifySession ? "Spotify · Reproductor oficial" : "Elegí una canción de tu biblioteca";
   $("#play-button").disabled = !hasMedia;
-  $("#previous-button").disabled = !state.tracks.length;
-  $("#next-button").disabled = !state.tracks.length;
-  $("#seek-bar").disabled = !hasMedia;
+  $("#previous-button").disabled = externalSession || !state.tracks.length;
+  $("#next-button").disabled = externalSession || !state.tracks.length;
+  $("#seek-bar").disabled = !hasMedia || (spotifySession && spotifySession.type !== "episode");
   $("#player-favorite").disabled = !track;
   $("#player-cover").className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "");
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
@@ -1100,14 +1130,16 @@ function updatePlayer() {
   $("#repeat-button").classList.toggle("active", state.repeat !== "off");
   $("#repeat-button").setAttribute("aria-label", "Repetición: " + ({ off: "desactivada", all: "toda la cola", one: "una canción" }[state.repeat]));
   $("#repeat-button").textContent = state.repeat === "one" ? "↻¹" : "↻";
+  $("#shuffle-button").disabled = Boolean(spotifySession);
+  $("#repeat-button").disabled = Boolean(spotifySession);
   const isOnline = track && !isLocal(track);
   $("#current-time").textContent = formatTime(playbackCurrentTime());
   $("#duration-time").textContent = formatTime(Number.isFinite(playbackDuration()) ? playbackDuration() : track?.duration);
   $("#seek-bar").value = Number.isFinite(playbackDuration()) && playbackDuration() > 0 ? String(Math.round(playbackCurrentTime() / playbackDuration() * 1000)) : "0";
   const expandedTitle = $("#expanded-title");
   if (expandedTitle) {
-    $("#expanded-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : "Todavía no suena nada";
-    $("#expanded-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : "Elegí una canción de tu biblioteca";
+    $("#expanded-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : spotifySession ? (spotifySession.title || spotifySession.label) : "Todavía no suena nada";
+    $("#expanded-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : spotifySession ? "Spotify · Reproductor oficial" : "Elegí una canción de tu biblioteca";
     $("#expanded-cover").className = "expanded-cover-art " + (track ? coverClass(track) : "tone-purple");
     $("#expanded-art-backdrop").className = "immersive-backdrop " + (track ? coverClass(track) : "tone-purple");
     $("#expanded-favorite-button").disabled = !track;
@@ -1117,9 +1149,9 @@ function updatePlayer() {
     $("#expanded-play-button").disabled = !hasMedia;
     $("#expanded-play-button").textContent = playbackIsPaused() ? "▶" : "Ⅱ";
     $("#expanded-play-button").setAttribute("aria-label", playbackIsPaused() ? "Reproducir" : "Pausar");
-    $("#expanded-previous-button").disabled = !state.tracks.length;
-    $("#expanded-next-button").disabled = !state.tracks.length;
-    $("#expanded-seek-bar").disabled = !hasMedia;
+    $("#expanded-previous-button").disabled = externalSession || !state.tracks.length;
+    $("#expanded-next-button").disabled = externalSession || !state.tracks.length;
+    $("#expanded-seek-bar").disabled = !hasMedia || (spotifySession && spotifySession.type !== "episode");
     $("#expanded-current-time").textContent = formatTime(playbackCurrentTime());
     $("#expanded-duration-time").textContent = formatTime(Number.isFinite(playbackDuration()) ? playbackDuration() : track?.duration);
     $("#expanded-seek-bar").value = Number.isFinite(playbackDuration()) && playbackDuration() > 0 ? String(Math.round(playbackCurrentTime() / playbackDuration() * 1000)) : "0";
@@ -1128,8 +1160,13 @@ function updatePlayer() {
     $("#expanded-repeat-button").classList.toggle("active", state.repeat !== "off");
     $("#expanded-repeat-button").textContent = state.repeat === "one" ? "↻¹" : "↻";
     $("#expanded-repeat-button").setAttribute("aria-label", "Repetición: " + ({ off: "desactivada", all: "toda la cola", one: "una canción" }[state.repeat]));
-    $("#expanded-source-label").textContent = track ? (isLocal(track) ? "Archivo local · disponible sin conexión" : "Fuente online · requiere conexión") : youtubeSession ? "YouTube · requiere conexión" : "Listo cuando vos quieras";
+    $("#expanded-shuffle-button").disabled = Boolean(spotifySession);
+    $("#expanded-repeat-button").disabled = Boolean(spotifySession);
+    $("#expanded-source-label").textContent = track ? (isLocal(track) ? "Archivo local · disponible sin conexión" : "Fuente online · requiere conexión") : youtubeSession ? "YouTube · requiere conexión" : spotifySession ? "Spotify · widget oficial; volumen dentro del reproductor" : "Listo cuando vos quieras";
   }
+  $("#volume-bar").disabled = Boolean(spotifySession);
+  $("#expanded-volume-bar").disabled = Boolean(spotifySession);
+  $("#volume-mute-button").disabled = Boolean(spotifySession);
   updateMuteButton();
 }
 function updatePlayerFavorite() {
@@ -1288,6 +1325,7 @@ function showView(view) {
 async function playTrack(trackId, autoplay = true, options = {}) {
   const track = getTrack(trackId);
   if (!track) return;
+  stopSpotifyEmbed({ preserveSaved: true, refresh: false });
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
@@ -1916,6 +1954,333 @@ async function addStream(event) {
   } catch (error) { message.textContent = error.message || "No se pudo guardar la fuente."; message.style.color = "#ffb4b4"; }
 }
 
+
+const SPOTIFY_EMBED_STORAGE = "ritmo.spotify-embed-link.v1";
+let spotifyIFrameApi = null;
+let spotifyIFrameApiPromise = null;
+let spotifyEmbedController = null;
+let spotifyCurrentEmbed = null;
+let spotifyControllerReady = false;
+let spotifyMediaPlaybackState = "none";
+let spotifyCurrentTime = 0;
+let spotifyDuration = Number.NaN;
+let spotifyProgressTimer = null;
+let spotifyEmbedRequestId = 0;
+let radioStations = [];
+let radioSearchRequestId = 0;
+let radioSearchAbortController = null;
+
+function setSpotifyStatus(message, tone = "") {
+  const status = $("#spotify-status");
+  if (!status) return;
+  status.textContent = message;
+  status.dataset.tone = tone;
+}
+function ensureSpotifyIFrameApi() {
+  if (spotifyIFrameApi) return Promise.resolve(spotifyIFrameApi);
+  if (spotifyIFrameApiPromise) return spotifyIFrameApiPromise;
+  spotifyIFrameApiPromise = new Promise((resolve, reject) => {
+    const previousReady = window.onSpotifyIframeApiReady;
+    let settled = false;
+    let timeout;
+    const finish = api => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (!api || typeof api.createController !== "function") {
+        spotifyIFrameApiPromise = null;
+        reject(new Error("Spotify no devolvió una API de reproductor compatible."));
+        return;
+      }
+      spotifyIFrameApi = api;
+      resolve(api);
+    };
+    const readyHandler = api => {
+      finish(api);
+      try { if (typeof previousReady === "function") previousReady(api); } catch {}
+    };
+    window.onSpotifyIframeApiReady = readyHandler;
+    timeout = setTimeout(() => {
+      spotifyIFrameApiPromise = null;
+      const pending = document.querySelector('script[src="https://open.spotify.com/embed/iframe-api/v1"]');
+      if (pending && !spotifyIFrameApi) pending.remove();
+      if (window.onSpotifyIframeApiReady === readyHandler) window.onSpotifyIframeApiReady = previousReady;
+      reject(new Error("La API del reproductor de Spotify no respondió; se intentará cargar su widget directo."));
+    }, 12000);
+    let script = document.querySelector('script[src="https://open.spotify.com/embed/iframe-api/v1"]');
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://open.spotify.com/embed/iframe-api/v1";
+      script.async = true;
+    }
+    script.addEventListener("error", () => {
+      if (settled) return;
+      clearTimeout(timeout);
+      spotifyIFrameApiPromise = null;
+      if (window.onSpotifyIframeApiReady === readyHandler) window.onSpotifyIframeApiReady = previousReady;
+      reject(new Error("No se pudo cargar la API del reproductor de Spotify."));
+    }, { once: true });
+    if (!script.isConnected) document.head.appendChild(script);
+  });
+  return spotifyIFrameApiPromise;
+}
+function stopSpotifyEmbed({ preserveSaved = true, refresh = true } = {}) {
+  spotifyEmbedRequestId += 1;
+  if (spotifyProgressTimer !== null) clearInterval(spotifyProgressTimer);
+  spotifyProgressTimer = null;
+  if (spotifyEmbedController) {
+    try { spotifyEmbedController.destroy(); } catch {}
+  }
+  spotifyEmbedController = null;
+  spotifyCurrentEmbed = null;
+  spotifyControllerReady = false;
+  spotifyMediaPlaybackState = "none";
+  spotifyCurrentTime = 0;
+  spotifyDuration = Number.NaN;
+  const mount = $("#spotify-embed-mount");
+  if (mount) mount.replaceChildren();
+  const shell = $("#spotify-embed-shell");
+  if (shell) shell.hidden = true;
+  if (!preserveSaved) {
+    try { localStorage.removeItem(SPOTIFY_EMBED_STORAGE); } catch {}
+  }
+  if (refresh) {
+    updatePlayer();
+    updateMediaSession();
+  }
+}
+function spotifyPlaybackUpdate(data, requestId) {
+  if (requestId !== spotifyEmbedRequestId || !spotifyCurrentEmbed || !spotifyControllerReady || !data) return;
+  spotifyMediaPlaybackState = data.isPaused ? "paused" : data.isBuffering ? "buffering" : "playing";
+  const durationMs = Math.max(0, Number(data.duration) || 0);
+  const positionMs = Math.max(0, Number(data.position) || 0);
+  spotifyDuration = durationMs > 0 ? durationMs / 1000 : Number.NaN;
+  spotifyCurrentTime = positionMs / 1000;
+  if (spotifyMediaPlaybackState === "playing") {
+    if (spotifyProgressTimer === null) {
+      spotifyProgressTimer = setInterval(() => {
+        if (!spotifyCurrentEmbed || spotifyMediaPlaybackState !== "playing") {
+          clearInterval(spotifyProgressTimer);
+          spotifyProgressTimer = null;
+          return;
+        }
+        updatePlayer();
+        updateMediaSession();
+      }, 1000);
+    }
+  } else if (spotifyProgressTimer !== null) {
+    clearInterval(spotifyProgressTimer);
+    spotifyProgressTimer = null;
+  }
+  if (spotifyMediaPlaybackState === "playing") setSpotifyStatus("Spotify está reproduciendo desde su widget oficial. La disponibilidad de canciones completas depende de Spotify.", "success");
+  else if (spotifyMediaPlaybackState === "paused") setSpotifyStatus("Spotify está en pausa. Podés continuar desde el widget o con el botón Reproducir de Ritmo.", "info");
+  updatePlayer();
+  updateMediaSession();
+}
+function createSpotifyFallback(host, descriptor, requestId) {
+  if (requestId !== spotifyEmbedRequestId || !host?.isConnected) return;
+  spotifyControllerReady = false;
+  const frame = document.createElement("iframe");
+  frame.title = descriptor.label + " · Widget oficial de Spotify";
+  frame.src = descriptor.embedUrl;
+  frame.width = "100%";
+  frame.height = descriptor.type === "track" ? "152" : "352";
+  frame.loading = "lazy";
+  frame.referrerPolicy = "strict-origin-when-cross-origin";
+  frame.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
+  frame.setAttribute("allowfullscreen", "");
+  frame.style.border = "0";
+  frame.style.borderRadius = "12px";
+  host.replaceChildren(frame);
+  setSpotifyStatus("Widget oficial cargado. Usá los controles dentro de Spotify; este navegador no habilitó los controles integrados de Ritmo.", "warning");
+  updatePlayer();
+}
+async function loadSpotifyEmbed(rawLink, { persist = true } = {}) {
+  const descriptor = parseSpotifyShareLink(rawLink);
+  if (!descriptor) {
+    setSpotifyStatus("Pegá un enlace https://open.spotify.com válido de una canción, álbum, lista, artista o podcast. No se admiten webs parecidas ni enlaces acortados.", "error");
+    return false;
+  }
+  stopSpotifyEmbed({ preserveSaved: true, refresh: false });
+  const requestId = ++spotifyEmbedRequestId;
+  spotifyCurrentEmbed = { ...descriptor, title: descriptor.label };
+  spotifyMediaPlaybackState = "paused";
+  spotifyCurrentTime = 0;
+  spotifyDuration = Number.NaN;
+  if (persist) {
+    try { localStorage.setItem(SPOTIFY_EMBED_STORAGE, descriptor.canonicalUrl); } catch {}
+  }
+  try {
+    cancelPendingPlaybackIntent();
+    if (youtubeHistory.getCurrentSession() || !$("#youtube-player-wrap").hidden) stopYoutubePlayback();
+    await stopNativePlayback();
+    for (const engine of [defaultAudio, equalizedAudio]) {
+      engine.pause();
+      engine.removeAttribute("src");
+      engine.load();
+    }
+    audio = defaultAudio;
+    releaseUnusedObjectURLs(null);
+    state.currentId = null;
+    state.queueIds = null;
+    render();
+  } catch (error) {
+    console.warn("No se pudo detener la fuente anterior antes de abrir Spotify.", error);
+  }
+  if (requestId !== spotifyEmbedRequestId || !spotifyCurrentEmbed) return false;
+  const shell = $("#spotify-embed-shell");
+  const mount = $("#spotify-embed-mount");
+  shell.hidden = false;
+  mount.replaceChildren();
+  const host = document.createElement("div");
+  host.className = "spotify-embed-host";
+  mount.append(host);
+  $("#spotify-share-link").value = descriptor.canonicalUrl;
+  setSpotifyStatus("Cargando el widget oficial de Spotify…", "info");
+  updatePlayer();
+  updateMediaSession();
+  fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(descriptor.canonicalUrl), {
+    mode: "cors", credentials: "omit", cache: "no-store"
+  }).then(response => response.ok ? response.json() : null).then(data => {
+    if (requestId !== spotifyEmbedRequestId || !spotifyCurrentEmbed || !data || typeof data.title !== "string") return;
+    spotifyCurrentEmbed.title = data.title.slice(0, 220) || descriptor.label;
+    updatePlayer();
+    updateMediaSession();
+  }).catch(() => {});
+  try {
+    const api = await ensureSpotifyIFrameApi();
+    if (requestId !== spotifyEmbedRequestId || !spotifyCurrentEmbed) return false;
+    api.createController(host, {
+      uri: descriptor.uri, width: "100%", height: descriptor.type === "track" ? "152" : "352"
+    }, controller => {
+      if (requestId !== spotifyEmbedRequestId || !spotifyCurrentEmbed) {
+        try { controller.destroy(); } catch {}
+        return;
+      }
+      spotifyEmbedController = controller;
+      spotifyControllerReady = true;
+      controller.addListener("ready", () => {
+        if (requestId !== spotifyEmbedRequestId) return;
+        setSpotifyStatus("Widget listo. Tocá reproducir en Spotify o usá los controles de Ritmo. Spotify puede pedir cuenta o reproducir vistas previas.", "success");
+        updatePlayer();
+      });
+      controller.addListener("playback_update", event => spotifyPlaybackUpdate(event?.data, requestId));
+      controller.addListener("playback_started", event => {
+        if (requestId !== spotifyEmbedRequestId) return;
+        const playingUri = String(event?.data?.playingURI || "");
+        if (playingUri.startsWith("spotify:")) spotifyCurrentEmbed.playingURI = playingUri;
+      });
+      setSpotifyStatus("Widget oficial listo. La disponibilidad de la pista la decide Spotify.", "success");
+      updatePlayer();
+      updateMediaSession();
+    });
+  } catch (error) {
+    if (requestId !== spotifyEmbedRequestId) return false;
+    createSpotifyFallback(host, descriptor, requestId);
+    console.warn("Spotify iFrame API no disponible; se usa el embed directo.", error);
+  }
+  return true;
+}
+function renderRadioStations(stations) {
+  const root = $("#radio-results");
+  root.innerHTML = (stations || []).map(station => {
+    const details = [station.country, station.language, station.codec, station.bitrate ? station.bitrate + " kbps" : ""].filter(Boolean).join(" · ");
+    const tags = station.tags ? '<p class="radio-station-tags">' + escapeHTML(station.tags) + '</p>' : "";
+    const homeLink = station.homepage
+      ? '<a class="archive-download-link" href="' + escapeHTML(station.homepage) + '" target="_blank" rel="noopener noreferrer">Web de la emisora ↗</a>'
+      : "";
+    const buttons = '<button type="button" class="button button-primary" data-radio-play="' + escapeHTML(station.stationuuid) + '">▶ Escuchar</button>' +
+      '<button type="button" class="button button-soft" data-radio-add="' + escapeHTML(station.stationuuid) + '">Agregar</button>';
+    return '<article class="archive-result radio-station-result"><div class="archive-result-main">' +
+      '<div class="archive-result-label">RADIO BROWSER · STREAM HTTPS</div><strong>' + escapeHTML(station.name) + '</strong>' +
+      '<small>' + escapeHTML(details || "Emisión online") + '</small>' + tags +
+      '<div class="archive-result-actions">' + buttons + homeLink + '</div></div></article>';
+  }).join("");
+}
+async function searchRadioStations() {
+  const input = $("#radio-query");
+  const button = $("#radio-search-button");
+  const status = $("#radio-status");
+  const query = input.value.trim();
+  const filter = $("#radio-filter").value;
+  if (!query) {
+    status.textContent = "Escribí un nombre, género, país o idioma para buscar emisoras.";
+    input.focus();
+    return;
+  }
+  if (!navigator.onLine) {
+    status.textContent = "El directorio de radios necesita conexión. Tu biblioteca local sigue disponible offline.";
+    return;
+  }
+  radioSearchAbortController?.abort();
+  const requestId = ++radioSearchRequestId;
+  const controller = new AbortController();
+  radioSearchAbortController = controller;
+  button.disabled = true;
+  button.textContent = "Buscando…";
+  status.textContent = "Buscando en el directorio público de Radio Browser…";
+  try {
+    const result = await searchRadioBrowser(query, filter, { signal: controller.signal });
+    if (requestId !== radioSearchRequestId) return;
+    radioStations = result.stations;
+    renderRadioStations(radioStations);
+    if (radioStations.length) {
+      status.textContent = "Encontré " + radioStations.length + " emisoras con stream HTTPS reproducible. La disponibilidad puede cambiar y la radio original controla la emisión.";
+      status.dataset.tone = "success";
+    } else if (result.received > 0) {
+      status.textContent = "El directorio devolvió " + result.received + " coincidencias, pero ninguna tenía un stream HTTPS compatible. Probá otro filtro.";
+      status.dataset.tone = "warning";
+    } else {
+      status.textContent = "No encontré emisoras para esa búsqueda. Probá otro nombre, género, país o idioma.";
+      status.dataset.tone = "info";
+    }
+  } catch (error) {
+    if (requestId === radioSearchRequestId && error?.name !== "AbortError") {
+      status.textContent = error?.message || "No se pudo consultar Radio Browser.";
+      status.dataset.tone = "error";
+    }
+  } finally {
+    if (requestId === radioSearchRequestId) {
+      button.disabled = false;
+      button.textContent = "Buscar radios";
+      if (radioSearchAbortController === controller) radioSearchAbortController = null;
+    }
+  }
+}
+async function addRadioStation(stationuuid, playNow = false) {
+  const station = radioStations.find(item => item.stationuuid === stationuuid);
+  if (!station || !station.url) {
+    toast("Esta emisora no tiene un stream HTTPS compatible disponible.");
+    return;
+  }
+  let track = state.tracks.find(item => item.kind === "url" && item.url === station.url);
+  if (!track) {
+    track = {
+      id: id(), kind: "url", url: station.url, name: station.name, title: station.name,
+      artist: [station.country, station.language].filter(Boolean).join(" · ") || "Radio online",
+      album: ["Radio Browser", station.codec].filter(Boolean).join(" · "),
+      favorite: false, addedAt: Date.now(), duration: 0, lastPlayedAt: 0,
+      sourceProvider: "Radio Browser", sourcePage: station.homepage || station.url,
+      radioStationUuid: station.stationuuid, radioTags: station.tags
+    };
+    try {
+      await saveTrack(track);
+      state.tracks = await getAllTracks();
+      render();
+      toast("Radio agregada a tu biblioteca. El stream sigue llegando desde la emisora.");
+    } catch (error) {
+      toast(error?.message || "No se pudo guardar la emisora.");
+      return;
+    }
+  } else toast("Esta emisora ya estaba en tu biblioteca.");
+  if (playNow) {
+    void fetch(radioStationClickUrl(station.stationuuid), {
+      mode: "cors", credentials: "omit", cache: "no-store"
+    }).catch(() => {});
+    await playTrack(track.id);
+  }
+}
+
 const YOUTUBE_KEY_STORAGE = "ritmo.youtube-data-api-key.v1";
 const YOUTUBE_SEARCH_CACHE_STORAGE = "ritmo.youtube-search-cache.v1";
 function readYoutubeSearchCache() {
@@ -1945,6 +2310,33 @@ function openExternal(url) {
   link.click();
   link.remove();
 }
+
+function bindOnlineServiceEvents() {
+  $("#spotify-embed-form").addEventListener("submit", event => {
+    event.preventDefault();
+    void loadSpotifyEmbed($("#spotify-share-link").value);
+  });
+  $("#spotify-search-form").addEventListener("submit", event => {
+    event.preventDefault();
+    const query = $("#spotify-search-query").value.trim();
+    if (!query) { $("#spotify-search-query").focus(); return; }
+    openExternal("https://open.spotify.com/search/" + encodeURIComponent(query));
+  });
+  $("#radio-search-form").addEventListener("submit", event => {
+    event.preventDefault();
+    void searchRadioStations();
+  });
+  $("#radio-results").addEventListener("click", event => {
+    const play = event.target.closest("[data-radio-play]");
+    if (play) { void addRadioStation(play.dataset.radioPlay, true); return; }
+    const add = event.target.closest("[data-radio-add]");
+    if (add) void addRadioStation(add.dataset.radioAdd, false);
+  });
+  let savedLink = "";
+  try { savedLink = localStorage.getItem(SPOTIFY_EMBED_STORAGE) || ""; } catch {}
+  if (savedLink) void loadSpotifyEmbed(savedLink, { persist: false });
+}
+
 const ARCHIVE_PAGE_SIZE = 12;
 const ARCHIVE_AUDIO_EXTENSIONS = /\.(mp3|m4a|aac|wav|wave|ogg|oga|opus|flac|aiff|aif|mp2)$/i;
 function archiveItemURL(identifier) {
@@ -2350,6 +2742,7 @@ async function searchYoutube(pageToken = "") {
   }
 }
 function playYoutubeVideo(videoId, title = "Video de YouTube") {
+  stopSpotifyEmbed({ preserveSaved: true, refresh: false });
   if (!navigator.onLine) { toast("Para reproducir YouTube necesitás conexión. Los resultados guardados y la biblioteca local siguen disponibles offline."); return; }
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) {
     toast("El enlace de YouTube no contiene un ID de video válido.");
@@ -2434,6 +2827,7 @@ function bindEvents() {
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });
   folderPicker.addEventListener("change", async () => { await importFiles(folderPicker.files); folderPicker.value = ""; });
   $("#youtube-search-form").addEventListener("submit", event => { event.preventDefault(); searchYoutube(); });
+  bindOnlineServiceEvents();
   $("#archive-search-form").addEventListener("submit", event => { event.preventDefault(); searchArchiveAudio(false); });
   $("#archive-load-more").addEventListener("click", () => searchArchiveAudio(true));
   $("#archive-results").addEventListener("click", event => {
@@ -2534,7 +2928,7 @@ function bindEvents() {
     if (!queue.open) queue.showModal();
   });
   $("#play-button").addEventListener("click", () => {
-    if (!currentTrack()) return;
+    if (!currentTrack() && !youtubeHistory.getCurrentSession() && !(spotifyCurrentEmbed && spotifyControllerReady)) return;
     // A request can be pending while playbackIsPaused() is still true. Treat a tap
     // during that window as cancellation, not as another Play request.
     if (pendingPlaybackRequestId !== null || !playbackIsPaused()) pauseCurrentTrack();
