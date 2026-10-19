@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v32";
+const CACHE_NAME = "ritmo-shell-v33";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,7 +12,8 @@ const APP_SHELL = [
   "./src/import-fingerprint.js",
   "./src/youtube-player-errors.js",
   "./manifest.webmanifest",
-  "./assets/icon.svg"
+  "./assets/icon.svg",
+  "./pngtuber-capibara.png"
 ];
 
 self.addEventListener("install", event => {

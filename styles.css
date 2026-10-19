@@ -381,3 +381,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .storage-picker-note { margin: 10px 0 0; max-width: 560px; color: #aaa4b8; font-size: 12px; line-height: 1.5; }
 .storage-picker-note strong { color: #eedfd9; font-weight: 700; }
 @media (max-width: 820px) { .storage-picker-note { max-width: 100%; font-size: 11px; } }
+
+
+/* Ritmo's tiny character companion: reuse the owner's PNG, animate only during playback. */
+.character-companion{position:fixed;right:18px;bottom:calc(var(--player) + 9px);z-index:15;width:96px;height:82px;display:grid;place-items:center;pointer-events:none;user-select:none}
+.character-companion[hidden]{display:none!important}
+.character-companion img{position:relative;z-index:1;display:block;width:82px;height:82px;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 7px 9px #08060580);transform-origin:50% 90%;will-change:transform}
+.character-companion.is-playing img{animation:ritmoCompanionWalk 1.12s ease-in-out infinite}
+.character-companion-note{position:absolute;z-index:2;top:1px;right:7px;color:#e7cfc4;font:800 21px/1 Manrope,sans-serif;text-shadow:0 2px 8px #0009;opacity:0;transform:translateY(6px) rotate(-14deg)}
+.character-companion.is-playing .character-companion-note{animation:ritmoCompanionNote 1.7s ease-in-out infinite}
+@keyframes ritmoCompanionWalk{0%,100%{transform:translate3d(-7px,0,0) rotate(-4deg)}25%{transform:translate3d(-2px,-5px,0) rotate(2deg)}50%{transform:translate3d(7px,0,0) rotate(4deg)}75%{transform:translate3d(2px,-5px,0) rotate(-2deg)}}
+@keyframes ritmoCompanionNote{0%,100%{opacity:0;transform:translateY(7px) rotate(-14deg)}35%,70%{opacity:.95;transform:translateY(-2px) rotate(8deg)}}
+@media(max-width:820px){.character-companion{right:8px;bottom:calc(var(--player) + var(--mobile-nav-height) + env(safe-area-inset-bottom,0px) + 7px);width:76px;height:70px}.character-companion img{width:69px;height:69px}.character-companion-note{right:5px;font-size:18px}}
+@media(max-width:380px){.character-companion{right:3px;width:64px;height:62px}.character-companion img{width:62px;height:62px}}
+@media(prefers-reduced-motion:reduce){.character-companion.is-playing img,.character-companion.is-playing .character-companion-note{animation:none!important}.character-companion.is-playing img{transform:none}}

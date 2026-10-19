@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const webDir = path.join(root, "www");
-const files = ["index.html", "styles.css", "sw.js", "manifest.webmanifest"];
+const files = ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "pngtuber-capibara.png"];
 const directories = ["src", "assets"];
 
 await rm(webDir, { recursive: true, force: true });
@@ -55,7 +55,7 @@ const requiredFiles = [
   "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
   "src/app.js", "src/storage.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js",
-  "src/youtube-player-errors.js", "assets/icon.svg"
+  "src/youtube-player-errors.js", "assets/icon.svg", "pngtuber-capibara.png"
 ];
 for (const name of requiredFiles) {
   const info = await stat(path.join(webDir, name)).catch(() => null);

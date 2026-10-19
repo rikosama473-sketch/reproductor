@@ -20,6 +20,10 @@ const usedIds = new Set([...app.matchAll(/\$\("#([a-zA-Z0-9_-]+)"\)/g)].map(matc
 const missingIds = [...usedIds].filter(id => !ids.has(id));
 assert.deepEqual(missingIds, [], "App selectors refer to IDs missing from index.html");
 assert.match(html, /<audio id="audio-engine"/, "HTML must include the audio engine");
+assert.match(html, /id="character-companion"/, "The player's animated character companion must exist");
+assert.match(html, /src="\.\/pngtuber-capibara\.png"/, "The companion must reuse the supplied character artwork");
+assert.match(app, /function syncCharacterCompanion\(playing\)/, "Companion visibility must be synchronized by playback state");
+assert.match(app, /syncCharacterCompanion\(hasMedia && !playbackIsPaused\(\)\)/, "The companion must appear only while media is playing");
 assert.match(html, /manifest\.webmanifest/, "HTML must link to the PWA manifest");
 assert.match(app, /indexedDB|saveManyTracks/, "App must use persistent local library storage");
 assert.match(app, /function scanDeviceMusic/, "Android build must scan local device music");
@@ -31,6 +35,9 @@ assert.match(html, /data-scan-device-music/, "UI must expose device music scanni
 assert.match(storage, /createObjectStore/, "Storage must create its IndexedDB object store");
 assert.match(sw, /addAll\(APP_SHELL\)/, "Service worker must cache the app shell");
 assert.match(css, /--bg:#151312;--panel:#1f1a18;--panel-2:#29221f;--line:#3a302b;[\s\S]*?--purple:#c1a398;--purple-strong:#8b6658;/, "The app palette should use the character-inspired cocoa, cream and muted terracotta colors");
+assert.match(css, /\.character-companion\.is-playing img\{animation:ritmoCompanionWalk/, "The companion must animate while playing");
+assert.match(css, /pointer-events:none/, "The decorative companion must never block player controls");
+assert.match(css, /prefers-reduced-motion:reduce\)[\s\S]*?character-companion\.is-playing img/, "The companion must respect reduced-motion preferences");
 assert.match(appIcon, /stop-color="#c1a398"[\s\S]*?stop-color="#8b6658"/, "The installed app icon should use the same character-inspired palette");
 assert.match(app, /data-delete/, "Library must expose delete actions for imported entries");
 console.log("Ritmo smoke checks passed: " + ids.size + " HTML IDs, " + usedIds.size + " app selectors.");
@@ -70,7 +77,7 @@ assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
 assert.match(html, /id="library-no-results"/, "Library search should expose a no-matches empty state");
-assert.match(sw, /ritmo-shell-v32/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v33/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
 
@@ -99,7 +106,7 @@ assert.match(app, /async function downloadStreamOffline/, "Direct audio URLs sho
 assert.match(app, /MAX_DOWNLOAD_BYTES = 150 \* 1024 \* 1024/, "Offline saving must enforce a bounded download size");
 assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must respect browser CORS and avoid sending credentials");
 assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
-assert.match(sw, /ritmo-shell-v32/, "Service-worker cache must refresh after playback settings are added");
+assert.match(sw, /ritmo-shell-v33/, "Service-worker cache must refresh after playback settings are added");
 console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
 
 
@@ -134,7 +141,7 @@ assert.match(app, /creativecommons\.org/, "The app must verify the declared Crea
 assert.match(app, /function addArchiveFile/, "Catalog tracks should be addable to the local library as remote sources");
 assert.match(app, /function archiveFileURL/, "Catalog file actions must link to the original archive host");
 assert.match(app, /Descargar original/, "Catalog should provide the source's original-file link, not bypass its delivery rules");
-assert.match(sw, /ritmo-shell-v32/, "Service-worker cache should refresh after adding the open-license catalog");
+assert.match(sw, /ritmo-shell-v33/, "Service-worker cache should refresh after adding the open-license catalog");
 console.log("Internet Archive open-license search, metadata verification and original-file link smoke checks passed.");
 
 
@@ -150,7 +157,7 @@ assert.match(app, /function addArchiveFile/, "Verified Archive audio should be a
 assert.match(app, /function archiveFileURL/, "Original files should use Archive.org direct links");
 assert.match(app, /Descargar original/, "Catalog should provide source-file navigation rather than bypass CORS");
 assert.match(app, /track\.sourceProvider === "Internet Archive"/, "Archive tracks should open original files directly where binary servers don't provide CORS");
-assert.match(sw, /ritmo-shell-v32/, "Service Worker cache should refresh with the open-license catalog");
+assert.match(sw, /ritmo-shell-v33/, "Service Worker cache should refresh with the open-license catalog");
 console.log("Internet Archive catalog, license checks, source links and offline import guidance smoke checks passed.");
 
 
@@ -248,11 +255,11 @@ assert.match(html, /id="expanded-seek-bar"/, "Expanded player must include a fun
 assert.match(app, /function renderLibraryGrid\(/, "The visual library should render track artwork cards");
 assert.match(app, /function setLibraryMode\(/, "Library presentation changes must be handled by a stateful control");
 assert.match(app, /expanded-volume-bar[\s\S]*?dispatchEvent\(new Event\("input"/, "Expanded volume control must route through the standard persisted volume handler");
-assert.match(sw, /ritmo-shell-v32/, "Service-worker shell cache must refresh for the interface redesign");
+assert.match(sw, /ritmo-shell-v33/, "Service-worker shell cache must refresh for the interface redesign");
 console.log("Library grid/list, immersive playback, and synchronized expanded controls passed.");
 
 assert.match(app, /button\.tagName !== "BUTTON" && \(event\.key === "Enter" \|\| event\.key === " "\)/, "Native play buttons must not manually replay their own keyboard activation");
-assert.match(sw, /ritmo-shell-v32/, "PWA shell cache must refresh for the keyboard activation fix");
+assert.match(sw, /ritmo-shell-v33/, "PWA shell cache must refresh for the keyboard activation fix");
 
 
 assert.match(html, /id="app-update-banner"/, "PWA should announce when an updated controller is taking over an already-controlled page");
@@ -261,7 +268,7 @@ assert.match(app, /const hadController = Boolean\(navigator\.serviceWorker\.cont
 assert.match(app, /if \(hadController && !updatePromptShown\) \{[\s\S]*?updatePromptShown = true;[\s\S]*?\$\("#app-update-banner"\)\.hidden = false;/, "PWA update prompt should be shown only once after an actual controller replacement");
 assert.match(app, /app-update-now[\s\S]*?window\.location\.reload\(\)/, "The update action must reload the page to synchronize its HTML and JavaScript");
 assert.match(app, /setOutputVolume\(audioPrefs\.volume\);\s*\$\("#expanded-volume-bar"\)\.value = String\(audioPrefs\.volume\)/, "Mute/unmute must route through the shared output volume controller and keep the expanded slider in sync");
-assert.match(sw, /ritmo-shell-v32/, "PWA shell cache should advance with the update prompt and mute sync fixes");
+assert.match(sw, /ritmo-shell-v33/, "PWA shell cache should advance with the update prompt and mute sync fixes");
 console.log("PWA update prompt and expanded mute synchronization checks passed.");
 
 

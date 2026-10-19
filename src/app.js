@@ -1040,10 +1040,18 @@ function render() {
   updatePlayer();
   updateConnection();
 }
+function syncCharacterCompanion(playing) {
+  const companion = $("#character-companion");
+  if (!companion) return;
+  const isPlaying = Boolean(playing);
+  companion.hidden = !isPlaying;
+  companion.classList.toggle("is-playing", isPlaying);
+}
 function updatePlayer() {
   const track = currentTrack();
   const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
   const hasMedia = Boolean(track || youtubeSession);
+  syncCharacterCompanion(hasMedia && !playbackIsPaused());
   $("#player-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : "Todavía no suena nada";
   $("#player-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : "Elegí una canción de tu biblioteca";
   $("#play-button").disabled = !hasMedia;
