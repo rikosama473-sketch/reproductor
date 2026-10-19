@@ -4,6 +4,7 @@ import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
+import { importedFileFingerprint } from "./import-fingerprint.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -103,10 +104,6 @@ function metadataForFile(file) {
   const clean = titleFromFilename(file.name);
   const split = clean.split(" - ");
   return { title: split.length > 1 ? split.slice(1).join(" - ").trim() : clean, artist: split.length > 1 ? split[0].trim() : "Artista desconocido" };
-}
-function importedFileFingerprint(fileOrTrack) {
-  const path = String(fileOrTrack.webkitRelativePath || fileOrTrack.sourcePath || fileOrTrack.name || "").replace(/\\/g, "/");
-  return path + "|" + fileOrTrack.size + "|" + fileOrTrack.lastModified;
 }
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
@@ -1552,6 +1549,7 @@ async function openAudioImport() {
     const nativeTracks = [];
     const fallbackFiles = [];
     const fallbackNativePaths = new Map();
+    const fallbackDedupeKeys = new Map();
     for (const item of selected) {
       if (!item?.uri || !item?.name) continue;
       const uri = String(item.uri);
@@ -1591,6 +1589,9 @@ async function openAudioImport() {
         lastModified: Number(item.lastModified) || Date.now()
       });
       fallbackFiles.push(importedFile);
+      // Stable URI identity keeps different provider folders distinct even when
+      // filenames, file sizes and modification timestamps happen to match.
+      fallbackDedupeKeys.set(importedFile, uri);
       // Keep the resolved native route for Media3 notification/lock-screen support,
       // while persisting the Blob as an offline fallback if Android clears its cache.
       if (resolved?.path) fallbackNativePaths.set(importedFile, String(resolved.path));
@@ -1603,7 +1604,10 @@ async function openAudioImport() {
       render();
       toast(nativeTracks.length + " archivo(s) agregado(s) con reproducción nativa y controles del sistema.");
     }
-    if (fallbackFiles.length) await importFiles(fallbackFiles, { nativePathsByFile: fallbackNativePaths });
+    if (fallbackFiles.length) await importFiles(fallbackFiles, {
+      nativePathsByFile: fallbackNativePaths,
+      dedupeKeysByFile: fallbackDedupeKeys
+    });
     if (!nativeTracks.length && !fallbackFiles.length) {
       toast("Los archivos seleccionados ya están en tu biblioteca o el proveedor no devolvió un acceso reutilizable.");
     }
@@ -1753,10 +1757,10 @@ async function browseAudioFolder() {
 async function importFiles(fileList, options = {}) {
   const files = [...fileList].filter(file => file.type.startsWith("audio/") || /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file.name));
   if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
-  const existing = new Set(state.tracks.filter(track => isLocal(track)).map(importedFileFingerprint));
+  const existing = new Set(state.tracks.filter(track => isLocal(track)).map(track => importedFileFingerprint(track)));
   const uniqueFiles = [];
   for (const file of files) {
-    const fingerprint = importedFileFingerprint(file);
+    const fingerprint = importedFileFingerprint(file, options);
     if (!existing.has(fingerprint)) { existing.add(fingerprint); uniqueFiles.push(file); }
   }
   if (!uniqueFiles.length) { toast("Esos archivos ya están en tu biblioteca."); return; }
@@ -1771,6 +1775,7 @@ async function importFiles(fileList, options = {}) {
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "",
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
+          dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
           blob: file, favorite: false, addedAt: Date.now() + saved, duration: 0, lastPlayedAt: 0 };
       }));
       await saveManyTracks(tracks);
