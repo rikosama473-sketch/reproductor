@@ -42,7 +42,7 @@ assert.match(app, /Boolean\(!options\.forceWebPlayback &&\s*\(track\.nativeUri \
 assert.match(app, /const isNativeDirectStream = track\.kind === "url"[^\n]*\n\s*\/\^https:/, "Only HTTPS direct audio URLs are candidates for native playback");
 assert.match(app, /const nativeUri = track\.nativeUri \|\| \(track\.kind === "url" \? track\.url : ""\)/, "Direct audio URLs must be sent to the Media3 bridge");
 assert.match(app, /nativeUrlFallbackInProgressFor !== failedTrack\.id[\s\S]*?forceWebPlayback: true/, "Asynchronous Media3 errors must fall back to HTML audio only once");
-assert.match(app, /acceptNativePlaybackState\(await nativePlayer\.getState\(\)\);[\s\S]*?Never let this stale play request clear the newer request's intent/, "A stale Media3 response must not overwrite a newer fallback request");
+assert.match(app, /const nativeState = await nativePlayer\.getState\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;\s*acceptNativePlaybackState\(nativeState\);/, "A superseded native playback request must be discarded before changing UI state");
 assert.match(app, /setEqualizer: invoke\("setEqualizer"\)/, "The JS bridge must expose live native EQ updates");
 assert.match(app, /\.\.\.nativeEqualizerPayload\(\)/, "Native playback must receive saved EQ preset values");
 assert.match(plugin, /public void setEqualizer\(PluginCall call\)/, "Android bridge must provide a live EQ method");
@@ -52,6 +52,10 @@ assert.match(service, /getCenterFreq\(band\)[\s\S]*?setBandLevel\(band, \(short\
 assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
 assert.match(app, /path: nativeUri \? "" : track\.nativePath/, "Native URI streams and files should leave the path empty; path-only files should preserve the cached path");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
+assert.match(app, /let nativePlaybackPollGeneration = 0;/, "Native playback state polls must have a generation");
+assert.match(app, /function invalidateNativePlaybackPolling\(\) \{[\s\S]*?nativePlaybackPollGeneration \+= 1;/, "Playback changes must invalidate pending state polls");
+assert.match(app, /const generation = invalidateNativePlaybackPolling\(\);[\s\S]*?if \(generation !== nativePlaybackPollGeneration\) return;[\s\S]*?if \(generation === nativePlaybackPollGeneration\) nativePlaybackPollInFlight = false;/, "Late polls must not overwrite newer playback state or unlock another poll");
+assert.match(app, /document\.addEventListener\("visibilitychange",[\s\S]*?startNativePlaybackPolling\(\)/, "Returning to the app must resync native playback state immediately");
 assert.match(java, /public void pruneAudioCache\(PluginCall call\)/, "The native bridge must prune stale private audio cache files");
 assert.match(java, /AUDIO_CACHE_ORPHAN_GRACE_MS = 60L \* 60L \* 1000L/, "Cache cleanup must leave recently imported audio alone");
 assert.match(java, /candidate\.getParentFile\(\)\.equals\(folder\)/, "Cache cleanup must be confined to the managed audio-cache directory");

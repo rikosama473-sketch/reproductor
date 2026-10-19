@@ -33,6 +33,7 @@ let playbackRequestId = 0;
 let pendingPlaybackRequestId = null;
 let nativePlaybackPollTimer = null;
 let nativePlaybackPollInFlight = false;
+let nativePlaybackPollGeneration = 0;
 let nativeUrlFallbackInProgressFor = null;
 let youtubeSearchRequestId = 0;
 let youtubeSearchAbortController = null;
@@ -225,11 +226,16 @@ function seekPlayback(seconds) {
   }
   try { audio.currentTime = position; } catch {}
 }
-function stopNativePlayback() {
-  const wasActive = state.nativePlayback.active;
+function invalidateNativePlaybackPolling() {
+  nativePlaybackPollGeneration += 1;
   if (nativePlaybackPollTimer) clearInterval(nativePlaybackPollTimer);
   nativePlaybackPollTimer = null;
   nativePlaybackPollInFlight = false;
+  return nativePlaybackPollGeneration;
+}
+function stopNativePlayback() {
+  const wasActive = state.nativePlayback.active;
+  invalidateNativePlaybackPolling();
   state.nativePlayback = { active: false, isPlaying: false, currentTime: 0, duration: 0, playbackState: "idle", trackId: null, endedHandled: false };
   if (wasActive) {
     const plugin = nativePlaybackPlugin();
@@ -278,17 +284,26 @@ function acceptNativePlaybackState(result) {
   updateMediaSession();
 }
 function startNativePlaybackPolling() {
-  if (nativePlaybackPollTimer) clearInterval(nativePlaybackPollTimer);
+  const generation = invalidateNativePlaybackPolling();
   const poll = async () => {
-    if (!state.nativePlayback.active || nativePlaybackPollInFlight) return;
+    if (generation !== nativePlaybackPollGeneration || !state.nativePlayback.active || nativePlaybackPollInFlight) return;
     const plugin = nativePlaybackPlugin();
     if (!plugin?.getState) return;
     nativePlaybackPollInFlight = true;
-    try { acceptNativePlaybackState(await plugin.getState()); }
-    catch (error) { if (state.nativePlayback.active) showPlaybackStatus(error?.message || "No se pudo consultar el estado de reproducción nativa.", "warning", true); }
-    finally { nativePlaybackPollInFlight = false; }
+    try {
+      const result = await plugin.getState();
+      if (generation !== nativePlaybackPollGeneration) return;
+      acceptNativePlaybackState(result);
+    } catch (error) {
+      if (generation === nativePlaybackPollGeneration && state.nativePlayback.active) {
+        showPlaybackStatus(error?.message || "No se pudo consultar el estado de reproducción nativa.", "warning", true);
+      }
+    } finally {
+      // An obsolete poll must not clear the in-flight guard for a newer session.
+      if (generation === nativePlaybackPollGeneration) nativePlaybackPollInFlight = false;
+    }
   };
-  poll();
+  void poll();
   nativePlaybackPollTimer = setInterval(poll, 700);
 }
 
@@ -1274,6 +1289,8 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
+  // Invalidate pending state reads as soon as a newer play request arrives.
+  if (state.nativePlayback.active) invalidateNativePlaybackPolling();
   if (!options.forceWebPlayback) nativeUrlFallbackInProgressFor = null;
   const isNativeDirectStream = track.kind === "url" && typeof track.url === "string" &&
     /^https:\/\//i.test(track.url) && !/\.m3u8(?:[?#]|$)/i.test(track.url);
@@ -1338,7 +1355,9 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         });
         if (!isCurrentPlaybackRequest()) return;
         startNativePlaybackPolling();
-        acceptNativePlaybackState(await nativePlayer.getState());
+        const nativeState = await nativePlayer.getState();
+        if (!isCurrentPlaybackRequest()) return;
+        acceptNativePlaybackState(nativeState);
         // acceptNativePlaybackState can switch tracks or begin a web fallback.
         // Never let this stale play request clear the newer request's intent.
         if (!isCurrentPlaybackRequest()) return;
@@ -2388,6 +2407,10 @@ function updateYoutubeKeyStatus(message = "") {
 }
 
 function bindEvents() {
+  document.addEventListener("visibilitychange", () => {
+    // WebView/browser timers can be throttled while hidden; resync immediately on return.
+    if (!document.hidden && state.nativePlayback.active) startNativePlaybackPolling();
+  });
   $("#volume-bar").value = String(audioPrefs.volume);
   try { setOutputVolume(audioPrefs.volume); } catch (error) { console.warn("No se pudo restaurar el volumen inicial; la interfaz seguirá disponible.", error); }
   if (audioPrefs.volume > 0.001) audioPrefs.lastAudibleVolume = audioPrefs.volume;
