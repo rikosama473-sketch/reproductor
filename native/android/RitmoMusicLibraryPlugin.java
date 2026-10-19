@@ -517,11 +517,28 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             throw new IllegalStateException("No se pudo actualizar el archivo temporal de audio.");
         }
         if (!temporary.renameTo(output)) {
-            try (FileInputStream input = new FileInputStream(temporary);
-                 FileOutputStream stream = new FileOutputStream(output)) {
-                byte[] buffer = new byte[64 * 1024];
-                int count;
-                while ((count = input.read(buffer)) != -1) stream.write(buffer, 0, count);
+            // Never stream directly into the final cache path: a failed copy could leave a
+            // non-empty partial file that the fast-path above would incorrectly reuse.
+            File staged = new File(folder, key + ".copying");
+            try {
+                if (staged.exists() && !staged.delete()) {
+                    throw new IllegalStateException("No se pudo limpiar una copia temporal de audio anterior.");
+                }
+                try (FileInputStream input = new FileInputStream(temporary);
+                     FileOutputStream stream = new FileOutputStream(staged)) {
+                    byte[] buffer = new byte[64 * 1024];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) stream.write(buffer, 0, count);
+                    stream.getFD().sync();
+                }
+                if (!staged.renameTo(output)) {
+                    throw new IllegalStateException("No se pudo finalizar la copia temporal de audio.");
+                }
+            } catch (Exception error) {
+                if (staged.exists() && !staged.delete()) {
+                    error.addSuppressed(new IllegalStateException("No se pudo eliminar la copia incompleta de audio."));
+                }
+                throw error;
             } finally {
                 temporary.delete();
             }

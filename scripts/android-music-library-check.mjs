@@ -45,6 +45,10 @@ assert.match(java, /AUDIO_CACHE_ORPHAN_GRACE_MS = 60L \* 60L \* 1000L/, "Cache c
 assert.match(java, /candidate\.getParentFile\(\)\.equals\(folder\)/, "Cache cleanup must be confined to the managed audio-cache directory");
 assert.match(java, /keepPaths\.contains\(candidate\.getPath\(\)\)/, "Cache cleanup must preserve paths still referenced by the library");
 assert.match(java, /output\.setLastModified\(System\.currentTimeMillis\(\)\)/, "Reused cache entries must be marked recently used before cleanup");
+assert.match(java, /File staged = new File\(folder, key \+ "\.copying"\)/, "The rename fallback must stage the cache copy away from the final readable path");
+assert.match(java, /new FileOutputStream\(staged\)[\s\S]*?stream\.getFD\(\)\.sync\(\)[\s\S]*?if \(!staged\.renameTo\(output\)\)/, "The staged fallback must finish and sync the copy before publishing it");
+assert.match(java, /catch \(Exception error\) \{\s*if \(staged\.exists\(\) && !staged\.delete\(\)\) \{[\s\S]*?throw error;\s*\} finally \{\s*temporary\.delete\(\);\s*\}/, "A failed staged copy must attempt cleanup and propagate the failure");
+assert.doesNotMatch(java, /new FileOutputStream\(output\)/, "The fallback must never stream partial bytes directly into the final cache file");
 assert.match(app, /pruneAudioCache: invoke\("pruneAudioCache"\)/, "The native audio-cache cleanup method must be exposed to the app");
 assert.match(app, /void pruneNativeAudioCache\(\)/, "The UI must run native cache cleanup as a best-effort operation");
 assert.match(app, /state\.tracks = await getAllTracks\(\);[\s\S]*?state\.playlists = await getPlaylists\(\);[\s\S]*?void pruneNativeAudioCache\(\)/, "Track deletion should trigger cache cleanup after refreshing library paths");
