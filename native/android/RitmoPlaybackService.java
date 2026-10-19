@@ -115,8 +115,10 @@ public class RitmoPlaybackService extends MediaSessionService {
     public void onDestroy() {
         releaseNativeEqualizer();
         if (activeInstance == this) activeInstance = null;
-        if (player != null) { player.release(); player = null; }
+        // Release the session before its underlying player so controllers receive
+        // a clean disconnect while the player is still in a valid lifecycle state.
         if (mediaSession != null) { mediaSession.release(); mediaSession = null; }
+        if (player != null) { player.release(); player = null; }
         super.onDestroy();
     }
 }

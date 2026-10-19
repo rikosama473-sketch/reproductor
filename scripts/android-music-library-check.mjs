@@ -72,6 +72,12 @@ assert.match(playbackPlugin, /Uri\.fromFile\(audioFile\)/, "Media3 should suppor
 assert.match(playbackPlugin, /!audioFile\.isFile\(\) \|\| !audioFile\.canRead\(\)/, "Unreadable cached paths must fail clearly so the web audio fallback can be used");
 assert.match(playbackService, /extends MediaSessionService/, "La reproducción en segundo plano debe usar MediaSessionService");
 assert.match(playbackService, /new ExoPlayer\.Builder/, "El servicio debe usar ExoPlayer");
+const serviceDestroyStart = playbackService.indexOf("public void onDestroy()");
+const serviceDestroyEnd = playbackService.indexOf("\n    }", serviceDestroyStart);
+assert.ok(serviceDestroyStart >= 0 && serviceDestroyEnd > serviceDestroyStart, "Media3 service must release its resources in onDestroy");
+const serviceDestroyBody = playbackService.slice(serviceDestroyStart, serviceDestroyEnd);
+assert.ok(serviceDestroyBody.indexOf("mediaSession.release()") >= 0, "The session must be released during service destruction");
+assert.ok(serviceDestroyBody.indexOf("player.release()") > serviceDestroyBody.indexOf("mediaSession.release()"), "MediaSession must be released before its underlying ExoPlayer");
 assert.match(playbackPlugin, /MediaController\.releaseFuture\(future\)/, "El puente debe liberar el controlador Media3 al destruirse");
 assert.match(playbackPlugin, /protected void handleOnDestroy\(\)/, "El puente debe limpiar el controlador al terminar su ciclo de vida");
 assert.match(playbackPlugin, /shouldRelease = controllerFuture == future/, "Un futuro fallido no debe borrar una conexión más nueva");
