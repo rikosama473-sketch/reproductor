@@ -16,3 +16,10 @@ Se tomó como referencia el PNG del personaje alojado en el repositorio: https:/
 
 ## Validación
 El conjunto de pruebas y el APK del tema anterior estaban correctos en el commit `526a6c2f5cbe86822968aca7a878f693f374d430`. Este ajuste de colores requiere una nueva ejecución de CI y compilación antes de declarar validado el tema final.
+
+
+## Refuerzo preventivo de superficies — 19 de octubre de 2026
+
+La revisión posterior detectó que el fondo principal ya era cálido, pero la barra lateral, la barra superior y varios paneles secundarios conservaban colores azul grisáceos de la versión visual anterior. Se armonizaron esos fondos, bordes y textos secundarios con cacao, marrón y crema, manteniendo los colores variables de las miniportadas y los acentos de estado para no borrar distinciones útiles. Se añadió una prueba de regresión para impedir que reaparezcan los tonos antiguos y la caché PWA pasó a `ritmo-shell-v37`.
+
+La verificación automatizada cubre las reglas CSS y el empaquetado. La apariencia final debe revisarse también en móvil y escritorio reales.

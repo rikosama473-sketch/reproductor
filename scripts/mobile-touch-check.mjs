@@ -25,5 +25,5 @@ assert.match(html, /id="mobile-more-toggle"/, "The mobile bar must provide acces
 assert.match(css, /touch-action:\s*manipulation/, "Tap controls must have touch-friendly action handling");
 assert.match(css, /\.mobile-bottom-nav\s*\{[^}]*position:\s*fixed/s, "Mobile navigation must remain available at the bottom of the viewport");
 assert.match(css, /\.mobile-sidebar-scrim:not\(\[hidden\]\)/, "The open drawer must have a functional touch backdrop");
-assert.match(sw, /ritmo-shell-v36/, "The PWA must replace the shell cache after this fix");
+assert.match(sw, /ritmo-shell-v37/, "The PWA must replace the shell cache after this fix");
 console.log("Mobile touch, startup recovery and render-syntax regression checks passed.");
