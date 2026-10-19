@@ -34,7 +34,7 @@ assert.match(app, /bridge\.nativePromise\("RitmoPlayback", method/, "La reproduc
 assert.match(app, /nativePlayer\.play\(/, "Las pistas locales deben entregarse al motor nativo");
 assert.match(app, /Boolean\(\(track\.nativeUri \|\| track\.nativePath\) && nativePlaybackPlugin\(\) && !audioPrefs\.equalizerEnabled\)/, "Native URI tracks and resolved local-path fallbacks should use Media3 when EQ is disabled");
 assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
-assert.match(app, /if \(track\.nativeUri \? "" : track\.nativePath\)/, "Path-only fallback tracks should be passed to the native playback bridge");
+assert.match(app, /path: track\.nativeUri \? "" : track\.nativePath/, "Path-only fallback tracks should be passed to the native playback bridge");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
 assert.match(playbackPlugin, /androidx\.media3\.session\.MediaController/, "El plugin debe controlar Media3");
 assert.match(playbackPlugin, /setMediaItem\(/, "El plugin debe entregar la URI al reproductor nativo");
