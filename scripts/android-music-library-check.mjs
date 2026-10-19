@@ -36,6 +36,15 @@ assert.match(app, /Boolean\(\(track\.nativeUri \|\| track\.nativePath\) && nativ
 assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
 assert.match(app, /path: track\.nativeUri \? "" : track\.nativePath/, "Path-only fallback tracks should be passed to the native playback bridge");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
+assert.match(java, /public void pruneAudioCache\(PluginCall call\)/, "The native bridge must prune stale private audio cache files");
+assert.match(java, /AUDIO_CACHE_ORPHAN_GRACE_MS = 60L \* 60L \* 1000L/, "Cache cleanup must leave recently imported audio alone");
+assert.match(java, /candidate\.getParentFile\(\)\.equals\(folder\)/, "Cache cleanup must be confined to the managed audio-cache directory");
+assert.match(java, /keepPaths\.contains\(candidate\.getPath\(\)\)/, "Cache cleanup must preserve paths still referenced by the library");
+assert.match(java, /output\.setLastModified\(System\.currentTimeMillis\(\)\)/, "Reused cache entries must be marked recently used before cleanup");
+assert.match(app, /pruneAudioCache: invoke\("pruneAudioCache"\)/, "The native audio-cache cleanup method must be exposed to the app");
+assert.match(app, /void pruneNativeAudioCache\(\)/, "The UI must run native cache cleanup as a best-effort operation");
+assert.match(app, /state\.tracks = await getAllTracks\(\);[\s\S]*?state\.playlists = await getPlaylists\(\);[\s\S]*?void pruneNativeAudioCache\(\)/, "Track deletion should trigger cache cleanup after refreshing library paths");
+assert.match(app, /state\.tracks = tracksResult\.value;[\s\S]*?void pruneNativeAudioCache\(\)/, "Startup cleanup must keep paths referenced by the loaded library");
 assert.match(playbackPlugin, /androidx\.media3\.session\.MediaController/, "El plugin debe controlar Media3");
 assert.match(playbackPlugin, /setMediaItem\(/, "El plugin debe entregar la URI al reproductor nativo");
 assert.match(playbackPlugin, /setMediaId\(rawUri == null \|\| rawUri\.trim\(\)\.isEmpty\(\) \? mediaUri\.toString\(\) : rawUri\)/, "Path-only items need a stable media ID instead of an empty URI ID");

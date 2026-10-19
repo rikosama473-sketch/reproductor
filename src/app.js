@@ -136,10 +136,25 @@ function nativeMusicPlugin() {
       pickAudioFiles: invoke("pickAudioFiles"),
       pickAudioFolder: invoke("pickAudioFolder"),
       listAudioFromTree: invoke("listAudioFromTree"),
-      resolveAudioPath: invoke("resolveAudioPath")
+      resolveAudioPath: invoke("resolveAudioPath"),
+      pruneAudioCache: invoke("pruneAudioCache")
     };
   }
   return state.nativeMusicPlugin;
+}
+async function pruneNativeAudioCache() {
+  const plugin = nativeMusicPlugin();
+  if (!plugin?.pruneAudioCache) return;
+  try {
+    const keepPaths = state.tracks.map(track => String(track.nativePath || "")).filter(Boolean);
+    const result = await plugin.pruneAudioCache({ keepPaths });
+    if (Number(result?.failed) > 0) {
+      console.warn("Ritmo no pudo retirar " + Number(result.failed) + " archivo(s) huérfano(s) de su caché de audio.");
+    }
+  } catch (error) {
+    // Cleanup is best-effort: it must never block importing or playing music.
+    console.warn("No se pudo revisar la caché local de audio.", error);
+  }
 }
 function nativePlaybackPlugin() {
   const bridge = window.Capacitor;
@@ -403,6 +418,7 @@ function bindRenderedActions(root) {
       state.objectUrls.delete(track.id);
       state.tracks = await getAllTracks();
       state.playlists = await getPlaylists();
+      void pruneNativeAudioCache();
       if (Array.isArray(state.queueIds)) state.queueIds = state.queueIds.filter(trackId => trackId !== track.id);
       render();
       toast("Se quitó de tu biblioteca.");
@@ -2657,6 +2673,7 @@ async function init() {
   ]);
   if (tracksResult.status === "fulfilled") {
     state.tracks = tracksResult.value;
+    void pruneNativeAudioCache();
   } else {
     $("#home-empty").hidden = false;
   }

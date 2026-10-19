@@ -48,6 +48,7 @@ import java.util.Set;
 )
 public class RitmoMusicLibraryPlugin extends Plugin {
     private static final int MAX_MEDIASTORE_RESULTS = 10000;
+    private static final long AUDIO_CACHE_ORPHAN_GRACE_MS = 60L * 60L * 1000L;
 
     private String audioPermissionAlias() {
         return Build.VERSION.SDK_INT >= 33 ? "audio" : "legacyAudio";
@@ -387,6 +388,59 @@ public class RitmoMusicLibraryPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void pruneAudioCache(PluginCall call) {
+        JSArray rawKeepPaths = call.getArray("keepPaths");
+        Set<String> keepPaths = new HashSet<>();
+        if (rawKeepPaths != null) {
+            for (int i = 0; i < rawKeepPaths.length(); i++) {
+                try {
+                    String rawPath = rawKeepPaths.optString(i, "");
+                    if (rawPath != null && !rawPath.trim().isEmpty()) {
+                        keepPaths.add(new File(rawPath).getCanonicalPath());
+                    }
+                } catch (Exception ignored) {
+                    // Ignore malformed paths; only files inside the managed cache can be deleted.
+                }
+            }
+        }
+
+        try {
+            File folder = new File(getContext().getCacheDir(), "ritmo-audio").getCanonicalFile();
+            int deleted = 0;
+            int failed = 0;
+            int skippedRecent = 0;
+            if (folder.isDirectory()) {
+                File[] entries = folder.listFiles();
+                long cutoff = System.currentTimeMillis() - AUDIO_CACHE_ORPHAN_GRACE_MS;
+                if (entries != null) {
+                    for (File entry : entries) {
+                        File candidate = entry.getCanonicalFile();
+                        // Never follow a symlink or delete a file outside Ritmo's audio cache.
+                        if (!candidate.isFile() || candidate.getParentFile() == null ||
+                            !candidate.getParentFile().equals(folder)) continue;
+                        if (keepPaths.contains(candidate.getPath())) continue;
+                        // Protect audio resolved/imported in the last hour from import/cleanup races.
+                        if (candidate.lastModified() >= cutoff) {
+                            skippedRecent++;
+                            continue;
+                        }
+                        if (candidate.delete()) deleted++;
+                        else failed++;
+                    }
+                }
+            }
+
+            JSObject result = new JSObject();
+            result.put("deleted", deleted);
+            result.put("failed", failed);
+            result.put("skippedRecent", skippedRecent);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("No se pudo limpiar la caché local de audio.", error);
+        }
+    }
+
+    @PluginMethod
     public void resolveAudioPath(PluginCall call) {
         String rawUri = call.getString("uri");
         String name = call.getString("name");
@@ -436,7 +490,11 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         if (safeName.isEmpty()) safeName = "audio";
         String key = sha256Hex(uri.toString());
         File output = new File(folder, key + "-" + safeName);
-        if (output.isFile() && output.length() > 0) return output.getAbsolutePath();
+        if (output.isFile() && output.length() > 0) {
+            // A file reused for a new import must not look stale to concurrent cache cleanup.
+            output.setLastModified(System.currentTimeMillis());
+            return output.getAbsolutePath();
+        }
         File temporary = new File(folder, key + ".tmp");
         try (InputStream input = getContext().getContentResolver().openInputStream(uri);
              FileOutputStream stream = new FileOutputStream(temporary)) {
