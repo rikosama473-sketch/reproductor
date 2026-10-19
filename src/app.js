@@ -161,10 +161,28 @@ function nativePlaybackPlugin() {
     state.nativePlayerPlugin = {
       play: invoke("play"), pause: invoke("pause"), resume: invoke("resume"),
       seekTo: invoke("seekTo"), setVolume: invoke("setVolume"),
+      setEqualizer: invoke("setEqualizer"),
       getState: invoke("getState"), stop: invoke("stop")
     };
   }
   return state.nativePlayerPlugin;
+}
+function nativeEqualizerPayload() {
+  return {
+    enabled: Boolean(audioPrefs.equalizerEnabled),
+    bass: Math.max(-12, Math.min(12, Number(audioPrefs.bass) || 0)),
+    mid: Math.max(-12, Math.min(12, Number(audioPrefs.mid) || 0)),
+    treble: Math.max(-12, Math.min(12, Number(audioPrefs.treble) || 0))
+  };
+}
+async function applyNativeEqualizerPreferences() {
+  const plugin = nativePlaybackPlugin();
+  if (!state.nativePlayback.active || !plugin?.setEqualizer) return false;
+  const result = await plugin.setEqualizer(nativeEqualizerPayload());
+  if (audioPrefs.equalizerEnabled && result?.supported === false) {
+    $("#eq-status").textContent = "Android no ofrece un ecualizador de sesión compatible en este dispositivo. La reproducción y los controles del sistema siguen activos.";
+  }
+  return true;
 }
 function playbackIsPaused() {
   if (state.nativePlayback.active) return !state.nativePlayback.isPlaying;
@@ -232,7 +250,9 @@ function acceptNativePlaybackState(result) {
     }
   }
   if (result.error) showPlaybackStatus("Android no pudo reproducir esta pista: " + result.error, "error", true);
-  else if (state.nativePlayback.playbackState === "ready") showPlaybackStatus("");
+  else if (audioPrefs.equalizerEnabled && result.equalizerSupported === false) {
+    showPlaybackStatus("Esta pista sigue reproduciéndose en Android, pero el dispositivo no admite el ecualizador nativo. Los controles de pantalla bloqueada se mantienen.", "warning", true);
+  } else if (state.nativePlayback.playbackState === "ready") showPlaybackStatus("");
   if (state.nativePlayback.playbackState === "ended" && !state.nativePlayback.endedHandled) {
     state.nativePlayback.endedHandled = true;
     const track = currentTrack();
@@ -1231,7 +1251,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
-  let useNativePlayer = Boolean((track.nativeUri || track.nativePath) && nativePlaybackPlugin() && !audioPrefs.equalizerEnabled);
+  let useNativePlayer = Boolean((track.nativeUri || track.nativePath) && nativePlaybackPlugin());
   if (track.nativeUri && !useNativePlayer) {
     const plugin = nativeMusicPlugin();
     if (!plugin?.resolveAudioPath) {
@@ -1282,7 +1302,8 @@ async function playTrack(trackId, autoplay = true, options = {}) {
           artist: track.artist || "Artista desconocido", album: track.album || "Ritmo",
           autoplay: Boolean(autoplay),
           positionMs: Math.max(0, Math.round((Number(options.resumeAt) || 0) * 1000)),
-          volume: Math.max(0, Math.min(1, Number($("#volume-bar").value) || 0))
+          volume: Math.max(0, Math.min(1, Number($("#volume-bar").value) || 0)),
+          ...nativeEqualizerPayload()
         });
         if (!isCurrentPlaybackRequest()) return;
         startNativePlaybackPolling();
@@ -2510,6 +2531,21 @@ function bindEvents() {
     saveAudioPreferences();
     syncSettingsUI();
     const track = currentTrack();
+    const nativeTrackActive = Boolean(state.nativePlayback.active && track &&
+      state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
+    if (nativeTrackActive) {
+      try {
+        const applied = await applyNativeEqualizerPreferences();
+        if (!applied) throw new Error("No se pudo actualizar el ecualizador Android.");
+      } catch (error) {
+        $("#eq-status").textContent = error.message || "No se pudo cambiar el ecualizador nativo.";
+        return;
+      }
+      $("#eq-status").textContent = audioPrefs.equalizerEnabled
+        ? "Preajuste aplicado al reproductor Android; los controles de pantalla bloqueada siguen activos."
+        : "Ecualizador desactivado; la reproducción continúa en Android.";
+      return;
+    }
     if (event.target.checked && track && isLocal(track)) {
       try { await ensureAudioProcessing(); }
       catch (error) {
@@ -2524,11 +2560,18 @@ function bindEvents() {
     applyCurrentEnginePreference();
   });
   for (const [controlId, key] of [["eq-bass", "bass"], ["eq-mid", "mid"], ["eq-treble", "treble"]]) {
-    $("#" + controlId).addEventListener("input", event => {
+    const control = $("#" + controlId);
+    control.addEventListener("input", event => {
       audioPrefs[key] = Number(event.target.value);
       audioPrefs.eqPreset = "custom";
       saveAudioPreferences();
       syncSettingsUI();
+    });
+    control.addEventListener("change", async () => {
+      const track = currentTrack();
+      if (!state.nativePlayback.active || !track || state.nativePlayback.trackId !== track.id) return;
+      try { await applyNativeEqualizerPreferences(); }
+      catch (error) { $("#eq-status").textContent = error.message || "No se pudo actualizar el ecualizador Android."; }
     });
   }
   $("#eq-preset").addEventListener("change", async event => {
@@ -2548,7 +2591,12 @@ function bindEvents() {
     saveAudioPreferences();
     syncSettingsUI();
     const track = currentTrack();
-    if (track && isLocal(track)) {
+    const nativeTrackActive = Boolean(state.nativePlayback.active && track &&
+      state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
+    if (nativeTrackActive) {
+      try { await applyNativeEqualizerPreferences(); }
+      catch (error) { $("#eq-status").textContent = error.message || "No se pudo aplicar el preajuste Android."; return; }
+    } else if (track && isLocal(track)) {
       try { await ensureAudioProcessing(); }
       catch (error) {
         audioPrefs.equalizerEnabled = false;

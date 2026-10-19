@@ -116,8 +116,16 @@ public class RitmoPlaybackPlugin extends Plugin {
         Long requestedPosition = call.getLong("positionMs");
         Boolean requestedAutoplay = call.getBoolean("autoplay");
         Double requestedVolume = call.getDouble("volume");
+        Boolean requestedEqualizer = call.getBoolean("equalizerEnabled");
+        Integer requestedBass = call.getInt("bass");
+        Integer requestedMid = call.getInt("mid");
+        Integer requestedTreble = call.getInt("treble");
         long positionMs = Math.max(0L, requestedPosition == null ? 0L : requestedPosition);
         boolean autoplay = requestedAutoplay == null || requestedAutoplay;
+        boolean equalizerEnabled = requestedEqualizer != null && requestedEqualizer;
+        int bass = clampEq(requestedBass == null ? 0 : requestedBass);
+        int mid = clampEq(requestedMid == null ? 0 : requestedMid);
+        int treble = clampEq(requestedTreble == null ? 0 : requestedTreble);
         MediaMetadata metadata = new MediaMetadata.Builder()
             .setTitle(title == null || title.trim().isEmpty() ? "Audio sin título" : title)
             .setArtist(artist == null || artist.trim().isEmpty() ? "Artista desconocido" : artist)
@@ -129,6 +137,7 @@ public class RitmoPlaybackPlugin extends Plugin {
             .setMediaMetadata(metadata)
             .build();
         withController(call, controller -> {
+            RitmoPlaybackService.configureEqualizer(equalizerEnabled, bass, mid, treble);
             if (requestedVolume != null) controller.setVolume((float)Math.max(0d, Math.min(1d, requestedVolume.doubleValue())));
             controller.setMediaItem(item, positionMs);
             controller.prepare();
@@ -136,6 +145,29 @@ public class RitmoPlaybackPlugin extends Plugin {
             else controller.pause();
             call.resolve(playerState(controller));
         });
+    }
+
+    @PluginMethod
+    public void setEqualizer(PluginCall call) {
+        Boolean requestedEnabled = call.getBoolean("enabled");
+        Integer requestedBass = call.getInt("bass");
+        Integer requestedMid = call.getInt("mid");
+        Integer requestedTreble = call.getInt("treble");
+        boolean enabled = requestedEnabled != null && requestedEnabled;
+        int bass = clampEq(requestedBass == null ? 0 : requestedBass);
+        int mid = clampEq(requestedMid == null ? 0 : requestedMid);
+        int treble = clampEq(requestedTreble == null ? 0 : requestedTreble);
+        withController(call, controller -> {
+            RitmoPlaybackService.configureEqualizer(enabled, bass, mid, treble);
+            JSObject result = new JSObject();
+            result.put("enabled", enabled);
+            result.put("supported", RitmoPlaybackService.isNativeEqualizerSupported());
+            call.resolve(result);
+        });
+    }
+
+    private static int clampEq(int value) {
+        return Math.max(-12, Math.min(12, value));
     }
 
     @PluginMethod
@@ -190,6 +222,8 @@ public class RitmoPlaybackPlugin extends Plugin {
             String message = player.getPlayerError().getMessage();
             result.put("error", message == null ? "Formato incompatible o archivo inaccesible." : message);
         } else result.put("error", "");
+        result.put("equalizerEnabled", RitmoPlaybackService.isNativeEqualizerEnabled());
+        result.put("equalizerSupported", RitmoPlaybackService.isNativeEqualizerSupported());
         return result;
     }
 

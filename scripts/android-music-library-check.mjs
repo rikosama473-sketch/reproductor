@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 
 const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const service = await readFile(new URL("../native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
+const plugin = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
 const java = await readFile(new URL("../native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
 const playbackPlugin = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
 const playbackService = await readFile(new URL("../native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
@@ -36,7 +38,13 @@ assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interf
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
 assert.match(app, /bridge\.nativePromise\("RitmoPlayback", method/, "La reproducción Android debe usar Media3");
 assert.match(app, /nativePlayer\.play\(/, "Las pistas locales deben entregarse al motor nativo");
-assert.match(app, /Boolean\(\(track\.nativeUri \|\| track\.nativePath\) && nativePlaybackPlugin\(\) && !audioPrefs\.equalizerEnabled\)/, "Native URI tracks and resolved local-path fallbacks should use Media3 when EQ is disabled");
+assert.match(app, /Boolean\(\(track\.nativeUri \|\| track\.nativePath\) && nativePlaybackPlugin\(\)\)/, "Native URI tracks should use Media3 with either native or flat EQ");
+assert.match(app, /setEqualizer: invoke\("setEqualizer"\)/, "The JS bridge must expose live native EQ updates");
+assert.match(app, /\.\.\.nativeEqualizerPayload\(\)/, "Native playback must receive saved EQ preset values");
+assert.match(plugin, /public void setEqualizer\(PluginCall call\)/, "Android bridge must provide a live EQ method");
+assert.match(service, /android\.media\.audiofx\.Equalizer/, "Native EQ must attach to the same audio session as Media3");
+assert.match(service, /onAudioSessionIdChanged\(int audioSessionId\)/, "Native EQ must follow Media3 audio-session changes");
+assert.match(service, /getCenterFreq\(band\)[\s\S]*?setBandLevel\(band, \(short\) milliBel\)/, "Native EQ should map low/mid/high gains to device-supported bands");
 assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
 assert.match(app, /path: track\.nativeUri \? "" : track\.nativePath/, "Path-only fallback tracks should be passed to the native playback bridge");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
