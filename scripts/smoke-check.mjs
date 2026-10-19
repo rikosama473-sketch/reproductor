@@ -172,7 +172,7 @@ assert.match(app, /function releaseUnusedObjectURLs/, "The player should release
 assert.match(app, /releaseUnusedObjectURLs\(isLocal\(track\) \? track\.id : null\)/, "Track changes should retain a blob URL only for the active local track");
 assert.match(importFingerprint, /export function importedFileFingerprint/, "Import deduplication should expose a reusable path-aware fingerprint module");
 assert.match(app, /import \{ importedFileFingerprint \} from "\.\/import-fingerprint\.js"/, "The app should use the shared import fingerprint module");
-assert.match(app, /fileOrTrack\.webkitRelativePath \|\| fileOrTrack\.sourcePath/, "Folder imports should distinguish identical filenames in different folders");
+assert.match(importFingerprint, /source\.webkitRelativePath \|\| source\.sourcePath/, "Folder imports should distinguish identical filenames in different folders");
 assert.match(app, /sourcePath: file\.webkitRelativePath \|\| file\.name/, "Imported tracks should persist their relative source path");
 console.log("Second-pass regressions passed: persisted volume, object-URL lifecycle, and folder-import identity.");
 
