@@ -300,7 +300,7 @@ console.log("Network-first service-worker policy smoke checks passed.");
 
 
 assert.ok(app.includes('import { clearMediaSession } from "./media-session-state.js";'), "Media Session cleanup must use the tested helper");
-assert.ok(app.includes('if (!track && !youtubeSession) { clearMediaSession(navigator.mediaSession, state); return; }'), "Media metadata should clear only when neither local nor YouTube media is active");
+assert.ok(app.includes('if (!track && !youtubeSession && !spotifySession) { clearMediaSession(navigator.mediaSession, state); return; }'), "Media metadata should clear only when no local, YouTube, or Spotify media is active");
 const removeCurrentStart = app.indexOf("async function removeCurrent()");
 const removeCurrentEnd = app.indexOf("\nasync function addStream", removeCurrentStart);
 assert.ok(removeCurrentStart >= 0 && removeCurrentEnd > removeCurrentStart, "Current-track removal handler must exist");
