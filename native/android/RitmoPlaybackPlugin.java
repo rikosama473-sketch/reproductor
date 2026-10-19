@@ -124,7 +124,7 @@ public class RitmoPlaybackPlugin extends Plugin {
             .setAlbumTitle(album == null ? "" : album)
             .build();
         MediaItem item = new MediaItem.Builder()
-            .setMediaId(rawUri)
+            .setMediaId(rawUri == null || rawUri.trim().isEmpty() ? mediaUri.toString() : rawUri)
             .setUri(mediaUri)
             .setMediaMetadata(metadata)
             .build();

@@ -38,6 +38,7 @@ assert.match(app, /path: track\.nativeUri \? "" : track\.nativePath/, "Path-only
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
 assert.match(playbackPlugin, /androidx\.media3\.session\.MediaController/, "El plugin debe controlar Media3");
 assert.match(playbackPlugin, /setMediaItem\(/, "El plugin debe entregar la URI al reproductor nativo");
+assert.match(playbackPlugin, /setMediaId\(rawUri == null \|\| rawUri\.trim\(\)\.isEmpty\(\) \? mediaUri\.toString\(\) : rawUri\)/, "Path-only items need a stable media ID instead of an empty URI ID");
 assert.match(playbackPlugin, /Uri\.fromFile\(audioFile\)/, "Media3 should support the local path copied for providers that cannot keep URI permission");
 assert.match(playbackPlugin, /!audioFile\.isFile\(\) \|\| !audioFile\.canRead\(\)/, "Unreadable cached paths must fail clearly so the web audio fallback can be used");
 assert.match(playbackService, /extends MediaSessionService/, "La reproducción en segundo plano debe usar MediaSessionService");
