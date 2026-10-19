@@ -34,7 +34,7 @@ assert.match(nativePlugin, /MediaStore\.Audio\.Media/, "Native plugin must query
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT/, "Native plugin must open the system document picker");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT_TREE/, "Native plugin must support selecting music folders");
 assert.match(nativePlugin, /listAudioFromTree/, "Native plugin must recursively inspect a selected folder tree");
-assert.match(sw, /ritmo-shell-v31/, "Android package should contain the refreshed offline shell");
+assert.match(sw, /ritmo-shell-v32/, "Android package should contain the refreshed offline shell");
 for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "assets/icon.svg"]) {
   const info = await stat(path.join(root, "www", name)).catch(() => null);
   assert.ok(info?.isFile(), "Missing mobile asset: " + name);

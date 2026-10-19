@@ -34,6 +34,7 @@ let pendingPlaybackRequestId = null;
 let nativePlaybackPollTimer = null;
 let nativePlaybackPollInFlight = false;
 let youtubeSearchRequestId = 0;
+let youtubeSearchAbortController = null;
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
@@ -2140,11 +2141,11 @@ function renderYoutubeResults(items, append = false) {
   if (!append) root.innerHTML = "";
   if (cards) root.insertAdjacentHTML("beforeend", cards);
 }
-async function annotateYoutubeVideoStatus(items, key) {
+async function annotateYoutubeVideoStatus(items, key, signal) {
   const ids = (items || []).map(item => item.id?.videoId).filter(value => /^[A-Za-z0-9_-]{11}$/.test(value || ""));
   if (!ids.length) return [];
   const params = new URLSearchParams({ part: "status", id: ids.join(","), key });
-  const response = await fetch("https://www.googleapis.com/youtube/v3/videos?" + params.toString());
+  const response = await fetch("https://www.googleapis.com/youtube/v3/videos?" + params.toString(), { signal });
   const data = await response.json();
   if (!response.ok || data.error) {
     const error = data.error || {};
@@ -2164,6 +2165,10 @@ async function annotateYoutubeVideoStatus(items, key) {
   });
 }
 async function searchYoutube(pageToken = "") {
+  // A newer query supersedes the previous search and its follow-up status lookup.
+  // Abort both network requests to avoid stale work and needless API quota use.
+  youtubeSearchAbortController?.abort();
+  youtubeSearchAbortController = null;
   const requestId = ++youtubeSearchRequestId;
   const isCurrentYoutubeSearch = () => requestId === youtubeSearchRequestId;
   const button = $("#youtube-search-button");
@@ -2175,6 +2180,7 @@ async function searchYoutube(pageToken = "") {
     state.youtubeNextPageToken = null;
     loadButton.hidden = true;
     button.disabled = false;
+    loadButton.disabled = false;
     button.innerHTML = 'Buscar <span>→</span>';
     setYoutubeStatus("Escribí el nombre de una canción o artista para buscar.", "error");
     return;
@@ -2199,6 +2205,7 @@ async function searchYoutube(pageToken = "") {
     state.youtubeNextPageToken = null;
     loadButton.hidden = true;
     button.disabled = false;
+    loadButton.disabled = false;
     button.innerHTML = 'Buscar <span>→</span>';
     return;
   }
@@ -2210,6 +2217,7 @@ async function searchYoutube(pageToken = "") {
     state.youtubeNextPageToken = null;
     loadButton.hidden = true;
     button.disabled = false;
+    loadButton.disabled = false;
     button.innerHTML = 'Buscar <span>→</span>';
     openExternal(youtubeSearchURL(query));
     return;
@@ -2219,8 +2227,11 @@ async function searchYoutube(pageToken = "") {
     renderYoutubeResults([], false);
   }
   button.disabled = true;
+  loadButton.disabled = true;
   button.textContent = "Buscando…";
   setYoutubeStatus("Buscando canciones y comprobando el estado de los videos…", "info");
+  const abortController = new AbortController();
+  youtubeSearchAbortController = abortController;
   try {
     const params = new URLSearchParams({
       part: "snippet",
@@ -2234,7 +2245,7 @@ async function searchYoutube(pageToken = "") {
       safeSearch: "moderate"
     });
     if (pageToken) params.set("pageToken", pageToken);
-    const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString());
+    const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString(), { signal: abortController.signal });
     if (!isCurrentYoutubeSearch()) return;
     const data = await response.json();
     if (!isCurrentYoutubeSearch()) return;
@@ -2247,7 +2258,7 @@ async function searchYoutube(pageToken = "") {
     let items = rawItems;
     let statusChecked = true;
     try {
-      items = await annotateYoutubeVideoStatus(rawItems, key);
+      items = await annotateYoutubeVideoStatus(rawItems, key, abortController.signal);
     } catch {
       statusChecked = false;
       items = rawItems.map(item => ({ ...item, ritmoStatusVerified: false, ritmoMadeForKids: null, ritmoEmbeddable: false }));
@@ -2267,11 +2278,15 @@ async function searchYoutube(pageToken = "") {
       setYoutubeStatus("No encontré resultados. Probá otro título o artista.", "info");
     }
   } catch (error) {
-    if (isCurrentYoutubeSearch()) setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
+    if (isCurrentYoutubeSearch() && error?.name !== "AbortError") {
+      setYoutubeStatus(error.message || "Falló la búsqueda de YouTube.", "error");
+    }
   } finally {
     if (isCurrentYoutubeSearch()) {
       button.disabled = false;
+      loadButton.disabled = false;
       button.innerHTML = 'Buscar <span>→</span>';
+      if (youtubeSearchAbortController === abortController) youtubeSearchAbortController = null;
     }
   }
 }
