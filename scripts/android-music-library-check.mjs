@@ -32,9 +32,14 @@ assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interf
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
 assert.match(app, /bridge\.nativePromise\("RitmoPlayback", method/, "La reproducción Android debe usar Media3");
 assert.match(app, /nativePlayer\.play\(/, "Las pistas locales deben entregarse al motor nativo");
+assert.match(app, /Boolean\(\(track\.nativeUri \|\| track\.nativePath\) && nativePlaybackPlugin\(\) && !audioPrefs\.equalizerEnabled\)/, "Native URI tracks and resolved local-path fallbacks should use Media3 when EQ is disabled");
+assert.match(app, /nativePathsByFile\?\.get\(file\)/, "Fallback imports should persist the resolved native path alongside their IndexedDB Blob");
+assert.match(app, /if \(track\.nativeUri \? "" : track\.nativePath\)/, "Path-only fallback tracks should be passed to the native playback bridge");
 assert.match(app, /startNativePlaybackPolling\(/, "La interfaz debe sincronizar estado y posición del motor nativo");
 assert.match(playbackPlugin, /androidx\.media3\.session\.MediaController/, "El plugin debe controlar Media3");
 assert.match(playbackPlugin, /setMediaItem\(/, "El plugin debe entregar la URI al reproductor nativo");
+assert.match(playbackPlugin, /Uri\.fromFile\(audioFile\)/, "Media3 should support the local path copied for providers that cannot keep URI permission");
+assert.match(playbackPlugin, /!audioFile\.isFile\(\) \|\| !audioFile\.canRead\(\)/, "Unreadable cached paths must fail clearly so the web audio fallback can be used");
 assert.match(playbackService, /extends MediaSessionService/, "La reproducción en segundo plano debe usar MediaSessionService");
 assert.match(playbackService, /new ExoPlayer\.Builder/, "El servicio debe usar ExoPlayer");
 assert.match(playbackPlugin, /MediaController\.releaseFuture\(future\)/, "El puente debe liberar el controlador Media3 al destruirse");

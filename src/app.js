@@ -254,6 +254,12 @@ function toast(message) {
   state.toastTimer = setTimeout(() => node.classList.remove("show"), 2800);
 }
 function trackURL(track) {
+  // When the user enables EQ, decode the durable IndexedDB Blob in Web Audio.
+  // The private/native file path remains available for Media3 when EQ is off.
+  if (audioPrefs.equalizerEnabled && track?.blob instanceof Blob) {
+    if (!state.objectUrls.has(track.id)) state.objectUrls.set(track.id, URL.createObjectURL(track.blob));
+    return state.objectUrls.get(track.id);
+  }
   if (track?.nativePath) {
     const bridge = window.Capacitor;
     if (typeof bridge?.convertFileSrc !== "function") throw new Error("Android no pudo abrir la ruta de esta canción.");
@@ -1212,7 +1218,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   const requestId = ++playbackRequestId;
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
-  let useNativePlayer = Boolean(track.nativeUri && nativePlaybackPlugin() && !audioPrefs.equalizerEnabled);
+  let useNativePlayer = Boolean((track.nativeUri || track.nativePath) && nativePlaybackPlugin() && !audioPrefs.equalizerEnabled);
   if (track.nativeUri && !useNativePlayer) {
     const plugin = nativeMusicPlugin();
     if (!plugin?.resolveAudioPath) {
@@ -1259,7 +1265,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       try {
         const nativePlayer = nativePlaybackPlugin();
         await nativePlayer.play({
-          uri: track.nativeUri, title: track.title || track.name || "Audio sin título",
+          uri: track.nativeUri || "", path: track.nativeUri ? "" : track.nativePath, title: track.title || track.name || "Audio sin título",
           artist: track.artist || "Artista desconocido", album: track.album || "Ritmo",
           autoplay: Boolean(autoplay),
           positionMs: Math.max(0, Math.round((Number(options.resumeAt) || 0) * 1000)),
@@ -1271,15 +1277,34 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       } catch (nativeError) {
         await stopNativePlayback();
         if (!isCurrentPlaybackRequest()) return;
-        // Keep the previous WebView route as a fallback for unusual document providers.
-        const libraryPlugin = nativeMusicPlugin();
-        if (!libraryPlugin?.resolveAudioPath) throw nativeError;
-        toast("El reproductor nativo no abrió este archivo; probando la reproducción compatible.");
-        const resolved = await libraryPlugin.resolveAudioPath({ uri: track.nativeUri, name: track.name });
-        if (!isCurrentPlaybackRequest()) return;
-        track.nativePath = String(resolved?.path || "");
-        if (!track.nativePath) throw nativeError;
-        await saveTrack(track);
+        // Fall back to Web Audio if Media3 cannot open this URI/path. Picker imports
+        // that needed a temporary-URI copy retain their IndexedDB Blob as a durable fallback.
+        if (track.nativeUri) {
+          const libraryPlugin = nativeMusicPlugin();
+          if (!libraryPlugin?.resolveAudioPath) {
+            if (!(track.blob instanceof Blob)) throw nativeError;
+            track.nativePath = "";
+          } else {
+            toast("El reproductor nativo no abrió este archivo; probando la reproducción compatible.");
+            try {
+              const resolved = await libraryPlugin.resolveAudioPath({ uri: track.nativeUri, name: track.name });
+              if (!isCurrentPlaybackRequest()) return;
+              track.nativePath = String(resolved?.path || "");
+              if (!track.nativePath) throw nativeError;
+              await saveTrack(track);
+            } catch (pathError) {
+              if (!(track.blob instanceof Blob)) throw pathError;
+              track.nativePath = "";
+              await saveTrack(track).catch(() => {});
+            }
+          }
+        } else if (track.blob instanceof Blob) {
+          // A cached file may have been evicted or its permissions may have changed.
+          track.nativePath = "";
+          await saveTrack(track).catch(() => {});
+        } else {
+          throw nativeError;
+        }
         useNativePlayer = false;
       }
     }
@@ -1510,6 +1535,7 @@ async function openAudioImport() {
     const knownNativeUris = new Set(state.tracks.filter(track => track.nativeUri).map(track => track.nativeUri));
     const nativeTracks = [];
     const fallbackFiles = [];
+    const fallbackNativePaths = new Map();
     for (const item of selected) {
       if (!item?.uri || !item?.name) continue;
       const uri = String(item.uri);
@@ -1544,10 +1570,14 @@ async function openAudioImport() {
       if (!response.ok) throw new Error("Android no pudo leer " + item.name + ".");
       const blob = await response.blob();
       if (!blob.size) throw new Error("El archivo está vacío o el proveedor no permitió leer " + item.name + ".");
-      fallbackFiles.push(new File([blob], item.name, {
+      const importedFile = new File([blob], item.name, {
         type: item.mimeType || blob.type || "application/octet-stream",
         lastModified: Number(item.lastModified) || Date.now()
-      }));
+      });
+      fallbackFiles.push(importedFile);
+      // Keep the resolved native route for Media3 notification/lock-screen support,
+      // while persisting the Blob as an offline fallback if Android clears its cache.
+      if (resolved?.path) fallbackNativePaths.set(importedFile, String(resolved.path));
     }
     if (nativeTracks.length) {
       for (let offset = 0; offset < nativeTracks.length; offset += 100) {
@@ -1557,7 +1587,7 @@ async function openAudioImport() {
       render();
       toast(nativeTracks.length + " archivo(s) agregado(s) con reproducción nativa y controles del sistema.");
     }
-    if (fallbackFiles.length) await importFiles(fallbackFiles);
+    if (fallbackFiles.length) await importFiles(fallbackFiles, { nativePathsByFile: fallbackNativePaths });
     if (!nativeTracks.length && !fallbackFiles.length) {
       toast("Los archivos seleccionados ya están en tu biblioteca o el proveedor no devolvió un acceso reutilizable.");
     }
@@ -1704,7 +1734,7 @@ async function browseAudioFolder() {
   }
 }
 
-async function importFiles(fileList) {
+async function importFiles(fileList, options = {}) {
   const files = [...fileList].filter(file => file.type.startsWith("audio/") || /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file.name));
   if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
   const existing = new Set(state.tracks.filter(track => isLocal(track)).map(importedFileFingerprint));
@@ -1724,6 +1754,7 @@ async function importFiles(fileList) {
         const meta = await readMp3Tags(file);
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "",
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
+          nativePath: String(options.nativePathsByFile?.get(file) || ""),
           blob: file, favorite: false, addedAt: Date.now() + saved, duration: 0, lastPlayedAt: 0 };
       }));
       await saveManyTracks(tracks);

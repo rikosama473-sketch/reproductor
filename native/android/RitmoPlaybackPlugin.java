@@ -9,6 +9,8 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
+
+import java.io.File;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
 
@@ -93,8 +95,19 @@ public class RitmoPlaybackPlugin extends Plugin {
     @PluginMethod
     public void play(PluginCall call) {
         String rawUri = call.getString("uri");
-        if (rawUri == null || rawUri.trim().isEmpty()) {
-            call.reject("No se recibió una URI de audio para reproducir.");
+        String rawPath = call.getString("path");
+        Uri mediaUri;
+        if (rawUri != null && !rawUri.trim().isEmpty()) {
+            mediaUri = Uri.parse(rawUri);
+        } else if (rawPath != null && !rawPath.trim().isEmpty()) {
+            File audioFile = new File(rawPath);
+            if (!audioFile.isFile() || !audioFile.canRead()) {
+                call.reject("La copia local del audio ya no está disponible. Se intentará usar la copia guardada en la biblioteca.");
+                return;
+            }
+            mediaUri = Uri.fromFile(audioFile);
+        } else {
+            call.reject("No se recibió una URI o ruta local de audio para reproducir.");
             return;
         }
         String title = call.getString("title");
@@ -112,7 +125,7 @@ public class RitmoPlaybackPlugin extends Plugin {
             .build();
         MediaItem item = new MediaItem.Builder()
             .setMediaId(rawUri)
-            .setUri(Uri.parse(rawUri))
+            .setUri(mediaUri)
             .setMediaMetadata(metadata)
             .build();
         withController(call, controller -> {
