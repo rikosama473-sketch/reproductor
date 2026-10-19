@@ -20,6 +20,7 @@ assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo
 assert.match(java, /MAX_MEDIASTORE_RESULTS = 10000/, "MediaStore debe limitar la cantidad de registros para evitar una respuesta nativa enorme");
 assert.match(java, /files\.length\(\) >= MAX_MEDIASTORE_RESULTS[\s\S]*?truncated = true/, "El escaneo debe detectar e informar los resultados parciales");
 assert.match(java, /result\.put\("truncated", truncated\)/, "El plugin debe enviar al usuario el estado de truncamiento");
+assert.match(java, /private synchronized String copyToPrivateCache\(/, "Concurrent provider resolutions must not truncate the same temporary cache file");
 assert.match(java, /MessageDigest\.getInstance\("SHA-256"\)/, "La clave de caché de URI debe evitar colisiones de hash de 32 bits");
 assert.match(app, /result\?\.truncated[\s\S]*Encontré los primeros[\s\S]*elegí Música o una subcarpeta/i, "La interfaz debe explicar por qué una búsqueda masiva puede mostrar resultados parciales");
 assert.match(java, /ACTION_OPEN_DOCUMENT/, "La importación debe abrir el selector de archivos");

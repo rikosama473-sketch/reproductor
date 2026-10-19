@@ -483,7 +483,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         return null;
     }
 
-    private String copyToPrivateCache(Uri uri, String originalName) throws Exception {
+    private synchronized String copyToPrivateCache(Uri uri, String originalName) throws Exception {
         File folder = new File(getContext().getCacheDir(), "ritmo-audio");
         if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("No se pudo crear la caché de audio.");
         String safeName = originalName.replaceAll("[^A-Za-z0-9._-]", "_");

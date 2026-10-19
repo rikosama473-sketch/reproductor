@@ -19,3 +19,7 @@ Las pruebas de regresión comprueban el método nativo, la protección de rutas 
 ## Fuente técnica
 
 Documentación oficial de Android: [Acceder a archivos específicos de la app](https://developer.android.com/training/data-storage/app-specific). Android avisa que el sistema puede eliminar archivos de caché cuando falta espacio y recomienda que la propia aplicación administre estos archivos en vez de confiar en la limpieza automática.
+
+## Protección adicional contra importaciones simultáneas
+
+La resolución de archivos de proveedores se ejecuta en hilos de trabajo. Las copias que no reutilizan un archivo existente ahora pasan por un método sincronizado, evitando que dos solicitudes del mismo URI escriban a la vez en el temporal compartido `.tmp`. La prueba de regresión verifica que esa exclusión se mantenga.
