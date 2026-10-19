@@ -395,3 +395,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media(max-width:820px){.character-companion{right:8px;bottom:calc(var(--player) + var(--mobile-nav-height) + env(safe-area-inset-bottom,0px) + 7px);width:76px;height:70px}.character-companion img{width:69px;height:69px}.character-companion-note{right:5px;font-size:18px}}
 @media(max-width:380px){.character-companion{right:3px;width:64px;height:62px}.character-companion img{width:62px;height:62px}}
 @media(prefers-reduced-motion:reduce){.character-companion.is-playing img,.character-companion.is-playing .character-companion-note{animation:none!important}.character-companion.is-playing img{transform:none}}
+
+/* Public, keyless online sources: responsive widgets in Ritmo's warm palette. */
+.spotify-embed-section,.radio-directory-section{margin:24px 0;padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#211a16,#191513)}
+.spotify-heading-icon{background:#1ed760!important;color:#111!important}
+.online-service-form{display:grid;gap:8px;margin:16px 0}
+.online-service-form>label{font-weight:700;font-size:12px;color:#e8d8d0}
+.online-service-form-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.online-service-form-row .form-input{min-width:0;width:100%}
+.radio-service-form-row{grid-template-columns:minmax(0,1fr) minmax(118px,150px) auto}
+.spotify-search-form{margin-top:10px}
+.spotify-embed-shell{margin-top:14px;padding:10px;border:1px solid #3a302b;border-radius:14px;background:#0f0e0d;overflow:hidden}
+.spotify-embed-host{width:100%;min-width:0}
+.spotify-embed-shell iframe{display:block;max-width:100%;width:100%;border:0;border-radius:12px;background:#121212}
+.online-service-status{margin:12px 0 0;color:#b7aaa2;font-size:12px;line-height:1.65}
+.online-service-status[data-tone="success"]{color:#a4e4bf}
+.online-service-status[data-tone="warning"]{color:#ffcf9f}
+.online-service-status[data-tone="error"]{color:#ffb4b4}
+.online-service-note{color:#94877f;font-size:11px;line-height:1.65;margin:12px 0 0}
+.radio-station-result .archive-result-actions{flex-wrap:wrap}
+.radio-station-tags{margin:8px 0 0;color:#c1a398;font-size:11px;line-height:1.5}
+.radio-station-result .archive-result-label{color:#d7b7a9}
+@media(max-width:700px){
+  .spotify-embed-section,.radio-directory-section{padding:16px;margin:18px 0}
+  .online-service-form-row,.radio-service-form-row{grid-template-columns:minmax(0,1fr)}
+  .online-service-form-row .button{width:100%}
+}

@@ -203,6 +203,57 @@
             <p class="archive-rights-note">Las condiciones pueden variar por obra. Ritmo muestra la licencia declarada por el archivo y te lleva a la fuente; no garantiza que los metadatos de terceros sean infalibles. Las pistas se añaden como enlaces de streaming; para guardarlas offline, utilizá la descarga original cuando esté autorizada y luego importá el archivo.</p>
           </section>
 
+          <section class="spotify-embed-section" aria-labelledby="spotify-embed-title">
+            <div class="youtube-section-heading">
+              <div class="youtube-heading-icon spotify-heading-icon" aria-hidden="true">●</div>
+              <div class="youtube-heading-copy">
+                <div class="eyebrow">REPRODUCTOR OFICIAL · SIN CLAVE API</div>
+                <h2 id="spotify-embed-title">Abrir en <span>Spotify.</span></h2>
+                <p>Pegá un enlace compartido de una canción, álbum, lista, artista o podcast. Ritmo carga el widget oficial, no descarga el audio.</p>
+              </div>
+              <span class="free-pill"><span>✓</span> Por enlace</span>
+            </div>
+            <form id="spotify-embed-form" class="online-service-form">
+              <label for="spotify-share-link">Enlace o URI compartida de Spotify</label>
+              <div class="online-service-form-row">
+                <input id="spotify-share-link" class="form-input" type="url" maxlength="500" autocomplete="url" placeholder="https://open.spotify.com/track/…" required>
+                <button type="submit" class="button button-primary" id="spotify-embed-button">Cargar reproductor</button>
+              </div>
+            </form>
+            <form id="spotify-search-form" class="online-service-form spotify-search-form">
+              <label for="spotify-search-query">¿No tenés el enlace? Buscar el título sin usar la API</label>
+              <div class="online-service-form-row">
+                <input id="spotify-search-query" class="form-input" type="search" maxlength="120" autocomplete="off" placeholder="Artista, canción o banda sonora…">
+                <button type="submit" class="button button-soft" id="spotify-search-button">Buscar en Spotify ↗</button>
+              </div>
+            </form>
+            <p id="spotify-status" class="online-service-status" role="status" aria-live="polite">No requiere clave de desarrollador. Spotify puede limitar la reproducción a una vista previa o solicitar iniciar sesión según el contenido, país y navegador.</p>
+            <div id="spotify-embed-shell" class="spotify-embed-shell" hidden><div id="spotify-embed-mount"></div></div>
+            <p class="online-service-note">El widget y el audio siguen siendo de Spotify. El volumen se ajusta dentro de su reproductor. La cuenta o Premium pueden ser necesarios para ciertas canciones completas; Ritmo no elimina esos límites.</p>
+          </section>
+
+          <section class="radio-directory-section" aria-labelledby="radio-directory-title">
+            <div class="youtube-section-heading">
+              <div class="youtube-heading-icon">♫</div>
+              <div class="youtube-heading-copy">
+                <div class="eyebrow">RADIO PÚBLICA · SIN CUENTA NI CLAVE</div>
+                <h2 id="radio-directory-title">Descubrir <span>radios.</span></h2>
+                <p>Buscá emisoras por nombre, género, país o idioma y reproducí su stream HTTPS directamente desde la fuente.</p>
+              </div>
+              <span class="free-pill"><span>✓</span> Gratis</span>
+            </div>
+            <form id="radio-search-form" class="online-service-form radio-search-form">
+              <label for="radio-query">Qué querés escuchar</label>
+              <div class="online-service-form-row radio-service-form-row">
+                <input id="radio-query" class="form-input" type="search" maxlength="90" autocomplete="off" placeholder="Ej. rock, jazz, Argentina, español…" required>
+                <select id="radio-filter" class="form-input" aria-label="Buscar emisoras por"><option value="name">Emisora</option><option value="tag">Género</option><option value="country">País</option><option value="language">Idioma</option></select>
+                <button type="submit" class="button button-primary" id="radio-search-button">Buscar radios</button>
+              </div>
+            </form>
+            <p id="radio-status" class="online-service-status" role="status" aria-live="polite">El catálogo público no requiere registro ni una API key propia. Se priorizan streams HTTPS para evitar contenido mixto; el funcionamiento depende de cada emisora.</p>
+            <div id="radio-results" class="archive-results radio-results"></div>
+          </section>
+
           <div class="online-card">
             <div class="online-card-top"><div class="source-symbol">↗</div><div><h2>Agregar enlace de audio</h2><p>Usá una URL directa a un archivo o stream de audio (MP3, OGG, WAV, M4A, AAC). No se admiten páginas de descarga ni enlaces de YouTube en este campo.</p></div></div>
             <form id="url-form" class="url-form"><label for="stream-title">Nombre para mostrar <span>(opcional)</span></label><input id="stream-title" class="form-input" maxlength="120" placeholder="Ej. Mi radio favorita"><label for="stream-url">URL de audio o radio <span>https://…</span></label><input id="stream-url" class="form-input" type="url" required placeholder="https://dominio.com/audio.mp3" autocomplete="url"><div class="url-form-bottom"><span class="form-hint">Las fuentes deben ser accesibles y compatibles con tu navegador.</span><button class="button button-primary" type="submit">Guardar fuente <span>→</span></button></div><p class="form-message" id="url-message" role="status"></p></form>
