@@ -14,9 +14,11 @@ const syntaxChecks = [
   "src/youtube-player-errors.js",
   "src/online-services.js",
   "src/storage.js",
+  "src/character-companion.js",
   "sw.js",
   "scripts/validate.mjs",
   "scripts/smoke-check.mjs",
+  "scripts/character-companion-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",
   "scripts/youtube-history-check.mjs",
   "scripts/audio-output-volume-check.mjs",
@@ -37,6 +39,7 @@ const syntaxChecks = [
 ];
 const regressionSuites = [
   "scripts/smoke-check.mjs",
+  "scripts/character-companion-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",
   "scripts/youtube-history-check.mjs",
   "scripts/audio-output-volume-check.mjs",
