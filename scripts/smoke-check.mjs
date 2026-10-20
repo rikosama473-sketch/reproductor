@@ -77,7 +77,7 @@ assert.match(app, /title: youtubeSession \? \(youtubeSession\.title \|\| "Video 
 assert.match(app, /youtubePlayer\?\.pauseVideo/, "OS pause actions should be routed to the official YouTube player");
 assert.match(app, /if \(!key\) \{[\s\S]*?searchInvidiousYoutube\(query, \{ signal: abortController\.signal \}\)/, "Submitting YouTube search without an API key must try the in-app community search first");
 assert.ok(app.includes("function fallbackToOfficialYoutubeSearch(query, message)"), "Community search fallback helper must be present");
-assert.ok(app.includes('fallbackToOfficialYoutubeSearch(query, "Las instancias comunitarias de búsqueda no respondieron('), "Native Android must automatically try the official search when all community mirrors fail");
+assert.ok(app.includes('fallbackToOfficialYoutubeSearch(query, "Las instancias comunitarias de búsqueda no respondieron ('), "Native Android must automatically try the official search when all community mirrors fail");
 assert.ok(app.includes("Tocá «Abrir búsqueda en YouTube» para continuar; no hace falta una clave API."), "Web users must have a clear no-key fallback");
 assert.match(app, /instance recibió tu consulta|La instancia recibió tu consulta/, "The no-key search must disclose that the third-party instance receives the query");
 assert.match(nativeMusicPluginSource, /file\.put\("persisted", persisted\)/, "Android picker must report when URI permission can be persisted");
