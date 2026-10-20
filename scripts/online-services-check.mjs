@@ -119,6 +119,16 @@ const pageSource = await readFile(new URL("../index.html", import.meta.url), "ut
 assert.match(appSource, /youtubeSearchAbortController\?\.abort\(\)/);
 assert.match(appSource, /frame\.src = "about:blank"/, "Disabling YouTube must unload its iframe");
 assert.match(appSource, /setYoutubeModeEnabled\(false\)/, "The off action must stop the embedded player");
+const youtubePlayStart = appSource.indexOf("function playYoutubeVideo(");
+assert.ok(youtubePlayStart >= 0);
+const youtubePlaySource = appSource.slice(youtubePlayStart, youtubePlayStart + 2600);
+assert.ok(youtubePlaySource.indexOf('wrap.hidden = false') < youtubePlaySource.indexOf('frame.src = embedURL'),
+  "The official player must be visible before autoplay loads");
+const mediaSessionStart = appSource.indexOf("function updateMediaSession()");
+const mediaSessionEnd = appSource.indexOf("function setupMediaSession()", mediaSessionStart);
+const mediaSessionSource = appSource.slice(mediaSessionStart, mediaSessionEnd);
+assert.match(mediaSessionSource, /if \(youtubeSession\)[\s\S]*?clearMediaSession\(navigator\.mediaSession, state\);[\s\S]*?return;/,
+  "Ritmo must not provide system background controls for embedded YouTube");
 assert.match(pageSource, /id="youtube-mode-toggle"/, "The consent toggle must be visible in the UI");
 assert.match(pageSource, /id="youtube-network-status"/, "Network and data-use warning must be visible");
 assert.match(pageSource, /Ritmo no ofrece reproducción de este video en segundo plano/);

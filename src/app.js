@@ -1033,7 +1033,14 @@ function updateMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const track = currentTrack();
   const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
-  const spotifySession = !track && !youtubeSession && spotifyCurrentEmbed && spotifyControllerReady ? spotifyCurrentEmbed : null;
+  if (youtubeSession) {
+    // Do not expose the embedded YouTube player through Ritmo's system
+    // MediaSession: YouTube's developer policy forbids clients from offering
+    // background playback when their window is minimized or closed.
+    clearMediaSession(navigator.mediaSession, state);
+    return;
+  }
+  const spotifySession = !track && spotifyCurrentEmbed && spotifyControllerReady ? spotifyCurrentEmbed : null;
   if (!track && !youtubeSession && !spotifySession) { clearMediaSession(navigator.mediaSession, state); return; }
   const sessionKey = youtubeSession ? "youtube:" + youtubeSession.sessionId : spotifySession ? "spotify:" + spotifySession.uri : track.id;
   if (state.mediaSessionTrackId !== sessionKey && "MediaMetadata" in window) {
@@ -2957,6 +2964,11 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   cancelPendingPlaybackIntent();
   const frame = $("#youtube-iframe");
   frame.referrerPolicy = "strict-origin-when-cross-origin";
+  const wrap = $("#youtube-player-wrap");
+  wrap.hidden = false;
+  // User-selected playback must begin with the official player visible, not in a
+  // hidden iframe. Avoid smooth scrolling because it could autoplay while offscreen.
+  wrap.scrollIntoView({ behavior: "auto", block: "center" });
   const sessionId = youtubeHistory.select(videoId, title);
   youtubeMediaPlaybackState = "buffering";
   $("#youtube-current-title").textContent = title;
@@ -2991,9 +3003,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
   state.queueIds = null;
   updatePlayer();
   updateMediaSession();
-  $("#youtube-player-wrap").hidden = false;
   renderQueue();
-  $("#youtube-player-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 function updateYoutubeKeyStatus(message = "") {
   const status = $("#youtube-key-status");
