@@ -118,3 +118,96 @@ export async function searchRadioBrowser(query, filter = "name", {
   }
   throw new Error(lastError?.message || "No se pudo conectar con Radio Browser. Probá otra búsqueda más tarde.");
 }
+// Keyless YouTube result search through public Invidious instances.
+// Public instances are third-party services: callers must disclose that the query
+// is sent to the selected instance. Only hosts listed by Invidious documentation
+// are attempted, and a failed host never prevents the normal YouTube web fallback.
+export const INVIDIOUS_SEARCH_INSTANCES = Object.freeze([
+  "https://invidious.nerdvpn.de",
+  "https://yt.chocolatemoo53.com",
+  "https://invidious.tiekoetter.com",
+  "https://invidious.f5.si",
+  "https://inv.nadeko.net"
+]);
+
+export function buildInvidiousYoutubeSearchUrl(query, instance = INVIDIOUS_SEARCH_INSTANCES[0]) {
+  const text = String(query ?? "").replace(/\s+/g, " ").trim();
+  if (!text) throw new TypeError("Ingresá una canción o artista para buscar.");
+  if (!INVIDIOUS_SEARCH_INSTANCES.includes(instance)) throw new TypeError("Servidor comunitario de YouTube no permitido.");
+  const url = new URL("/api/v1/search", instance);
+  url.searchParams.set("q", text.slice(0, 120));
+  url.searchParams.set("type", "video");
+  url.searchParams.set("page", "1");
+  return url.href;
+}
+
+export function normalizeInvidiousYoutubeResult(item) {
+  if (!item || typeof item !== "object" || (item.type && item.type !== "video")) return null;
+  const videoId = String(item.videoId ?? "").trim();
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return null;
+  const title = String(item.title ?? "").replace(/\s+/g, " ").trim().slice(0, 250);
+  if (!title) return null;
+  const channelTitle = String(item.author ?? "").replace(/\s+/g, " ").trim().slice(0, 160) || "Canal de YouTube";
+  const description = String(item.description ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
+  // A canonical YouTube thumbnail avoids trusting arbitrary image hosts returned
+  // by a public API response. The ID has already passed YouTube's exact format.
+  return {
+    id: { videoId },
+    snippet: {
+      title,
+      channelTitle,
+      description,
+      thumbnails: { medium: { url: "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg" } }
+    },
+    // Community search does not expose the official embeddable/madeForKids
+    // status, so Ritmo must not silently treat these results as safe to embed.
+    ritmoStatusVerified: false,
+    ritmoMadeForKids: null,
+    ritmoEmbeddable: false,
+    ritmoSource: "invidious"
+  };
+}
+
+export async function searchInvidiousYoutube(query, {
+  signal,
+  fetchImpl = globalThis.fetch,
+  timeoutMs = 2800
+} = {}) {
+  const text = String(query ?? "").replace(/\s+/g, " ").trim();
+  if (!text) throw new TypeError("Ingresá una canción o artista para buscar.");
+  if (typeof fetchImpl !== "function") throw new TypeError("Este navegador no ofrece fetch para la búsqueda comunitaria.");
+  let lastError = null;
+
+  for (const instance of INVIDIOUS_SEARCH_INSTANCES) {
+    if (signal?.aborted) throw new DOMException("Búsqueda cancelada", "AbortError");
+    const requestController = new AbortController();
+    const abortFromCaller = () => requestController.abort();
+    signal?.addEventListener("abort", abortFromCaller, { once: true });
+    const timer = setTimeout(() => requestController.abort(), Math.max(500, Number(timeoutMs) || 2800));
+    try {
+      const response = await fetchImpl(buildInvidiousYoutubeSearchUrl(text, instance), {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+        signal: requestController.signal,
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) throw new Error("La instancia comunitaria respondió " + response.status + ".");
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error("La instancia comunitaria devolvió un formato inesperado.");
+      return {
+        items: data.map(normalizeInvidiousYoutubeResult).filter(Boolean).slice(0, 12),
+        instance
+      };
+    } catch (error) {
+      if (signal?.aborted) throw new DOMException("Búsqueda cancelada", "AbortError");
+      lastError = error;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abortFromCaller);
+    }
+  }
+
+  throw new Error(lastError?.message || "Ninguna instancia comunitaria de búsqueda de YouTube respondió.");
+}
