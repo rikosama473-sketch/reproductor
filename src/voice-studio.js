@@ -290,8 +290,10 @@ function initializeVoiceStudio() {
   }
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeVoiceStudio, { once: true });
-} else {
-  initializeVoiceStudio();
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeVoiceStudio, { once: true });
+  } else {
+    initializeVoiceStudio();
+  }
 }
