@@ -77,7 +77,8 @@ let libraryMode = (() => {
 })();
 
 
-const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online" };
+const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online", voices: "Estudio de voces" };
+let voicePreviewPausedPlayback = null;
 
 function escapeHTML(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -3064,6 +3065,17 @@ function updateYoutubeKeyStatus(message = "") {
 }
 
 function bindEvents() {
+  window.addEventListener("ritmo:voice-preview-start", event => {
+    if (event.detail?.pauseMusic !== true || voicePreviewPausedPlayback || playbackIsPaused()) return;
+    pauseCurrentTrack();
+    voicePreviewPausedPlayback = { trackId: state.currentId, requestId: playbackRequestId };
+  });
+  window.addEventListener("ritmo:voice-preview-end", () => {
+    const snapshot = voicePreviewPausedPlayback;
+    voicePreviewPausedPlayback = null;
+    if (!snapshot || snapshot.trackId !== state.currentId || snapshot.requestId !== playbackRequestId || !playbackIsPaused()) return;
+    resumeCurrentTrack();
+  });
   document.addEventListener("visibilitychange", () => {
     // WebView/browser timers can be throttled while hidden; resync immediately on return.
     if (!document.hidden && state.nativePlayback.active) startNativePlaybackPolling();

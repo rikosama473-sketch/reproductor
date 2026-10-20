@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v45";
+const CACHE_NAME = "ritmo-shell-v46";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -16,6 +16,7 @@ const APP_SHELL = [
   "./src/character-companion.js",
   "./src/external-navigation.js",
   "./src/ui-sounds.js",
+  "./src/voice-studio.js",
   "./manifest.webmanifest",
   "./assets/icon.svg",
   "./pngtuber-capibara.png"

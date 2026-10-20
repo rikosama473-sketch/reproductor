@@ -6,6 +6,7 @@ const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const syntaxChecks = [
   "src/app.js",
   "src/ui-sounds.js",
+  "src/voice-studio.js",
   "src/youtube-history.js",
   "src/audio-output-volume.js",
   "src/media-session-state.js",
@@ -20,6 +21,7 @@ const syntaxChecks = [
   "sw.js",
   "scripts/validate.mjs",
   "scripts/ui-sounds-check.mjs",
+  "scripts/voice-studio-check.mjs",
   "scripts/smoke-check.mjs",
   "scripts/character-companion-check.mjs",
   "scripts/external-navigation-check.mjs",
@@ -51,6 +53,7 @@ const regressionSuites = [
   "scripts/media-session-state-check.mjs",
   "scripts/equalizer-presets-check.mjs",
   "scripts/ui-sounds-check.mjs",
+  "scripts/voice-studio-check.mjs",
   "scripts/import-fingerprint-check.mjs",
   "scripts/async-generation-gate-check.mjs",
   "scripts/youtube-player-errors-check.mjs",

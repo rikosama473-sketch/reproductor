@@ -450,3 +450,50 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .ui-sound-settings .eq-control{margin-top:12px}
 .ui-sound-settings #ui-sounds-volume{accent-color:var(--purple)}
 .ui-sound-settings #ui-sounds-pack{width:100%}
+
+/* Voice studio: compact preset cards that match Ritmo without competing with album artwork. */
+.voice-studio{display:grid;gap:22px;min-width:0}
+.voice-studio-kicker{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #5a433b;border-radius:999px;background:#a7775b18;color:#e8c6b6;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.voice-studio-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:24px}
+.voice-studio-intro .page-intro{margin-bottom:0}
+.voice-studio-intro-note{max-width:290px;padding:13px 15px;border:1px solid var(--line);border-radius:13px;background:#211b19;color:var(--muted);font-size:11px;line-height:1.65}
+.voice-studio-intro-note strong{display:block;margin-bottom:4px;color:#ead8ce;font-size:12px}
+.voice-panel{min-width:0;padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#26201d,#1d1918 75%);box-shadow:0 15px 38px #00000012}
+.voice-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:17px}
+.voice-panel-heading h2,.voice-panel h3{margin:0;font:800 17px Manrope,sans-serif;letter-spacing:-.35px}
+.voice-panel-heading p,.voice-panel>p{margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.65}
+.voice-preset-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.voice-preset-card{display:flex;min-width:0;min-height:126px;flex-direction:column;align-items:flex-start;gap:8px;padding:13px 12px;border:1px solid #3c322d;border-radius:13px;background:#211b19;color:var(--text);text-align:left;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
+.voice-preset-card:hover{border-color:#896554;background:#30231f;transform:translateY(-2px)}
+.voice-preset-card[aria-pressed=true]{border-color:#c7a394;background:linear-gradient(145deg,#a77c692b,#2c211e 74%);box-shadow:inset 0 0 0 1px #c7a39426}
+.voice-preset-icon{display:grid;width:31px;height:31px;place-items:center;border:1px solid #665047;border-radius:10px;background:#b18a7720;color:#edcbbb;font-size:16px}
+.voice-preset-card strong{font-size:11px;line-height:1.35}
+.voice-preset-card small{color:var(--muted);font-size:10px;line-height:1.5}
+.voice-studio-workbench{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(235px,.8fr);gap:18px;align-items:stretch}
+.voice-control-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;margin-top:17px}
+.voice-field{display:grid;gap:7px;min-width:0;margin:12px 0;color:#e7dcd7;font-size:11px;font-weight:700}
+.voice-field select,.voice-field textarea{width:100%;min-width:0;border:1px solid #493b35;border-radius:10px;background:#181514;color:var(--text);font:inherit;padding:11px 12px;outline:none}
+.voice-field select{min-height:43px}
+.voice-field textarea{resize:vertical;min-height:112px;line-height:1.65;font-size:12px;font-weight:500}
+.voice-field select:focus-visible,.voice-field textarea:focus-visible{border-color:#c7a394;box-shadow:0 0 0 3px #c7a39420}
+.voice-range-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;margin:12px 0;color:#e7dcd7;font-size:11px}
+.voice-range-field output{color:#e7cabb;font-variant-numeric:tabular-nums}
+.voice-range-field input{grid-column:1/-1;width:100%;accent-color:#c1a398;cursor:pointer}
+.voice-pause-choice{display:flex;align-items:flex-start;gap:10px;margin:15px 0 8px;color:#e7dcd7;font-size:11px;font-weight:700}
+.voice-pause-choice input{accent-color:#c1a398;width:17px;height:17px;flex-shrink:0;margin:0}
+.voice-pause-choice span span{display:block;margin-top:4px;color:var(--muted);font-size:10px;font-weight:500;line-height:1.55}
+.voice-studio-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}
+.voice-studio-actions .button{min-height:42px}
+.voice-preview-status{min-height:20px;margin:12px 0 0;color:#d8b9a8;font-size:11px;line-height:1.6}
+.voice-runtime-note{margin-top:13px;padding:11px 12px;border:1px solid #40352f;border-radius:10px;background:#191615;color:#aaa19e;font-size:10px;line-height:1.65}
+.voice-info-panel{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.voice-info-mark{display:grid;width:46px;height:46px;place-items:center;border:1px solid #765a4e;border-radius:15px;background:linear-gradient(145deg,#c1a3982c,#8b66581c);color:#f0d5c8;font-size:22px}
+.voice-info-panel h3{font-size:16px}
+.voice-info-panel p,.voice-info-panel li{color:var(--muted);font-size:11px;line-height:1.75}
+.voice-info-panel ul{margin:0;padding-left:17px}
+.voice-info-panel li+li{margin-top:7px}
+.voice-privacy-note{margin-top:auto;padding-top:13px;border-top:1px solid var(--line);color:#e2c7b9!important}
+.voice-field select:disabled,.voice-studio-actions .button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:1200px){.voice-preset-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:900px){.voice-studio-intro{flex-direction:column}.voice-studio-intro-note{max-width:none}.voice-preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.voice-studio-workbench{grid-template-columns:1fr}.voice-info-panel{gap:10px}}
+@media(max-width:560px){.voice-panel{padding:16px 13px;border-radius:15px}.voice-preset-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.voice-preset-card{min-height:124px;padding:11px 10px}.voice-control-grid{grid-template-columns:1fr}.voice-studio-intro{margin-bottom:18px}.voice-studio-actions{display:grid;grid-template-columns:1fr 1fr}.voice-studio-actions .button{padding-inline:10px}.voice-pause-choice{align-items:flex-start}}

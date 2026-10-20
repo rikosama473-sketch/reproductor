@@ -22,6 +22,7 @@ assert.ok(html.indexOf(capacitorTag) >= 0 && html.indexOf(capacitorTag) < html.i
   "Capacitor runtime must load before the app module");
 assert.match(html, /src=["']\.\/src\/app\.js["']/, "Bundled HTML must load the real app module");
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/, "Android UI must load its local sound module");
+assert.match(html, /src=["']\.\/src\/voice-studio\.js["']/, "Android UI must load its voice studio module");
 assert.match(html, /id=["']file-picker["']/, "Android UI must retain its audio file picker");
 assert.match(html, /data-scan-device-music/, "Android UI must expose whole-device music scanning");
 
@@ -35,9 +36,9 @@ assert.match(nativePlugin, /MediaStore\.Audio\.Media/, "Native plugin must query
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT/, "Native plugin must open the system document picker");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT_TREE/, "Native plugin must support selecting music folders");
 assert.match(nativePlugin, /listAudioFromTree/, "Native plugin must recursively inspect a selected folder tree");
-assert.match(sw, /ritmo-shell-v45/, "Android package should contain the refreshed offline shell");
+assert.match(sw, /ritmo-shell-v46/, "Android package should contain the refreshed offline shell");
 assert.match(sw, /\.\/src\/external-navigation\.js/, "The safe media-link validator must be available offline");
-for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/external-navigation.js", "src/ui-sounds.js", "assets/icon.svg", "pngtuber-capibara.png"]) {
+for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/external-navigation.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "pngtuber-capibara.png"]) {
   const info = await stat(path.join(root, "www", name)).catch(() => null);
   assert.ok(info?.isFile(), "Missing mobile asset: " + name);
 }
