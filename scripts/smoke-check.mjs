@@ -76,7 +76,8 @@ assert.match(app, /youtubeMediaPlaybackState = "playing"/, "Confirmed YouTube pl
 assert.match(app, /title: youtubeSession \? \(youtubeSession\.title \|\| "Video de YouTube"\)/, "YouTube playback must publish its title to Media Session");
 assert.match(app, /youtubePlayer\?\.pauseVideo/, "OS pause actions should be routed to the official YouTube player");
 assert.match(app, /if \(!key\) \{[\s\S]*?searchInvidiousYoutube\(query, \{ signal: abortController\.signal \}\)/, "Submitting YouTube search without an API key must try the in-app community search first");
-assert.match(app, /No respondieron las instancias comunitarias de búsqueda[\s\S]*?youtube-open-search/, "When community search fails, the user must be directed to the existing official YouTube search fallback");
+assert.match(app, /function fallbackToOfficialYoutubeSearch\\(query, message\\)[\\s\\S]*?youtube-open-search[\\s\\S]*?No hace falta una clave API/, "Community search fallback must keep the official search button available in web builds");
+assert.match(app, /fallbackToOfficialYoutubeSearch\\(query, "Las instancias comunitarias de búsqueda no respondieron/, "Native Android must automatically try the official search when all community mirrors fail");
 assert.match(app, /instance recibió tu consulta|La instancia recibió tu consulta/, "The no-key search must disclose that the third-party instance receives the query");
 assert.match(nativeMusicPluginSource, /file\.put\("persisted", persisted\)/, "Android picker must report when URI permission can be persisted");
 assert.match(app, /if \(item\.persisted === true\)[\s\S]*nativeUri: uri,/, "Persistable Android selections must be stored as native tracks instead of copied into WebView blobs");
