@@ -8,6 +8,7 @@ import { importedFileFingerprint } from "./import-fingerprint.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
+import { normalizeExternalMediaUrl } from "./external-navigation.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -168,6 +169,7 @@ function nativePlaybackPlugin() {
       play: invoke("play"), pause: invoke("pause"), resume: invoke("resume"),
       seekTo: invoke("seekTo"), setVolume: invoke("setVolume"),
       setEqualizer: invoke("setEqualizer"),
+      openExternal: invoke("openExternal"),
       getState: invoke("getState"), stop: invoke("stop")
     };
   }
@@ -2412,7 +2414,7 @@ function youtubeSearchURL(query) {
 function youtubeVideoURL(videoId) {
   return "https://www.youtube.com/watch?v=" + encodeURIComponent(videoId);
 }
-function openExternal(url) {
+function openExternalWebFallback(url) {
   const link = document.createElement("a");
   link.href = url;
   link.target = "_blank";
@@ -2422,6 +2424,25 @@ function openExternal(url) {
   document.body.append(link);
   link.click();
   link.remove();
+}
+function openExternal(url) {
+  const safeUrl = normalizeExternalMediaUrl(url);
+  if (!safeUrl) {
+    console.warn("Ritmo rechazó un enlace externo que no pertenece a un servicio multimedia permitido.");
+    return false;
+  }
+  const plugin = nativePlaybackPlugin();
+  if (plugin?.openExternal) {
+    // On Android, let the OS choose the official YouTube app or the user's
+    // default browser (for example Brave). Keep a safe web fallback for older APKs.
+    void plugin.openExternal({ url: safeUrl }).catch(error => {
+      console.warn("No se pudo abrir el enlace con el enrutamiento nativo de Android.", error);
+      openExternalWebFallback(safeUrl);
+    });
+    return true;
+  }
+  openExternalWebFallback(safeUrl);
+  return true;
 }
 
 function bindOnlineServiceEvents() {

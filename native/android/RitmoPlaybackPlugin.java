@@ -1,6 +1,8 @@
 package com.rikosama473.ritmo;
 
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -206,6 +208,58 @@ public class RitmoPlaybackPlugin extends Plugin {
             controller.clearMediaItems();
             call.resolve(playerState(controller));
         });
+    }
+
+    @PluginMethod
+    public void openExternal(PluginCall call) {
+        String rawUrl = call.getString("url");
+        if (rawUrl == null || rawUrl.trim().isEmpty() || rawUrl.length() > 2048) {
+            call.reject("El enlace externo está vacío o es demasiado largo.");
+            return;
+        }
+        final Uri uri;
+        try {
+            uri = Uri.parse(rawUrl.trim());
+        } catch (Exception error) {
+            call.reject("No se pudo interpretar el enlace externo.", error);
+            return;
+        }
+        if (!isAllowedExternalMediaUri(uri)) {
+            call.reject("Enlace rechazado: Ritmo solo abre búsquedas y videos HTTPS admitidos de YouTube o búsquedas HTTPS de Spotify.");
+            return;
+        }
+        if (getActivity() == null) {
+            call.reject("Android no tiene una ventana activa para abrir el enlace.");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
+            getActivity().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("opened", true);
+            call.resolve(result);
+        } catch (ActivityNotFoundException | SecurityException error) {
+            call.reject("No se encontró una aplicación para abrir este enlace. Comprobá que YouTube o un navegador estén instalados.", error);
+        }
+    }
+
+    private static boolean isAllowedExternalMediaUri(Uri uri) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme()) ||
+            uri.getUserInfo() != null || (uri.getPort() != -1 && uri.getPort() != 443)) {
+            return false;
+        }
+        String host = uri.getHost();
+        String path = uri.getPath();
+        if (host == null || path == null) return false;
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        if ("youtube.com".equals(host) || "www.youtube.com".equals(host)) {
+            return "/watch".equals(path) || "/results".equals(path);
+        }
+        if ("open.spotify.com".equals(host)) {
+            return "/search".equals(path) || path.startsWith("/search/");
+        }
+        return false;
     }
 
     private JSObject playerState(Player player) {
