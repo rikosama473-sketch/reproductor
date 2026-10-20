@@ -119,17 +119,39 @@ export async function searchRadioBrowser(query, filter = "name", {
   throw new Error(lastError?.message || "No se pudo conectar con Radio Browser. Probá otra búsqueda más tarde.");
 }
 // Keyless YouTube result search through public Invidious instances.
-// Public instances are third-party services: callers must disclose that the query
-// is sent to the selected instance. Only hosts listed by Invidious documentation
-// are attempted, and a failed host never prevents the normal YouTube web fallback.
+// These are restricted to hosts listed in Invidious' current public-instance
+// directory. The search query is still sent to that third-party service.
 export const INVIDIOUS_SEARCH_INSTANCES = Object.freeze([
-  // Live-checked first: returned a JSON array of videos in an unauthenticated browser on 2026-10-20.
-  "https://invidious.f5.si",
   "https://yt.chocolatemoo53.com",
   "https://invidious.nerdvpn.de",
   "https://invidious.tiekoetter.com",
   "https://inv.nadeko.net"
 ]);
+
+// YouTube access is opt-in so loading/searching video cannot silently consume
+// a mobile data plan on first launch.
+export const YOUTUBE_MODE_STORAGE_KEY = "ritmo.youtube-enabled.v1";
+
+export function readYoutubeModeEnabled(storage) {
+  try {
+    const store = storage === undefined ? globalThis.localStorage : storage;
+    return store?.getItem(YOUTUBE_MODE_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function persistYoutubeModeEnabled(enabled, storage) {
+  try {
+    const store = storage === undefined ? globalThis.localStorage : storage;
+    if (!store) return false;
+    if (enabled) store.setItem(YOUTUBE_MODE_STORAGE_KEY, "1");
+    else store.removeItem(YOUTUBE_MODE_STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function buildInvidiousYoutubeSearchUrl(query, instance = INVIDIOUS_SEARCH_INSTANCES[0]) {
   const text = String(query ?? "").replace(/\s+/g, " ").trim();
@@ -172,7 +194,7 @@ export function normalizeInvidiousYoutubeResult(item) {
 export async function searchInvidiousYoutube(query, {
   signal,
   fetchImpl = globalThis.fetch,
-  timeoutMs = 2800
+  timeoutMs = 1800
 } = {}) {
   const text = String(query ?? "").replace(/\s+/g, " ").trim();
   if (!text) throw new TypeError("Ingresá una canción o artista para buscar.");
@@ -184,7 +206,7 @@ export async function searchInvidiousYoutube(query, {
     const requestController = new AbortController();
     const abortFromCaller = () => requestController.abort();
     signal?.addEventListener("abort", abortFromCaller, { once: true });
-    const timer = setTimeout(() => requestController.abort(), Math.max(500, Number(timeoutMs) || 2800));
+    const timer = setTimeout(() => requestController.abort(), Math.max(500, Number(timeoutMs) || 1800));
     try {
       const response = await fetchImpl(buildInvidiousYoutubeSearchUrl(text, instance), {
         method: "GET",

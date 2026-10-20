@@ -6,7 +6,7 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
-import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube } from "./online-services.js";
+import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 
 const $ = selector => document.querySelector(selector);
@@ -39,6 +39,7 @@ const nativePlaybackPollGate = createAsyncGenerationGate();
 let nativeUrlFallbackInProgressFor = null;
 let youtubeSearchRequestId = 0;
 let youtubeSearchAbortController = null;
+let youtubeModeEnabledState = readYoutubeModeEnabled();
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
@@ -1397,9 +1398,11 @@ function stopYoutubePlayback() {
   const frame = $("#youtube-iframe");
   if (youtubePlayer) {
     try { youtubePlayer.stopVideo(); } catch {}
-  } else if (frame && frame.src && frame.src.includes("youtube.com/embed/")) {
-    frame.src = "about:blank";
+    youtubePlayer = null;
   }
+  // stopVideo() pauses playback but leaves the YouTube document and network
+  // resources alive. Unload the iframe every time we leave this mode.
+  if (frame) frame.src = "about:blank";
   const wrap = $("#youtube-player-wrap");
   if (wrap) wrap.hidden = true;
 }
@@ -2655,6 +2658,62 @@ function setYoutubeStatus(message, kind = "info") {
   status.className = "youtube-status " + kind;
   status.textContent = message;
 }
+function updateYoutubeNetworkStatus() {
+  const status = $("#youtube-network-status");
+  if (!status) return;
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const network = !navigator.onLine ? "Sin conexión." :
+    connection?.type === "wifi" ? "Red detectada: Wi-Fi." :
+    connection?.type === "cellular" ? "Red detectada: datos móviles." :
+    "Conexión disponible; este navegador no confirma si es Wi-Fi o datos móviles.";
+  const saver = connection?.saveData === true ? " El ahorro de datos del navegador está activado." : "";
+  status.textContent = network + saver + " El consumo y el costo dependen de la calidad y duración; Ritmo no puede calcularlos por adelantado.";
+}
+function syncYoutubeModeControls() {
+  const enabled = youtubeModeEnabledState;
+  const toggle = $("#youtube-mode-toggle");
+  if (toggle) {
+    toggle.textContent = enabled ? "Apagar YouTube" : "Activar YouTube";
+    toggle.setAttribute("aria-pressed", String(enabled));
+  }
+  for (const selector of ["#youtube-query", "#youtube-search-button", "#youtube-open-search", "#youtube-load-more"]) {
+    const control = $(selector);
+    if (control) control.disabled = !enabled;
+  }
+  const stateLabel = $("#youtube-mode-label");
+  if (stateLabel) stateLabel.textContent = enabled ? "YouTube está activado dentro de Ritmo" : "YouTube está apagado";
+  const description = $("#youtube-mode-description");
+  if (description) description.textContent = enabled
+    ? "Las búsquedas y el reproductor integrado están habilitados. Usá Apagar YouTube para detenerlo y descargar sus recursos."
+    : "No se harán búsquedas ni se mantendrá cargado el reproductor de YouTube hasta que lo actives.";
+  updateYoutubeNetworkStatus();
+}
+function setYoutubeModeEnabled(enabled) {
+  const next = Boolean(enabled);
+  const persisted = persistYoutubeModeEnabled(next);
+  youtubeModeEnabledState = next;
+  if (!next) {
+    youtubeSearchAbortController?.abort();
+    youtubeSearchAbortController = null;
+    youtubeSearchRequestId++;
+    stopYoutubePlayback();
+    state.youtubeResults = [];
+    state.youtubeNextPageToken = null;
+    state.youtubeQuery = "";
+    $("#youtube-results").replaceChildren();
+    $("#youtube-load-more").hidden = true;
+  }
+  syncYoutubeModeControls();
+  if (!persisted) {
+    setYoutubeStatus(next
+      ? "YouTube está activado solo durante esta sesión porque el navegador no permitió guardar la preferencia."
+      : "YouTube está apagado. La preferencia no pudo guardarse en este navegador.", "warning");
+  } else if (next) {
+    setYoutubeStatus("YouTube activado. Sin clave, la búsqueda envía tu consulta a una instancia pública de Invidious. El reproductor integrado no ofrece audio en segundo plano; para evitar consumo móvil, apagalo al terminar.", "info");
+  } else {
+    setYoutubeStatus("YouTube apagado. Se cancelaron las búsquedas y se descargó el reproductor integrado. La música local y las radios compatibles siguen disponibles.", "info");
+  }
+}
 function readableYoutubeApiError(code, message) {
   if (code === "quotaExceeded" || code === "dailyLimitExceeded") return "La cuota gratuita de búsqueda de YouTube para esta clave se agotó por hoy. Podés seguir buscando abriendo YouTube directamente o probar mañana.";
   if (code === "keyInvalid" || code === "accessNotConfigured" || code === "API_KEY_INVALID") return "La clave API no es válida o YouTube Data API v3 no está habilitada en el proyecto de Google Cloud.";
@@ -2721,6 +2780,10 @@ async function annotateYoutubeVideoStatus(items, key, signal) {
   });
 }
 async function searchYoutube(pageToken = "") {
+  if (!youtubeModeEnabledState) {
+    setYoutubeStatus("YouTube está apagado. Tocá «Activar YouTube» y confirmá el aviso de consumo para buscar.", "info");
+    return;
+  }
   // A newer query supersedes the previous search and its follow-up status lookup.
   // Abort both network requests to avoid stale work and needless API quota use.
   youtubeSearchAbortController?.abort();
@@ -2880,6 +2943,10 @@ async function searchYoutube(pageToken = "") {
   }
 }
 function playYoutubeVideo(videoId, title = "Video de YouTube") {
+  if (!youtubeModeEnabledState) {
+    setYoutubeStatus("YouTube está apagado. Activá YouTube antes de reproducir un video.", "info");
+    return;
+  }
   stopSpotifyEmbed({ preserveSaved: true, refresh: false });
   if (!navigator.onLine) { toast("Para reproducir YouTube necesitás conexión. Los resultados guardados y la biblioteca local siguen disponibles offline."); return; }
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) {
@@ -2972,6 +3039,20 @@ function bindEvents() {
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });
   folderPicker.addEventListener("change", async () => { await importFiles(folderPicker.files); folderPicker.value = ""; });
   $("#youtube-search-form").addEventListener("submit", event => { event.preventDefault(); searchYoutube(); });
+  $("#youtube-mode-toggle").addEventListener("click", () => {
+    if (youtubeModeEnabledState) {
+      setYoutubeModeEnabled(false);
+      return;
+    }
+    const accepted = window.confirm(
+      "¿Activar YouTube dentro de Ritmo?\n\nLas búsquedas y los videos usan Internet y pueden consumir datos móviles. Ritmo no puede anticipar el gasto ni saber siempre si estás en Wi-Fi. Si tu plan es limitado, preferí Wi-Fi.\n\nSin clave API, la consulta se envía a una instancia pública de Invidious; con una clave, se envía a Google. El reproductor integrado de YouTube no puede ofrecer reproducción en segundo plano desde Ritmo.\n\n¿Activar YouTube?"
+    );
+    if (accepted) setYoutubeModeEnabled(true);
+  });
+  window.addEventListener("online", updateYoutubeNetworkStatus);
+  window.addEventListener("offline", updateYoutubeNetworkStatus);
+  const networkInfo = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  networkInfo?.addEventListener?.("change", updateYoutubeNetworkStatus);
   bindOnlineServiceEvents();
   $("#archive-search-form").addEventListener("submit", event => { event.preventDefault(); searchArchiveAudio(false); });
   $("#archive-load-more").addEventListener("click", () => searchArchiveAudio(true));
@@ -3300,6 +3381,8 @@ function bindEvents() {
 async function init() {
   bindEvents();
   updateYoutubeKeyStatus();
+  syncYoutubeModeControls();
+  if (!youtubeModeEnabledState) setYoutubeStatus("YouTube está apagado para evitar búsquedas y carga de videos sin tu permiso. Activá el interruptor si querés usarlo.", "info");
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     // The new worker skips waiting and claims existing clients. When a tab that
     // already had a controller changes to the new worker, its HTML/JS may still

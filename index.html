@@ -153,14 +153,22 @@
               <div class="youtube-heading-copy"><div class="eyebrow">DESCUBRÍ TU PRÓXIMA CANCIÓN</div><h2>Buscar en <span>YouTube.</span></h2><p>Buscá canciones, videoclips, sesiones en vivo y mixes desde Ritmo.</p></div>
               <span class="free-pill"><span>✓</span> Gratis</span>
             </div>
+            <div class="youtube-mode-control">
+              <div class="youtube-mode-copy">
+                <strong id="youtube-mode-label">YouTube está apagado</strong>
+                <p id="youtube-mode-description">No se harán búsquedas ni se mantendrá cargado el reproductor de YouTube hasta que lo actives.</p>
+                <p class="youtube-network-status" id="youtube-network-status" role="status" aria-live="polite">Comprobando conexión…</p>
+              </div>
+              <button type="button" class="button button-primary youtube-mode-toggle" id="youtube-mode-toggle" aria-pressed="false">Activar YouTube</button>
+            </div>
             <form id="youtube-search-form" class="youtube-search-form">
               <span class="youtube-search-icon">⌕</span>
-              <input id="youtube-query" type="search" autocomplete="off" maxlength="180" placeholder="Buscá una canción, artista, OST o mix…" aria-label="Buscar música en YouTube" required>
-              <button type="submit" class="button button-primary" id="youtube-search-button">Buscar <span>→</span></button>
+              <input id="youtube-query" type="search" autocomplete="off" maxlength="180" placeholder="Buscá una canción, artista, OST o mix…" aria-label="Buscar música en YouTube" disabled required>
+              <button type="submit" class="button button-primary" id="youtube-search-button" disabled>Buscar <span>→</span></button>
             </form>
             <div class="youtube-shortcuts">
-              <button type="button" id="youtube-open-search" class="text-button">Abrir búsqueda en YouTube ↗</button>
-              <span>Sin clave API, Buscar prueba una búsqueda dentro de Ritmo; si el servicio comunitario no responde, podés abrir YouTube directamente.</span>
+              <button type="button" id="youtube-open-search" class="text-button" disabled>Abrir búsqueda en YouTube / Brave ↗</button>
+              <span>Usa el navegador predeterminado del dispositivo (Brave si lo configuraste). También consume datos; el botón Apagar controla el reproductor dentro de Ritmo.</span>
             </div>
             <div id="youtube-status" class="youtube-status" role="status" aria-live="polite">Con una clave opcional, Ritmo usa la API oficial. Sin clave, intenta la búsqueda comunitaria integrada y conserva la búsqueda web como respaldo.</div>
             <div id="youtube-results" class="youtube-results"></div>
@@ -168,7 +176,7 @@
             <div id="youtube-player-wrap" class="youtube-player-wrap" hidden>
               <div class="youtube-player-header"><div><span class="section-kicker">REPRODUCIENDO DESDE YOUTUBE</span><strong id="youtube-current-title">Video seleccionado</strong></div><a id="youtube-current-link" class="text-button" target="_blank" rel="noopener" href="https://www.youtube.com/">Abrir en YouTube ↗</a></div>
               <div class="youtube-player-frame"><iframe id="youtube-iframe" title="Reproductor oficial de YouTube" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-              <p class="youtube-player-note">Ritmo no inserta anuncios propios ni cobra por reproducir. YouTube controla su reproductor y puede mostrar sus anuncios habituales; Ritmo no los bloquea dentro del video.</p>
+              <p class="youtube-player-note">YouTube controla su reproductor y sus anuncios. Por sus políticas, Ritmo no ofrece reproducción de este video en segundo plano ni audio al bloquear la pantalla; los archivos locales y fuentes directas compatibles utilizan el reproductor nativo de Android.</p>
             </div>
             <details class="youtube-api-settings" id="youtube-api-details">
               <summary>Configurar búsqueda integrada (opcional)</summary>

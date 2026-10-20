@@ -12,6 +12,16 @@
 .youtube-heading-icon{width:48px;height:48px;flex:0 0 auto;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,#ff6e72,#c53448);color:white;font-size:21px;box-shadow:0 8px 22px #c5344826}
 .youtube-heading-copy{min-width:0;flex:1}.youtube-heading-copy h2{font:800 21px Manrope,sans-serif;letter-spacing:-.6px;margin:5px 0}.youtube-heading-copy h2 span{color:#ff888c}.youtube-heading-copy p{font-size:10px;color:#9295a7;line-height:1.6;margin:0}
 .free-pill{display:flex;align-items:center;gap:6px;border:1px solid #335240;background:#8be2a312;color:#a9e6bd;border-radius:25px;padding:7px 10px;font-size:10px;font-weight:700;white-space:nowrap}.free-pill span{font-size:12px}
+.youtube-mode-control{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 0 12px;padding:14px 15px;border:1px solid #72554680;border-radius:12px;background:linear-gradient(120deg,#3d2d25,#271e19)}
+.youtube-mode-copy{min-width:0;flex:1}
+.youtube-mode-copy>strong{display:block;color:#f1d7ca;font-size:12px;font-weight:800}
+.youtube-mode-copy>p{margin:5px 0 0;color:#b9a69c;font-size:10px;line-height:1.6}
+.youtube-mode-copy .youtube-network-status{color:#dec4b5}
+.youtube-mode-toggle{flex:0 0 auto;min-width:136px;min-height:40px;background:linear-gradient(135deg,#e1c7bc,#cfa593);color:#281b15;border-color:transparent}
+.youtube-mode-toggle[aria-pressed="true"]{background:linear-gradient(135deg,#cf6c6c,#a93d4b);color:#fff}
+.youtube-search-form :disabled,.youtube-shortcuts button:disabled{opacity:.42;cursor:not-allowed}
+@media(max-width:560px){.youtube-mode-control{align-items:stretch;flex-direction:column;gap:12px}.youtube-mode-toggle{width:100%}}
+@media(prefers-reduced-motion:reduce){.youtube-mode-toggle{transition:none}}
 .youtube-search-form{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 7px 6px 14px;background:#11131a;border:1px solid #383440;border-radius:11px}.youtube-search-form:focus-within{border-color:#d9b8aa;box-shadow:0 0 0 3px #d9b8aa12}.youtube-search-icon{font-size:25px;line-height:1;color:#aab0c0}.youtube-search-form input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:#f9f4f2;font-size:12px}.youtube-search-form input::placeholder{color:#74788a}.youtube-search-form button{flex:0 0 auto;min-height:37px}
 .youtube-shortcuts{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:9px 2px 0}.youtube-shortcuts .text-button{padding:4px 0}.youtube-shortcuts>span{font-size:9px;color:#9c8e85;text-align:right}.youtube-shortcuts .needs-attention{color:#f0e3de}
 .youtube-status{margin:14px 0 0;padding:10px 12px;background:#ffffff04;border:1px solid #ffffff0b;border-radius:8px;font-size:10px;line-height:1.65;color:#9296a7}.youtube-status.success{color:#a4e4bf;border-color:#6ca9822e;background:#73d39409}.youtube-status.error{color:#ffb4b4;border-color:#d970702e;background:#dd707009}
