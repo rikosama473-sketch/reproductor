@@ -37,11 +37,15 @@ if (!runtimeText.includes("nativePromise") || !runtimeText.includes("getPlatform
 await copyFile(runtimeSource, path.join(webDir, "capacitor.js"));
 
 const appScriptTag = '<script type="module" src="./src/app.js"></script>';
+const uiSoundsScriptTag = '<script type="module" src="./src/ui-sounds.js"></script>';
 const capacitorScriptTag = '<script src="./capacitor.js"></script>';
 let html = await readFile(path.join(webDir, "index.html"), "utf8");
 const appTagCount = html.split(appScriptTag).length - 1;
 if (appTagCount !== 1) {
   throw new Error("index.html debe incluir exactamente una etiqueta del módulo ./src/app.js.");
+}
+if (html.split(uiSoundsScriptTag).length - 1 !== 1) {
+  throw new Error("index.html debe incluir exactamente una etiqueta del módulo ./src/ui-sounds.js.");
 }
 if (!html.includes(capacitorScriptTag)) {
   html = html.replace(appScriptTag, capacitorScriptTag + "\n  " + appScriptTag);
@@ -55,7 +59,7 @@ const requiredFiles = [
   "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
   "src/app.js", "src/storage.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js",
-  "src/youtube-player-errors.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "assets/icon.svg", "pngtuber-capibara.png"
+  "src/youtube-player-errors.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/ui-sounds.js", "assets/icon.svg", "pngtuber-capibara.png"
 ];
 for (const name of requiredFiles) {
   const info = await stat(path.join(webDir, name)).catch(() => null);
