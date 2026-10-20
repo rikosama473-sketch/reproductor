@@ -19,7 +19,7 @@ export function validateCompanionImage(file) {
   if (!Number.isFinite(size) || size <= 0) throw new TypeError("El archivo de imagen está vacío o no se puede leer.");
   if (size > MAX_COMPANION_IMAGE_BYTES) throw new RangeError("La imagen o el GIF supera los 8 MB. Elegí una versión más liviana.");
   const suppliedName = String(file.name || "personaje").trim();
-  const fileName = suppliedName.split(/[\\/]/).pop().slice(0, 120) || "personaje";
+  const fileName = suppliedName.replaceAll("\\", "/").split("/").pop().slice(0, 120) || "personaje";
   const extension = /\.[^.]+$/.exec(fileName.toLowerCase())?.[0] || "";
   const extensionMime = MIME_BY_EXTENSION[extension] || "";
   const reportedType = String(file.type || "").split(";")[0].trim().toLowerCase();
