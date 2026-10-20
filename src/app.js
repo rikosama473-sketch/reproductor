@@ -1112,6 +1112,7 @@ function render() {
 const CHARACTER_COMPANION_SETTING_KEY = "character-companion-image";
 const DEFAULT_CHARACTER_COMPANION_SRC = "./pngtuber-capibara.png";
 let customCharacterCompanionUrl = null;
+let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC;
 
 function setCharacterCompanionStatus(fileName, message) {
   const name = $("#character-companion-file-name");
@@ -1120,10 +1121,17 @@ function setCharacterCompanionStatus(fileName, message) {
   if (status) status.textContent = message || "";
 }
 function setCharacterCompanionSource(source) {
+  characterCompanionSource = String(source || DEFAULT_CHARACTER_COMPANION_SRC);
+  const companion = $("#character-companion");
   const image = $("#character-companion-image");
   const preview = $("#character-companion-preview");
-  if (image) image.src = source;
-  if (preview) preview.src = source;
+  // Keep the upload available for Settings, but don't keep the mini-player's
+  // animated decoder active while the companion is hidden.
+  if (image) {
+    if (companion && !companion.hidden) image.src = characterCompanionSource;
+    else image.removeAttribute("src");
+  }
+  if (preview) preview.src = characterCompanionSource;
 }
 function useDefaultCharacterCompanion(message = "Se usa el personaje incluido con Ritmo.") {
   const oldUrl = customCharacterCompanionUrl;
@@ -1214,8 +1222,17 @@ async function resetCharacterCompanion() {
 function syncCharacterCompanion(playing) {
   const companion = $("#character-companion");
   if (!companion) return;
+  const image = $("#character-companion-image");
   const isPlaying = Boolean(playing || (spotifyCurrentEmbed && spotifyControllerReady && spotifyMediaPlaybackState === "playing"));
-  companion.hidden = !isPlaying;
+  if (isPlaying) {
+    if (image && image.getAttribute("src") !== characterCompanionSource) image.src = characterCompanionSource;
+    companion.hidden = false;
+  } else {
+    companion.hidden = true;
+    // Removing src stops decoding animated GIF/WebP/APNG frames while music
+    // is paused; the object URL and saved IndexedDB blob remain available.
+    if (image?.hasAttribute("src")) image.removeAttribute("src");
+  }
   companion.classList.toggle("is-playing", isPlaying);
 }
 function updatePlayer() {

@@ -43,12 +43,17 @@ assert.match(app, /saveAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /getAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /deleteAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /URL\.revokeObjectURL\(oldUrl\)/);
+assert.match(app, /let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC/);
+assert.match(app, /if \(companion && !companion\.hidden\) image\.src = characterCompanionSource/);
+assert.match(app, /image\.removeAttribute\("src"\)/, "The mini-player must detach the animated asset while paused");
+assert.match(app, /if \(isPlaying\) \{[\s\S]*?image\.src = characterCompanionSource;[\s\S]*?companion\.hidden = false;[\s\S]*?image\.removeAttribute\("src"\)/,
+  "Animated companion decoding must be restored on play and released on pause");
 assert.match(storage, /const DB_VERSION = 3/);
 assert.match(storage, /createObjectStore\(APP_SETTINGS, \{ keyPath: "key" \}\)/);
 assert.match(storage, /export async function getAppSetting\(key\)/);
 assert.match(storage, /export async function saveAppSetting\(key, value\)/);
 assert.match(storage, /export async function deleteAppSetting\(key\)/);
-assert.match(serviceWorker, /ritmo-shell-v42/);
+assert.match(serviceWorker, /ritmo-shell-v43/);
 assert.match(serviceWorker, /\.\/src\/character-companion\.js/);
 assert.match(prepareMobile, /src\/character-companion\.js/);
 assert.match(smoke, /const DB_VERSION = 3/);
