@@ -95,13 +95,17 @@ function initializeVoiceStudio() {
     volumeOutput.textContent = volumeInput.value + "%";
   }
 
-  function setSelectedPreset(key) {
-    const preset = VOICE_PRESETS[key];
-    if (!preset) return;
+  function markSelectedPreset(key) {
     settings.preset = key;
     presetGrid.querySelectorAll("[data-voice-preset]").forEach(button => {
       button.setAttribute("aria-pressed", String(button.dataset.voicePreset === key));
     });
+  }
+
+  function setSelectedPreset(key) {
+    const preset = VOICE_PRESETS[key];
+    if (!preset) return;
+    markSelectedPreset(key);
     pitchInput.value = String(preset.pitch);
     rateInput.value = String(preset.rate);
     updateOutputs();
@@ -254,13 +258,13 @@ function initializeVoiceStudio() {
   updateOutputs();
 
   pitchInput.addEventListener("input", () => {
-    setSelectedPreset("custom");
+    markSelectedPreset("custom");
     pitchInput.value = String(Math.max(0.5, Math.min(2, Number(pitchInput.value))));
     updateOutputs();
     persistSettings();
   });
   rateInput.addEventListener("input", () => {
-    setSelectedPreset("custom");
+    markSelectedPreset("custom");
     rateInput.value = String(Math.max(0.6, Math.min(1.8, Number(rateInput.value))));
     updateOutputs();
     persistSettings();
