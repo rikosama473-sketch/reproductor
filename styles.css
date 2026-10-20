@@ -443,3 +443,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .companion-settings-actions{flex-wrap:wrap;gap:8px}
 .companion-settings-actions .button{min-height:42px}
 @media(max-width:500px){.companion-settings-preview{align-items:flex-start;padding:9px;gap:10px}.companion-settings-image{flex-basis:64px;width:64px;height:64px}.companion-settings-copy strong{font-size:11px}.companion-settings-copy p{font-size:10px}.companion-settings-actions{display:grid;grid-template-columns:1fr}.companion-settings-actions .button{width:100%}}
+
+
+/* Optional synthesized button tones, kept separate from music/equalizer controls. */
+.ui-sound-settings #ui-sounds-preview{width:100%;margin-top:8px}
+.ui-sound-settings .eq-control{margin-top:12px}
+.ui-sound-settings #ui-sounds-volume{accent-color:var(--purple)}
+.ui-sound-settings #ui-sounds-pack{width:100%}
