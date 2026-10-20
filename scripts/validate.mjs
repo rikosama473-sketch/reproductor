@@ -21,7 +21,6 @@ const syntaxChecks = [
   "scripts/smoke-check.mjs",
   "scripts/character-companion-check.mjs",
   "scripts/external-navigation-check.mjs",
-  "scripts/external-navigation-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",
   "scripts/youtube-history-check.mjs",
   "scripts/audio-output-volume-check.mjs",
@@ -43,6 +42,7 @@ const syntaxChecks = [
 const regressionSuites = [
   "scripts/smoke-check.mjs",
   "scripts/character-companion-check.mjs",
+  "scripts/external-navigation-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",
   "scripts/youtube-history-check.mjs",
   "scripts/audio-output-volume-check.mjs",
