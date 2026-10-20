@@ -2686,6 +2686,16 @@ function setYoutubeStatus(message, kind = "info") {
   status.className = "youtube-status " + kind;
   status.textContent = message;
 }
+function fallbackToOfficialYoutubeSearch(query, message) {
+  const nativePlugin = isNativeAndroidShell() ? nativePlaybackPlugin() : null;
+  if (nativePlugin?.openExternal) {
+    setYoutubeStatus(message + " Intentando abrir la búsqueda oficial de YouTube; no hace falta una clave API.", "warning");
+    openExternal(youtubeSearchURL(query));
+    return;
+  }
+  $("#youtube-open-search").classList.add("needs-attention");
+  setYoutubeStatus(message + " Tocá «Abrir búsqueda en YouTube» para continuar; no hace falta una clave API.", "error");
+}
 function updateYoutubeNetworkStatus() {
   const status = $("#youtube-network-status");
   if (!status) return;
@@ -2885,12 +2895,11 @@ async function searchYoutube(pageToken = "") {
       if (items.length) {
         setYoutubeStatus("Encontré " + items.length + " resultados para «" + query + "» mediante " + new URL(result.instance).hostname + ". La instancia recibió tu consulta; abrí en YouTube para reproducirlos.", "success");
       } else {
-        setYoutubeStatus("La instancia comunitaria respondió, pero no encontró videos para «" + query + "». Podés probar otra búsqueda o abrir YouTube directamente.", "info");
+        fallbackToOfficialYoutubeSearch(query, "La búsqueda comunitaria no devolvió videos utilizables para «" + query + "».");
       }
     } catch (error) {
       if (isCurrentYoutubeSearch() && error?.name !== "AbortError") {
-        $("#youtube-open-search").classList.add("needs-attention");
-        setYoutubeStatus("No respondieron las instancias comunitarias de búsqueda. Usá «Abrir búsqueda en YouTube» como respaldo, o configurá una clave oficial. Detalle: " + (error?.message || "error de conexión"), "error");
+        fallbackToOfficialYoutubeSearch(query, "Las instancias comunitarias de búsqueda no respondieron (" + (error?.message || "error de conexión") + ").");
       }
     } finally {
       if (isCurrentYoutubeSearch()) {

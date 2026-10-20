@@ -200,6 +200,7 @@ export async function searchInvidiousYoutube(query, {
   if (!text) throw new TypeError("Ingresá una canción o artista para buscar.");
   if (typeof fetchImpl !== "function") throw new TypeError("Este navegador no ofrece fetch para la búsqueda comunitaria.");
   let lastError = null;
+  let lastEmptyResult = null;
 
   for (const instance of INVIDIOUS_SEARCH_INSTANCES) {
     if (signal?.aborted) throw new DOMException("Búsqueda cancelada", "AbortError");
@@ -219,10 +220,16 @@ export async function searchInvidiousYoutube(query, {
       if (!response.ok) throw new Error("La instancia comunitaria respondió " + response.status + ".");
       const data = await response.json();
       if (!Array.isArray(data)) throw new Error("La instancia comunitaria devolvió un formato inesperado.");
-      return {
-        items: data.map(normalizeInvidiousYoutubeResult).filter(Boolean).slice(0, 12),
-        instance
-      };
+      const items = data.map(normalizeInvidiousYoutubeResult).filter(Boolean).slice(0, 12);
+      if (!items.length) {
+        // A public mirror can return HTTP 200 but provide no usable videos during
+        // upstream YouTube incidents. Do not treat that as definitive until
+        // other approved instances have had a chance to answer.
+        if (!lastEmptyResult) lastEmptyResult = { items: [], instance };
+        lastError = new Error("La instancia comunitaria no devolvió videos utilizables; probando otra instancia.");
+        continue;
+      }
+      return { items, instance };
     } catch (error) {
       if (signal?.aborted) throw new DOMException("Búsqueda cancelada", "AbortError");
       lastError = error;
@@ -232,5 +239,6 @@ export async function searchInvidiousYoutube(query, {
     }
   }
 
+  if (lastEmptyResult) return lastEmptyResult;
   throw new Error(lastError?.message || "Ninguna instancia comunitaria de búsqueda de YouTube respondió.");
 }

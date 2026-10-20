@@ -119,6 +119,9 @@ const pageSource = await readFile(new URL("../index.html", import.meta.url), "ut
 assert.match(appSource, /youtubeSearchAbortController\?\.abort\(\)/);
 assert.match(appSource, /frame\.src = "about:blank"/, "Disabling YouTube must unload its iframe");
 assert.match(appSource, /setYoutubeModeEnabled\(false\)/, "The off action must stop the embedded player");
+assert.match(appSource, /function fallbackToOfficialYoutubeSearch\(query, message\)/, "Failed keyless search must have an explicit official YouTube fallback");
+assert.match(appSource, /nativePlugin\?\.openExternal[\s\S]*?openExternal\(youtubeSearchURL\(query\)\)/, "Android should route to official YouTube automatically when community search fails");
+assert.match(appSource, /Tocá «Abrir búsqueda en YouTube» para continuar; no hace falta una clave API/, "Web fallback must be clear and keyless");
 const youtubePlayStart = appSource.indexOf("function playYoutubeVideo(");
 assert.ok(youtubePlayStart >= 0);
 const youtubePlaySource = appSource.slice(youtubePlayStart, youtubePlayStart + 2600);
@@ -157,10 +160,31 @@ assert.equal(communityResult.instance, INVIDIOUS_SEARCH_INSTANCES[1]);
 assert.equal(communityResult.items.length, 1, "Only well-formed video results should be returned");
 assert.equal(communityResult.items[0].snippet.title, "Ambient track");
 
+// A 200 response with zero usable videos must not prevent trying the next mirror.
+let emptyMirrorCalls = 0;
+const afterEmptyMirror = await searchInvidiousYoutube("ambient with mirror failover", {
+  timeoutMs: 900,
+  fetchImpl: async requestUrl => {
+    const host = new URL(requestUrl).hostname;
+    emptyMirrorCalls++;
+    if (emptyMirrorCalls === 1) {
+      assert.equal(host, new URL(INVIDIOUS_SEARCH_INSTANCES[0]).hostname);
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    assert.equal(host, new URL(INVIDIOUS_SEARCH_INSTANCES[1]).hostname);
+    return { ok: true, status: 200, json: async () => [
+      { type: "video", videoId: "dQw4w9WgXcQ", title: "Found after empty mirror", author: "Demo" }
+    ] };
+  }
+});
+assert.equal(emptyMirrorCalls, 2, "An empty 200 response should fail over before being treated as no results");
+assert.equal(afterEmptyMirror.instance, INVIDIOUS_SEARCH_INSTANCES[1]);
+assert.equal(afterEmptyMirror.items[0].snippet.title, "Found after empty mirror");
+
 const communityAbort = new AbortController();
 communityAbort.abort();
 await assert.rejects(
   searchInvidiousYoutube("cancelled", { signal: communityAbort.signal, fetchImpl: async () => { throw new Error("must not call fetch"); } }),
   error => error?.name === "AbortError"
 );
-console.log("Keyless YouTube community search checks passed: host allowlist, schema normalization, mirror failover and cancellation.");
+console.log("Keyless YouTube community search checks passed: host allowlist, schema normalization, mirror failover on errors/empty responses, official fallback and cancellation.");
