@@ -6,7 +6,7 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
-import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl } from "./online-services.js";
+import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube } from "./online-services.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -2577,11 +2577,13 @@ function renderYoutubeResults(items, append = false) {
     const playAction = canEmbed
       ? '<button class="button button-primary" type="button" data-yt-play="' + escapeHTML(videoId) + '" data-yt-title="' + escapeHTML(title) + '">▶ Reproducir aquí</button>'
       : '<button class="button button-soft" type="button" data-yt-external="' + escapeHTML(videoId) + '">' + (item.ritmoMadeForKids === true ? 'Abrir contenido infantil en YouTube ↗' : 'Abrir en YouTube ↗') + '</button>';
-    const statusNote = item.ritmoStatusVerified !== true
-      ? '<div class="youtube-result-safety">No se pudo verificar si se puede incrustar</div>'
-      : item.ritmoMadeForKids === true
-        ? '<div class="youtube-result-safety">Abrir en YouTube para cuidar la privacidad infantil</div>'
-        : !item.ritmoEmbeddable ? '<div class="youtube-result-safety">Este video solo se abre en YouTube</div>' : '';
+    const statusNote = item.ritmoSource === "invidious"
+      ? '<div class="youtube-result-safety">Resultado comunitario: los permisos de incrustación no están verificados</div>'
+      : item.ritmoStatusVerified !== true
+        ? '<div class="youtube-result-safety">No se pudo verificar si se puede incrustar</div>'
+        : item.ritmoMadeForKids === true
+          ? '<div class="youtube-result-safety">Abrir en YouTube para cuidar la privacidad infantil</div>'
+          : !item.ritmoEmbeddable ? '<div class="youtube-result-safety">Este video solo se abre en YouTube</div>' : '';
     return '<article class="youtube-result">' +
       '<button class="youtube-thumbnail" type="button" ' + thumbnailAction + ' aria-label="' + (canEmbed ? 'Reproducir ' : 'Abrir ') + escapeHTML(title) + '">' +
       (thumbnail ? '<img loading="lazy" src="' + escapeHTML(thumbnail) + '" alt="">' : '<span>▶</span>') + '<span class="yt-play-overlay">' + (canEmbed ? '▶' : '↗') + '</span></button>' +
@@ -2662,15 +2664,48 @@ async function searchYoutube(pageToken = "") {
   }
   const key = youtubeApiKey();
   if (!key) {
-    setYoutubeStatus("No hay clave API guardada. Abrí la búsqueda pública de YouTube; para ver resultados dentro de Ritmo necesitás configurar la YouTube Data API.", "info");
-    $("#youtube-open-search").classList.add("needs-attention");
-    $("#youtube-results").innerHTML = "";
-    state.youtubeNextPageToken = null;
+    // A no-key search stays inside Ritmo first. The query is sent only to one of
+    // the public community instances documented by Invidious; its results are
+    // explicitly marked unverified and open on YouTube instead of being embedded.
+    if (!pageToken) {
+      state.youtubeResults = [];
+      renderYoutubeResults([], false);
+    }
+    button.disabled = true;
+    loadButton.disabled = true;
+    button.textContent = "Buscando…";
     loadButton.hidden = true;
-    button.disabled = false;
-    loadButton.disabled = false;
-    button.innerHTML = 'Buscar <span>→</span>';
-    openExternal(youtubeSearchURL(query));
+    setYoutubeStatus("Buscando sin clave mediante una instancia pública de Invidious. Esa instancia recibe tu consulta; los resultados comunitarios se abren en YouTube porque no se pueden verificar sus permisos de incrustación.", "info");
+    const abortController = new AbortController();
+    youtubeSearchAbortController = abortController;
+    try {
+      const result = await searchInvidiousYoutube(query, { signal: abortController.signal });
+      if (!isCurrentYoutubeSearch()) return;
+      const items = result.items;
+      state.youtubeResults = items;
+      state.youtubeNextPageToken = null;
+      persistYoutubeSearchCache(query, items);
+      renderYoutubeResults(items, false);
+      loadButton.hidden = true;
+      $("#youtube-open-search").classList.remove("needs-attention");
+      if (items.length) {
+        setYoutubeStatus("Encontré " + items.length + " resultados para «" + query + "» mediante " + new URL(result.instance).hostname + ". La instancia recibió tu consulta; abrí en YouTube para reproducirlos.", "success");
+      } else {
+        setYoutubeStatus("La instancia comunitaria respondió, pero no encontró videos para «" + query + "». Podés probar otra búsqueda o abrir YouTube directamente.", "info");
+      }
+    } catch (error) {
+      if (isCurrentYoutubeSearch() && error?.name !== "AbortError") {
+        $("#youtube-open-search").classList.add("needs-attention");
+        setYoutubeStatus("No respondieron las instancias comunitarias de búsqueda. Usá «Abrir búsqueda en YouTube» como respaldo, o configurá una clave oficial. Detalle: " + (error?.message || "error de conexión"), "error");
+      }
+    } finally {
+      if (isCurrentYoutubeSearch()) {
+        button.disabled = false;
+        loadButton.disabled = false;
+        button.innerHTML = 'Buscar <span>→</span>';
+        if (youtubeSearchAbortController === abortController) youtubeSearchAbortController = null;
+      }
+    }
     return;
   }
   if (!pageToken) {
