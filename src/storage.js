@@ -1,8 +1,9 @@
 const DB_NAME = "ritmo-library";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const TRACKS = "tracks";
 const HISTORY = "history";
 const PLAYLISTS = "playlists";
+const APP_SETTINGS = "appSettings";
 let databasePromise;
 
 function openDatabase() {
@@ -41,6 +42,9 @@ function openDatabase() {
       if (!db.objectStoreNames.contains(PLAYLISTS)) {
         const store = db.createObjectStore(PLAYLISTS, { keyPath: "id" });
         store.createIndex("updatedAt", "updatedAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(APP_SETTINGS)) {
+        db.createObjectStore(APP_SETTINGS, { keyPath: "key" });
       }
     };
 
@@ -194,6 +198,33 @@ export async function clearHistory() { return storeTransaction(HISTORY, "readwri
 export async function getPlaylists() { return getAllFromStore(PLAYLISTS, "updatedAt", true); }
 export async function savePlaylist(playlist) { return storeTransaction(PLAYLISTS, "readwrite", store => store.put(playlist)); }
 export async function deletePlaylist(playlistId) { return storeTransaction(PLAYLISTS, "readwrite", store => store.delete(playlistId)); }
+
+export async function getAppSetting(key) {
+  const settingKey = String(key ?? "").trim();
+  if (!settingKey) throw new TypeError("La clave de configuración no puede estar vacía.");
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction(APP_SETTINGS, "readonly");
+      const request = tx.objectStore(APP_SETTINGS).get(settingKey);
+      request.onsuccess = () => resolve(request.result?.value ?? null);
+      request.onerror = () => reject(request.error || new Error("No se pudo leer la configuración guardada."));
+      tx.onabort = () => reject(tx.error || new Error("Se canceló la lectura de configuración."));
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+export async function saveAppSetting(key, value) {
+  const settingKey = String(key ?? "").trim();
+  if (!settingKey) throw new TypeError("La clave de configuración no puede estar vacía.");
+  return storeTransaction(APP_SETTINGS, "readwrite", store => store.put({ key: settingKey, value }));
+}
+export async function deleteAppSetting(key) {
+  const settingKey = String(key ?? "").trim();
+  if (!settingKey) throw new TypeError("La clave de configuración no puede estar vacía.");
+  return storeTransaction(APP_SETTINGS, "readwrite", store => store.delete(settingKey));
+}
 
 export async function estimateStorage() {
   if (!navigator.storage || !navigator.storage.estimate) return null;

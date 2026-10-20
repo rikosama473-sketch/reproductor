@@ -61,7 +61,7 @@ assert.match(app, /data-yt-external/, "Unverified or child-directed videos must 
 console.log("YouTube embedding status checks passed.");
 
 
-assert.match(storage, /const DB_VERSION = 2/, "Storage schema should upgrade without deleting existing tracks");
+assert.match(storage, /const DB_VERSION = 3/, "Storage schema should upgrade without deleting existing tracks");
 assert.match(storage, /createObjectStore\(HISTORY/, "Storage should keep a persistent playback history");
 assert.match(storage, /createObjectStore\(PLAYLISTS/, "Storage should persist playlists");
 assert.match(app, /function renderHistory/, "The app should render recent playback history");

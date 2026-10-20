@@ -160,9 +160,9 @@
             </form>
             <div class="youtube-shortcuts">
               <button type="button" id="youtube-open-search" class="text-button">Abrir búsqueda en YouTube ↗</button>
-              <span>Sin clave API, Buscar abre la búsqueda oficial de YouTube automáticamente.</span>
+              <span>Sin clave API, Buscar prueba una búsqueda dentro de Ritmo; si el servicio comunitario no responde, podés abrir YouTube directamente.</span>
             </div>
-            <div id="youtube-status" class="youtube-status" role="status" aria-live="polite">La búsqueda integrada usa la API oficial de YouTube. También podés abrir la búsqueda pública sin configurar nada.</div>
+            <div id="youtube-status" class="youtube-status" role="status" aria-live="polite">Con una clave opcional, Ritmo usa la API oficial. Sin clave, intenta la búsqueda comunitaria integrada y conserva la búsqueda web como respaldo.</div>
             <div id="youtube-results" class="youtube-results"></div>
             <button type="button" id="youtube-load-more" class="button button-soft youtube-load-more" hidden>Cargar más resultados ↓</button>
             <div id="youtube-player-wrap" class="youtube-player-wrap" hidden>
@@ -279,7 +279,7 @@
   </nav>
 
   <div class="character-companion" id="character-companion" aria-hidden="true" hidden>
-    <img src="./pngtuber-capibara.png" alt="" width="88" height="88" loading="lazy" decoding="async">
+    <img id="character-companion-image" src="./pngtuber-capibara.png" alt="" width="88" height="88" loading="lazy" decoding="async">
     <span class="character-companion-note" aria-hidden="true">♫</span>
   </div>
 
@@ -344,6 +344,24 @@
     <div class="dialog-top"><div class="brand-mark"><span>♫</span></div><button class="icon-button" id="close-settings" type="button" aria-label="Cerrar configuración">✕</button></div>
     <div class="eyebrow">CONTROLES DEL REPRODUCTOR</div><h2 id="settings-title">Sonido y <span>reproducción.</span></h2>
     <p class="dialog-muted">Los ajustes se guardan únicamente en este navegador. El ecualizador se aplica a archivos locales; las fuentes externas conservan su reproducción directa para evitar que las restricciones CORS las dejen mudas.</p>
+
+    <section class="settings-section companion-settings-section">
+      <h3>Tu personaje acompañante</h3>
+      <p>Elegí tu personaje en PNG, JPG, GIF animado, WebP o AVIF. Los GIF/WebP/APNG animados conservan sus fotogramas; una imagen fija usa el movimiento ligero de Ritmo. Se guarda solo en este dispositivo.</p>
+      <div class="companion-settings-preview">
+        <div class="companion-settings-image"><img id="character-companion-preview" src="./pngtuber-capibara.png" alt="" width="80" height="80" loading="lazy" decoding="async"></div>
+        <div class="companion-settings-copy">
+          <strong id="character-companion-file-name">Personaje predeterminado de Ritmo</strong>
+          <p id="character-companion-status" role="status" aria-live="polite">Se usa el personaje incluido con Ritmo.</p>
+        </div>
+      </div>
+      <div class="settings-actions companion-settings-actions">
+        <button class="button button-primary" id="character-companion-choose" type="button">Elegir personaje o GIF</button>
+        <button class="button button-soft" id="character-companion-reset" type="button">Restaurar original</button>
+      </div>
+      <input id="character-companion-file" type="file" accept="image/png,image/apng,image/jpeg,image/gif,image/webp,image/avif,.png,.apng,.jpg,.jpeg,.gif,.webp,.avif" hidden>
+      <p class="settings-note">Límite: 8 MB y 2048 × 2048 píxeles. Para evitar consumo innecesario, prepará el GIF con un tamaño pequeño; Ritmo no convierte ni sube la imagen a Internet.</p>
+    </section>
 
     <section class="settings-section">
       <div class="settings-section-heading"><div><h3>Ecualizador</h3><p>Elegí un perfil Acústico, Pop, Rock, Clásico, Jazz, Graves o Voces; después ajustá graves, medios y agudos a mano.</p></div>

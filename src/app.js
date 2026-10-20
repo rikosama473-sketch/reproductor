@@ -1,4 +1,4 @@
-import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage } from "./storage.js";
+import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage, getAppSetting, saveAppSetting, deleteAppSetting } from "./storage.js";
 import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession } from "./media-session-state.js";
@@ -7,6 +7,7 @@ import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube } from "./online-services.js";
+import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -1098,6 +1099,108 @@ function render() {
   updatePlayer();
   updateConnection();
 }
+const CHARACTER_COMPANION_SETTING_KEY = "character-companion-image";
+const DEFAULT_CHARACTER_COMPANION_SRC = "./pngtuber-capibara.png";
+let customCharacterCompanionUrl = null;
+
+function setCharacterCompanionStatus(fileName, message) {
+  const name = $("#character-companion-file-name");
+  const status = $("#character-companion-status");
+  if (name) name.textContent = fileName || "Personaje predeterminado de Ritmo";
+  if (status) status.textContent = message || "";
+}
+function setCharacterCompanionSource(source) {
+  const image = $("#character-companion-image");
+  const preview = $("#character-companion-preview");
+  if (image) image.src = source;
+  if (preview) preview.src = source;
+}
+function useDefaultCharacterCompanion(message = "Se usa el personaje incluido con Ritmo.") {
+  const oldUrl = customCharacterCompanionUrl;
+  customCharacterCompanionUrl = null;
+  setCharacterCompanionSource(DEFAULT_CHARACTER_COMPANION_SRC);
+  setCharacterCompanionStatus("Personaje predeterminado de Ritmo", message);
+  if (oldUrl) URL.revokeObjectURL(oldUrl);
+}
+function useCustomCharacterCompanion(blob, fileName, mimeType) {
+  const nextUrl = URL.createObjectURL(blob);
+  const oldUrl = customCharacterCompanionUrl;
+  customCharacterCompanionUrl = nextUrl;
+  setCharacterCompanionSource(nextUrl);
+  const animated = ["image/gif", "image/webp", "image/apng"].includes(mimeType);
+  setCharacterCompanionStatus(fileName, animated
+    ? "Animación cargada. Se mostrará en miniatura mientras la música esté sonando."
+    : "Imagen cargada. Ritmo aplicará movimiento ligero mientras suene la música.");
+  if (oldUrl) URL.revokeObjectURL(oldUrl);
+}
+async function inspectCharacterCompanionImage(blob) {
+  const probeUrl = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.src = probeUrl;
+    if (typeof image.decode === "function") await image.decode();
+    else await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error("No se pudo decodificar la imagen."));
+    });
+    return validateCompanionImageDimensions(image.naturalWidth, image.naturalHeight);
+  } catch (error) {
+    if (error instanceof RangeError || error instanceof TypeError) throw error;
+    throw new Error("El archivo no es una imagen compatible o está dañado.");
+  } finally {
+    URL.revokeObjectURL(probeUrl);
+  }
+}
+async function loadSavedCharacterCompanion() {
+  try {
+    const saved = await getAppSetting(CHARACTER_COMPANION_SETTING_KEY);
+    if (!saved?.blob || !(saved.blob instanceof Blob)) {
+      useDefaultCharacterCompanion();
+      return;
+    }
+    const details = validateCompanionImage({
+      name: saved.fileName || "personaje",
+      type: saved.mimeType || saved.blob.type,
+      size: saved.blob.size
+    });
+    await inspectCharacterCompanionImage(saved.blob);
+    useCustomCharacterCompanion(saved.blob, details.fileName, details.mimeType);
+  } catch (error) {
+    useDefaultCharacterCompanion("No se pudo cargar tu imagen guardada; se usa el personaje incluido. Podés volver a elegirla.");
+    console.warn("No se pudo restaurar el personaje acompañante.", error);
+  }
+}
+async function chooseCharacterCompanion(file) {
+  if (!file) return;
+  const status = $("#character-companion-status");
+  if (status) status.textContent = "Validando imagen…";
+  try {
+    const details = validateCompanionImage(file);
+    await inspectCharacterCompanionImage(file);
+    const blob = file.slice(0, file.size, details.mimeType);
+    await saveAppSetting(CHARACTER_COMPANION_SETTING_KEY, {
+      blob, fileName: details.fileName, mimeType: details.mimeType, savedAt: Date.now()
+    });
+    useCustomCharacterCompanion(blob, details.fileName, details.mimeType);
+    toast("Tu personaje quedó guardado en este dispositivo.");
+  } catch (error) {
+    const message = error?.message || "No se pudo guardar esta imagen.";
+    if (status) status.textContent = message;
+    toast(message);
+  }
+}
+async function resetCharacterCompanion() {
+  try {
+    await deleteAppSetting(CHARACTER_COMPANION_SETTING_KEY);
+    useDefaultCharacterCompanion();
+    toast("Se restauró el personaje de Ritmo.");
+  } catch (error) {
+    const message = error?.message || "No se pudo restaurar el personaje.";
+    setCharacterCompanionStatus($("#character-companion-file-name")?.textContent, message);
+    toast(message);
+  }
+}
+
 function syncCharacterCompanion(playing) {
   const companion = $("#character-companion");
   if (!companion) return;
@@ -2859,6 +2962,13 @@ function bindEvents() {
   $("#menu-toggle").addEventListener("click", () => setMobileMenuOpen(!$("#sidebar").classList.contains("open")));
   $("#sidebar-scrim").addEventListener("click", () => setMobileMenuOpen(false));
   $("#mobile-more-toggle").addEventListener("click", () => setMobileMenuOpen(!$("#sidebar").classList.contains("open")));
+  $("#character-companion-choose").addEventListener("click", () => $("#character-companion-file").click());
+  $("#character-companion-file").addEventListener("change", async event => {
+    const picker = event.currentTarget;
+    try { await chooseCharacterCompanion(picker.files?.[0]); }
+    finally { picker.value = ""; }
+  });
+  $("#character-companion-reset").addEventListener("click", resetCharacterCompanion);
   filePicker.addEventListener("change", async () => { await importFiles(filePicker.files); filePicker.value = ""; });
   folderPicker.addEventListener("change", async () => { await importFiles(folderPicker.files); folderPicker.value = ""; });
   $("#youtube-search-form").addEventListener("submit", event => { event.preventDefault(); searchYoutube(); });
@@ -3246,6 +3356,7 @@ async function init() {
   }
   render();
   syncSettingsUI();
+  void loadSavedCharacterCompanion();
   showView("home");
   window.__ritmoAppReady = true;
   estimateStorage().then(result => {
