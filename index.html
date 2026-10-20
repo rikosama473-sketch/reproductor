@@ -271,7 +271,7 @@
         </section>
 
         <section class="view-panel" id="voices-view" hidden>
-          <div class="page-intro voice-studio-intro"><div><div class="eyebrow">VOICE LAB · PRUEBAS LOCALES</div><h1>Voces de <em>anime.</em></h1><p>Probá tonos, ritmos y voces disponibles en tu dispositivo antes de elegir una.</p></div><div class="voice-studio-intro-note"><strong>Una voz, muchos matices.</strong>Los perfiles cambian el tono y la velocidad de la voz del sistema; la voz real depende de las opciones instaladas en tu navegador o equipo.</div></div>
+          <div class="page-intro voice-studio-intro"><div><div class="eyebrow">VOICE LAB · VOCES DEL SISTEMA</div><h1>Voces de <em>anime.</em></h1><p>Probá tonos, ritmos y voces disponibles en tu dispositivo antes de elegir una.</p></div><div class="voice-studio-intro-note"><strong>Una voz, muchos matices.</strong>Los perfiles cambian el tono y la velocidad de la voz del sistema; la voz real depende de las opciones instaladas en tu navegador o equipo.</div></div>
           <div class="voice-studio" id="voice-studio">
             <section class="voice-panel">
               <div class="voice-panel-heading"><div><h2>Elegí una personalidad vocal</h2><p>Seleccioná una tarjeta para aplicar un punto de partida; después podés retocar los controles.</p></div><span class="voice-studio-kicker">10 perfiles</span></div>
@@ -280,7 +280,7 @@
             <div class="voice-studio-workbench">
               <section class="voice-panel">
                 <div class="voice-panel-heading"><div><h2>Tu cabina de pruebas</h2><p>Escribí una frase corta y compará cómo cambia con cada perfil.</p></div></div>
-                <label class="voice-field" for="voice-system-voice">Voz disponible en el sistema<select id="voice-system-voice" aria-label="Voz del sistema"></select></label>
+                <label class="voice-field" for="voice-system-voice">Voz del motor de síntesis<select id="voice-system-voice" aria-label="Voz del sistema"></select></label>
                 <label class="voice-field" for="voice-sample-text">Texto de muestra<textarea id="voice-sample-text" maxlength="400" rows="4" placeholder="Escribí aquí la frase que querés escuchar."></textarea></label>
                 <div class="voice-control-grid">
                   <label class="voice-range-field" for="voice-pitch"><span>Tono / agudeza</span><output id="voice-pitch-value">1.80×</output><input id="voice-pitch" type="range" min="0.5" max="2" step="0.05" value="1.8"></label>
@@ -295,9 +295,9 @@
               <aside class="voice-panel voice-info-panel">
                 <span class="voice-info-mark" aria-hidden="true">♫</span>
                 <h3>Cómo conseguir más voces</h3>
-                <p>Ritmo no descarga audios ni envía tus frases a un servidor. Usa la API de síntesis de voz que ofrece el navegador, con el motor y las voces instalados en tu equipo.</p>
+                <p>Ritmo no sube tus frases a un servicio propio. La síntesis la hace la API del navegador; según la voz elegida, el motor puede procesar el texto localmente o requerir conexión.</p>
                 <ul><li>Probá una voz en español para frases naturales.</li><li>Si tu sistema ofrece voces japonesas, aparecerán en el selector y podrás combinarlas con un perfil agudo o acelerado.</li><li>Para un rap rápido, subí la velocidad y probá una frase corta con ritmo.</li></ul>
-                <p class="voice-privacy-note">Los perfiles no son imitaciones exactas de personajes o actrices de doblaje. Son ajustes de tono y velocidad aplicados a voces genéricas del sistema.</p>
+                <p class="voice-privacy-note">Los perfiles no son imitaciones exactas de personajes o actrices de doblaje. Para mantener la frase en el dispositivo, elegí una voz marcada como sistema/local.</p>
               </aside>
             </div>
           </div>
