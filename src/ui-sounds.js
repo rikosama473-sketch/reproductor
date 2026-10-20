@@ -1,18 +1,26 @@
 const STORAGE_KEY = "ritmo.ui-sounds.v1";
+const MAX_OUTPUT_GAIN = 0.045;
+const MUSIC_DUCK_FACTOR = 0.15;
+const MIN_SOUND_INTERVAL_MS = 75;
 
 export const UI_SOUND_PACKS = Object.freeze({
-  piano: Object.freeze({ label: "Piano clásico", description: "Notas cortas y suaves, inspiradas en un piano." }),
-  punk: Object.freeze({ label: "Punk / rock", description: "Acordes cortos, con energía de guitarra eléctrica." }),
-  cyber: Object.freeze({ label: "Cibernético", description: "Pitidos electrónicos con barrido de frecuencia." })
+  piano: Object.freeze({ label: "Piano clásico", description: "Nota cálida, breve y amortiguada." }),
+  punk: Object.freeze({ label: "Punk / rock suave", description: "Acorde de guitarra sintetizado, con poca distorsión y graves controlados." }),
+  cyber: Object.freeze({ label: "Cibernético", description: "Pulso electrónico corto, sin pitidos estridentes." }),
+  wood: Object.freeze({ label: "Madera suave", description: "Pequeño toque opaco, como madera o un botón físico." }),
+  glass: Object.freeze({ label: "Cristal delicado", description: "Campanilla corta con armónicos suaves." }),
+  retro: Object.freeze({ label: "Retro 8-bit", description: "Tono de videojuego clásico, muy corto." }),
+  warm: Object.freeze({ label: "Sintetizador cálido", description: "Pulso redondo, sin agudos agresivos." }),
+  minimal: Object.freeze({ label: "Clic minimalista", description: "Confirmación discreta, casi imperceptible." })
 });
 
-export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 30 });
+export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 24 });
 
 export function normalizeUiSoundPreferences(value) {
   const source = value && typeof value === "object" ? value : {};
   const pack = Object.prototype.hasOwnProperty.call(UI_SOUND_PACKS, source.pack) ? source.pack : DEFAULT_UI_SOUND_PREFERENCES.pack;
   const rawVolume = source.volume === undefined ? DEFAULT_UI_SOUND_PREFERENCES.volume : Number(source.volume);
-  const volume = Number.isFinite(rawVolume) ? Math.max(0, Math.min(60, Math.round(rawVolume))) : DEFAULT_UI_SOUND_PREFERENCES.volume;
+  const volume = Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_UI_SOUND_PREFERENCES.volume;
   return { enabled: source.enabled === true, pack, volume };
 }
 
@@ -29,7 +37,8 @@ function savePreferences(preferences) {
 let audioContext = null;
 let masterGain = null;
 let noteIndex = 0;
-const pianoNotes = [523.25, 587.33, 659.25, 783.99, 698.46, 587.33, 659.25, 880];
+let lastAutomaticSoundAt = 0;
+const pianoNotes = [392, 440, 493.88, 587.33, 523.25, 440, 493.88, 659.25];
 
 function getAudioContext() {
   if (audioContext) return audioContext;
@@ -59,15 +68,15 @@ function addTone(context, output, frequency, options = {}) {
   if (options.filterType) {
     filter = context.createBiquadFilter();
     filter.type = options.filterType;
-    filter.frequency.setValueAtTime(options.cutoff || 1400, now);
-    filter.Q.value = options.q || 0.7;
+    filter.frequency.setValueAtTime(options.cutoff || 650, now);
+    filter.Q.value = options.q || 0.65;
     oscillator.connect(filter);
     filter.connect(envelope);
   } else oscillator.connect(envelope);
   envelope.connect(output);
-  const attack = Math.min(options.attack || 0.009, options.duration * 0.25);
+  const attack = Math.min(options.attack || 0.006, options.duration * 0.3);
   envelope.gain.setValueAtTime(0.0001, now);
-  envelope.gain.linearRampToValueAtTime(Math.max(0.0002, options.amplitude || 0.25), now + attack);
+  envelope.gain.linearRampToValueAtTime(Math.max(0.0002, options.amplitude || 0.10), now + attack);
   envelope.gain.exponentialRampToValueAtTime(0.0001, now + options.duration);
   oscillator.onended = () => {
     try { oscillator.disconnect(); } catch {}
@@ -75,53 +84,115 @@ function addTone(context, output, frequency, options = {}) {
     try { filter?.disconnect(); } catch {}
   };
   oscillator.start(now);
-  oscillator.stop(now + options.duration + 0.025);
+  oscillator.stop(now + options.duration + 0.015);
 }
 
-function synthesize(context, pack, volume) {
+function addWoodClick(context, output) {
+  const duration = 0.032;
+  const frameCount = Math.max(1, Math.floor(context.sampleRate * duration));
+  const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let index = 0; index < frameCount; index += 1) {
+    const fade = 1 - index / frameCount;
+    channel[index] = (Math.random() * 2 - 1) * fade * fade;
+  }
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const envelope = context.createGain();
+  const now = context.currentTime;
+  source.buffer = buffer;
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(520, now);
+  filter.Q.value = 0.45;
+  envelope.gain.setValueAtTime(0.055, now);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  source.connect(filter);
+  filter.connect(envelope);
+  envelope.connect(output);
+  source.onended = () => {
+    try { source.disconnect(); } catch {}
+    try { filter.disconnect(); } catch {}
+    try { envelope.disconnect(); } catch {}
+  };
+  source.start(now);
+  source.stop(now + duration + 0.012);
+}
+
+function mediaIsPlayingOrEmbedded(documentRef) {
+  const media = [...documentRef.querySelectorAll("audio, video")];
+  if (media.some(item => !item.paused && !item.ended)) return true;
+  // Playback inside cross-origin embeds can't be inspected reliably, so be conservative.
+  return Boolean(documentRef.querySelector(
+    'iframe[src*="youtube.com/embed"], iframe[src*="youtube-nocookie.com/embed"], iframe[src*="open.spotify.com/embed"]'
+  ));
+}
+
+function synthesize(context, pack, volume, documentRef) {
   if (!masterGain || volume <= 0) return;
   const now = context.currentTime;
+  const activeMusic = mediaIsPlayingOrEmbedded(documentRef);
+  const safeGain = MAX_OUTPUT_GAIN * (volume / 100) * (activeMusic ? MUSIC_DUCK_FACTOR : 1);
   masterGain.gain.cancelScheduledValues(now);
-  masterGain.gain.setTargetAtTime(Math.min(0.18, (volume / 60) * 0.18), now, 0.012);
+  masterGain.gain.setTargetAtTime(Math.min(MAX_OUTPUT_GAIN, safeGain), now, 0.008);
+
   if (pack === "piano") {
     const note = pianoNotes[noteIndex % pianoNotes.length];
     noteIndex += 1;
-    addTone(context, masterGain, note, { type: "triangle", duration: 0.19, amplitude: 0.62, attack: 0.006 });
-    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.115, amplitude: 0.15, attack: 0.004 });
-    addTone(context, masterGain, note * 3, { type: "sine", duration: 0.07, amplitude: 0.035, attack: 0.003 });
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.082, amplitude: 0.16, attack: 0.004, filterType: "lowpass", cutoff: 1050 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.046, amplitude: 0.025, attack: 0.003, filterType: "lowpass", cutoff: 1500 });
     return;
   }
   if (pack === "punk") {
-    const roots = [146.83, 164.81, 196.0, 220.0];
+    const roots = [110, 123.47, 130.81, 146.83];
     const root = roots[noteIndex % roots.length];
     noteIndex += 1;
     for (const ratio of [1, 1.5, 2]) {
       addTone(context, masterGain, root * ratio, {
-        type: "sawtooth", duration: 0.085, amplitude: 0.19, attack: 0.004,
-        filterType: "lowpass", cutoff: 1250, q: 0.8
+        type: "sawtooth", duration: 0.052, amplitude: 0.055, attack: 0.003,
+        filterType: "lowpass", cutoff: 620, q: 0.55
       });
     }
     return;
   }
-  addTone(context, masterGain, 940, {
-    type: "square", endFrequency: 470, duration: 0.075, amplitude: 0.19, attack: 0.003,
-    filterType: "highpass", cutoff: 520, q: 0.7
-  });
-  addTone(context, masterGain, 1480, {
-    type: "sine", endFrequency: 740, duration: 0.06, amplitude: 0.14, attack: 0.002,
-    filterType: "highpass", cutoff: 700, q: 0.7
-  });
+  if (pack === "cyber") {
+    addTone(context, masterGain, 620, { type: "sine", endFrequency: 390, duration: 0.052, amplitude: 0.075, attack: 0.003, filterType: "lowpass", cutoff: 950 });
+    return;
+  }
+  if (pack === "wood") {
+    addWoodClick(context, masterGain);
+    return;
+  }
+  if (pack === "glass") {
+    const note = [784, 880, 987.77, 880][noteIndex % 4];
+    noteIndex += 1;
+    addTone(context, masterGain, note, { type: "sine", duration: 0.06, amplitude: 0.075, attack: 0.004, filterType: "lowpass", cutoff: 1450 });
+    addTone(context, masterGain, note * 1.5, { type: "sine", duration: 0.035, amplitude: 0.018, attack: 0.003, filterType: "lowpass", cutoff: 1800 });
+    return;
+  }
+  if (pack === "retro") {
+    const note = [440, 493.88, 587.33, 523.25][noteIndex % 4];
+    noteIndex += 1;
+    addTone(context, masterGain, note, { type: "square", duration: 0.038, amplitude: 0.045, attack: 0.002, filterType: "lowpass", cutoff: 1050 });
+    return;
+  }
+  if (pack === "warm") {
+    const note = [293.66, 329.63, 349.23, 392][noteIndex % 4];
+    noteIndex += 1;
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 1.08, duration: 0.062, amplitude: 0.085, attack: 0.005, filterType: "lowpass", cutoff: 720 });
+    return;
+  }
+  addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.085, attack: 0.002, filterType: "lowpass", cutoff: 470 });
 }
 
-function playUiSound(preferences) {
+function playUiSound(preferences, documentRef) {
   if (preferences.volume <= 0) return;
   const context = getAudioContext();
   if (!context) return;
   if (context.state === "suspended") {
-    context.resume().then(() => synthesize(context, preferences.pack, preferences.volume)).catch(() => {});
+    context.resume().then(() => synthesize(context, preferences.pack, preferences.volume, documentRef)).catch(() => {});
     return;
   }
-  synthesize(context, preferences.pack, preferences.volume);
+  synthesize(context, preferences.pack, preferences.volume, documentRef);
 }
 
 function initUiSounds(documentRef) {
@@ -148,7 +219,7 @@ function initUiSounds(documentRef) {
   packInput.addEventListener("change", () => {
     preferences = normalizeUiSoundPreferences({ ...preferences, pack: packInput.value });
     persist();
-    if (preferences.enabled) playUiSound(preferences);
+    if (preferences.enabled) playUiSound(preferences, documentRef);
   });
   volumeInput.addEventListener("input", () => {
     preferences = normalizeUiSoundPreferences({ ...preferences, volume: volumeInput.value });
@@ -156,14 +227,17 @@ function initUiSounds(documentRef) {
     volumeOutput.textContent = preferences.volume + "%";
     persist();
   });
-  previewButton.addEventListener("click", () => playUiSound(preferences));
-  // Click-based feedback never sounds while the user is typing in a text field.
+  previewButton.addEventListener("click", () => playUiSound(preferences, documentRef));
   documentRef.addEventListener("click", event => {
-    if (!preferences.enabled) return;
+    if (!preferences.enabled || !event.isTrusted) return;
     const target = event.target?.closest?.("button, [role='button'], input[type='button'], input[type='submit']");
     if (!target || target.id === "ui-sounds-preview" || target.disabled ||
-        target.getAttribute("aria-disabled") === "true" || target.closest("[data-no-ui-sound]")) return;
-    playUiSound(preferences);
+        target.getAttribute("aria-disabled") === "true" ||
+        target.closest("[data-no-ui-sound], .eq-control, .settings-check, .settings-switch")) return;
+    const now = Date.now();
+    if (now - lastAutomaticSoundAt < MIN_SOUND_INTERVAL_MS) return;
+    lastAutomaticSoundAt = now;
+    playUiSound(preferences, documentRef);
   }, true);
 }
 
