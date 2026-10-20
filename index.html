@@ -386,13 +386,15 @@
 
     <section class="settings-section ui-sound-settings">
       <div class="settings-section-heading">
-        <div><h3>Sonidos de interfaz</h3><p>Elegí cómo suenan los botones y controles. Estos efectos son independientes de la música.</p></div>
+        <div><h3>Sonidos de interfaz</h3><p>Perfiles breves y suaves para botones; se atenúan automáticamente cuando Ritmo detecta música.</p></div>
         <label class="settings-switch"><input type="checkbox" id="ui-sounds-enabled"><span>Activar</span></label>
       </div>
-      <label class="eq-control" for="ui-sounds-pack"><span>Estilo de teclas y botones</span><select id="ui-sounds-pack" class="form-input" aria-label="Estilo de sonidos de interfaz"><option value="piano">Piano clásico</option><option value="punk">Punk / rock</option><option value="cyber">Cibernético</option></select></label>
-      <label class="eq-control" for="ui-sounds-volume"><span>Volumen de efectos</span><output id="ui-sounds-volume-value">30%</output><input id="ui-sounds-volume" type="range" min="0" max="60" step="5" value="30"></label>
+      <label class="eq-control" for="ui-sounds-pack"><span>Estilo de teclas y botones</span><select id="ui-sounds-pack" class="form-input" aria-label="Estilo de sonidos de interfaz">
+        <option value="piano">Piano clásico</option><option value="punk">Punk / rock suave</option><option value="cyber">Cibernético</option><option value="wood">Madera suave</option><option value="glass">Cristal delicado</option><option value="retro">Retro 8-bit</option><option value="warm">Sintetizador cálido</option><option value="minimal">Clic minimalista</option>
+      </select></label>
+      <label class="eq-control" for="ui-sounds-volume"><span>Volumen máximo de efectos</span><output id="ui-sounds-volume-value">24%</output><input id="ui-sounds-volume" type="range" min="0" max="100" step="1" value="24"></label>
       <button class="button button-soft" id="ui-sounds-preview" type="button">Probar sonido elegido</button>
-      <p class="settings-note">Los efectos se sintetizan dentro del dispositivo; no se descargan audios. Empieza desactivado para que Ritmo no produzca sonidos inesperados. Podés cambiar el estilo o apagarlo en cualquier momento.</p>
+      <p class="settings-note">Los efectos duran menos de una décima de segundo y tienen un límite de volumen. Cuando detecta música o un reproductor externo, Ritmo reduce todavía más su nivel para evitar competir con las voces. Empieza desactivado; no se descargan audios.</p>
     </section>
 
     <section class="settings-section">
