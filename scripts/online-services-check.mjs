@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
   parseSpotifyShareLink, buildRadioBrowserSearchUrl, normalizeRadioStation,
-  radioStationClickUrl, searchRadioBrowser, RADIO_BROWSER_MIRRORS
+  radioStationClickUrl, searchRadioBrowser, RADIO_BROWSER_MIRRORS,
+  buildInvidiousYoutubeSearchUrl, normalizeInvidiousYoutubeResult,
+  searchInvidiousYoutube, INVIDIOUS_SEARCH_INSTANCES
 } from "../src/online-services.js";
 
 const id = "0Lr4kGOYn9l83EjuK6cZFQ";
@@ -62,3 +64,61 @@ assert.equal(calls, 2, "Search should fail over to another public mirror");
 assert.equal(result.stations.length, 1);
 assert.equal(result.mirror, RADIO_BROWSER_MIRRORS[1]);
 console.log("Online services checks passed: safe Spotify embeds, HTTPS radio streams, mirror fallback and malformed input rejection.");
+
+
+const invidiousUrl = new URL(buildInvidiousYoutubeSearchUrl("  lofi   música ", INVIDIOUS_SEARCH_INSTANCES[0]));
+assert.equal(invidiousUrl.hostname, "invidious.nerdvpn.de");
+assert.equal(invidiousUrl.pathname, "/api/v1/search");
+assert.equal(invidiousUrl.searchParams.get("q"), "lofi música");
+assert.equal(invidiousUrl.searchParams.get("type"), "video");
+assert.throws(() => buildInvidiousYoutubeSearchUrl("   "));
+assert.throws(() => buildInvidiousYoutubeSearchUrl("jazz", "https://untrusted.example"));
+
+const communityVideo = normalizeInvidiousYoutubeResult({
+  type: "video",
+  videoId: "dQw4w9WgXcQ",
+  title: "  Prueba   musical ",
+  author: "Artista Demo",
+  description: "Descripción de prueba"
+});
+assert.equal(communityVideo?.id.videoId, "dQw4w9WgXcQ");
+assert.equal(communityVideo?.snippet.title, "Prueba musical");
+assert.equal(communityVideo?.snippet.channelTitle, "Artista Demo");
+assert.equal(communityVideo?.snippet.thumbnails.medium.url, "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg");
+assert.equal(communityVideo?.ritmoStatusVerified, false, "Community results must never masquerade as official embed-status verification");
+assert.equal(communityVideo?.ritmoEmbeddable, false, "Unverified community results must open in YouTube instead of embedding");
+assert.equal(normalizeInvidiousYoutubeResult({ type: "playlist", videoId: "dQw4w9WgXcQ", title: "No" }), null);
+assert.equal(normalizeInvidiousYoutubeResult({ type: "video", videoId: "invalid", title: "No" }), null);
+assert.equal(INVIDIOUS_SEARCH_INSTANCES.length >= 4, true);
+assert.ok(INVIDIOUS_SEARCH_INSTANCES.every(instance => instance.startsWith("https://")));
+
+let communityCalls = 0;
+const communityResult = await searchInvidiousYoutube("ambient music", {
+  timeoutMs: 900,
+  fetchImpl: async requestUrl => {
+    communityCalls++;
+    if (communityCalls === 1) return { ok: false, status: 503 };
+    assert.match(requestUrl, /^https:\/\/yt\.chocolatemoo53\.com\/api\/v1\/search\?/);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [
+        { type: "video", videoId: "dQw4w9WgXcQ", title: "Ambient track", author: "Demo" },
+        { type: "channel", authorId: "channel1", author: "Ignore this non-video result" },
+        { type: "video", videoId: "bad-id", title: "Malformed" }
+      ]
+    };
+  }
+});
+assert.equal(communityCalls, 2, "Community search should retry another documented instance after a failure");
+assert.equal(communityResult.instance, INVIDIOUS_SEARCH_INSTANCES[1]);
+assert.equal(communityResult.items.length, 1, "Only well-formed video results should be returned");
+assert.equal(communityResult.items[0].snippet.title, "Ambient track");
+
+const communityAbort = new AbortController();
+communityAbort.abort();
+await assert.rejects(
+  searchInvidiousYoutube("cancelled", { signal: communityAbort.signal, fetchImpl: async () => { throw new Error("must not call fetch"); } }),
+  error => error?.name === "AbortError"
+);
+console.log("Keyless YouTube community search checks passed: host allowlist, schema normalization, mirror failover and cancellation.");
