@@ -384,6 +384,17 @@
       <p class="settings-note" id="eq-status" role="status">El sonido original no se modifica.</p>
     </section>
 
+    <section class="settings-section ui-sound-settings">
+      <div class="settings-section-heading">
+        <div><h3>Sonidos de interfaz</h3><p>Elegí cómo suenan los botones y controles. Estos efectos son independientes de la música.</p></div>
+        <label class="settings-switch"><input type="checkbox" id="ui-sounds-enabled"><span>Activar</span></label>
+      </div>
+      <label class="eq-control" for="ui-sounds-pack"><span>Estilo de teclas y botones</span><select id="ui-sounds-pack" class="form-input" aria-label="Estilo de sonidos de interfaz"><option value="piano">Piano clásico</option><option value="punk">Punk / rock</option><option value="cyber">Cibernético</option></select></label>
+      <label class="eq-control" for="ui-sounds-volume"><span>Volumen de efectos</span><output id="ui-sounds-volume-value">30%</output><input id="ui-sounds-volume" type="range" min="0" max="60" step="5" value="30"></label>
+      <button class="button button-soft" id="ui-sounds-preview" type="button">Probar sonido elegido</button>
+      <p class="settings-note">Los efectos se sintetizan dentro del dispositivo; no se descargan audios. Empieza desactivado para que Ritmo no produzca sonidos inesperados. Podés cambiar el estilo o apagarlo en cualquier momento.</p>
+    </section>
+
     <section class="settings-section">
       <h3>Reproducción y pantalla</h3>
       <label class="settings-check"><input type="checkbox" id="keep-screen-awake"><span><strong>Mantener pantalla despierta</strong><small>Solicita al navegador que no apague la pantalla mientras Ritmo está visible. El sistema puede rechazarlo o revocarlo.</small></span></label>
@@ -443,6 +454,7 @@
       });
     })();
   </script>
+  <script type="module" src="./src/ui-sounds.js"></script>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
