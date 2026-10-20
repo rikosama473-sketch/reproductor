@@ -18,6 +18,10 @@ La búsqueda original usaba YouTube Data API v3. Sin una clave local, el botón 
 
 La validación automática prueba la lógica usando respuestas simuladas; no demuestra que todas las instancias públicas estén disponibles en todo momento ni que los videos acepten reproducción incrustada. Si las instancias están caídas, bloquean CORS o tienen CAPTCHA, Ritmo conserva el respaldo a YouTube web.
 
+## Comprobación puntual de disponibilidad — 20 de octubre de 2026
+
+Se comprobó la búsqueda de `lofi music` en un navegador sin autenticación. `https://invidious.f5.si/api/v1/search` devolvió HTTP 200 y un arreglo JSON válido con 20 videos, por lo que ahora se intenta primero. En la misma comprobación, `invidious.nerdvpn.de` pidió autenticación (401), `yt.chocolatemoo53.com` e `invidious.tiekoetter.com` devolvieron 403, y `inv.nadeko.net` indicó que el endpoint estaba deshabilitado (403). Son resultados puntuales del entorno de verificación, no una garantía de disponibilidad para todas las regiones o futuras fechas. El código conserva el reintento de las otras instancias listadas.
+
 ## Fuentes técnicas
 
 - YouTube Data API v3, método oficial `search.list`: https://developers.google.com/youtube/data/reference/rest/v3/search/list

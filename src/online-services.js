@@ -123,10 +123,11 @@ export async function searchRadioBrowser(query, filter = "name", {
 // is sent to the selected instance. Only hosts listed by Invidious documentation
 // are attempted, and a failed host never prevents the normal YouTube web fallback.
 export const INVIDIOUS_SEARCH_INSTANCES = Object.freeze([
-  "https://invidious.nerdvpn.de",
-  "https://yt.chocolatemoo53.com",
-  "https://invidious.tiekoetter.com",
+  // Live-checked first: returned a JSON array of videos in an unauthenticated browser on 2026-10-20.
   "https://invidious.f5.si",
+  "https://yt.chocolatemoo53.com",
+  "https://invidious.nerdvpn.de",
+  "https://invidious.tiekoetter.com",
   "https://inv.nadeko.net"
 ]);
 

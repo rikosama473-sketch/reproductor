@@ -67,7 +67,7 @@ console.log("Online services checks passed: safe Spotify embeds, HTTPS radio str
 
 
 const invidiousUrl = new URL(buildInvidiousYoutubeSearchUrl("  lofi   música ", INVIDIOUS_SEARCH_INSTANCES[0]));
-assert.equal(invidiousUrl.hostname, "invidious.nerdvpn.de");
+assert.equal(invidiousUrl.hostname, "invidious.f5.si");
 assert.equal(invidiousUrl.pathname, "/api/v1/search");
 assert.equal(invidiousUrl.searchParams.get("q"), "lofi música");
 assert.equal(invidiousUrl.searchParams.get("type"), "video");
