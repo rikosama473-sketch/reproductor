@@ -53,7 +53,7 @@ assert.match(serviceWorker, /\.\/src\/character-companion\.js/);
 assert.match(prepareMobile, /src\/character-companion\.js/);
 assert.match(smoke, /const DB_VERSION = 3/);
 assert.match(html, /id="youtube-mode-toggle"/, "YouTube must have a visible explicit on/off switch");
-assert.match(html, /Sin clave API, Buscar prueba una búsqueda dentro de Ritmo/, "The keyless search must remain integrated when YouTube is enabled");
+assert.match(html, /Sin clave, Ritmo prueba una búsqueda comunitaria pública de Invidious/, "The keyless search remains available inside Ritmo after opt-in");
 assert.match(html, /YouTube está apagado/, "YouTube must start opt-in to avoid unexpected data usage");
 assert.doesNotMatch(html, /Sin clave API, Buscar abre la búsqueda oficial de YouTube automáticamente/);
 console.log("Character companion checks passed: GIF/PNG validation, bounds, IndexedDB settings, offline/mobile packaging, and YouTube copy.");
