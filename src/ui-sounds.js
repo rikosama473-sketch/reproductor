@@ -1,4 +1,5 @@
-const STORAGE_KEY = "ritmo.ui-sounds.v1";
+const STORAGE_KEY = "ritmo.ui-sounds.v2";
+const LEGACY_STORAGE_KEY = "ritmo.ui-sounds.v1";
 const MAX_OUTPUT_GAIN = 0.045;
 const MUSIC_DUCK_FACTOR = 0.15;
 const MIN_SOUND_INTERVAL_MS = 75;
@@ -26,8 +27,18 @@ export function normalizeUiSoundPreferences(value) {
 
 function loadPreferences() {
   try {
-    const saved = globalThis.localStorage?.getItem(STORAGE_KEY);
-    return normalizeUiSoundPreferences(saved ? JSON.parse(saved) : null);
+    const storage = globalThis.localStorage;
+    const saved = storage?.getItem(STORAGE_KEY);
+    if (saved) return normalizeUiSoundPreferences(JSON.parse(saved));
+
+    // Migrate earlier settings, but require a fresh opt-in after making effects quieter.
+    const legacy = storage?.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      const migrated = normalizeUiSoundPreferences({ ...JSON.parse(legacy), enabled: false });
+      storage?.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+    return normalizeUiSoundPreferences(null);
   } catch { return normalizeUiSoundPreferences(null); }
 }
 function savePreferences(preferences) {
