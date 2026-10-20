@@ -26,6 +26,7 @@
         <button class="nav-item" data-view="playlists"><span class="nav-icon">☷</span> Mis listas</button>
         <button class="nav-item" data-view="offline"><span class="nav-icon">⇩</span> Disponible sin conexión</button>
         <button class="nav-item" data-view="online"><span class="nav-icon">⌁</span> Añadir música online</button>
+        <button class="nav-item" data-view="voices"><span class="nav-icon">♫</span> Estudio de voces</button>
       </nav>
       <div class="sidebar-divider"></div>
       <div class="side-label">TU ESPACIO</div>
@@ -268,6 +269,39 @@
           </div>
           <div class="online-info-grid"><div><span>01</span><strong>Streaming directo</strong><p>Reproduce fuentes que entregan audio al navegador.</p></div><div><span>02</span><strong>Tu biblioteca sigue siendo tuya</strong><p>El historial y tus favoritos se guardan localmente.</p></div><div><span>03</span><strong>Offline de verdad</strong><p>Para escuchar sin conexión, importá el archivo original desde tu dispositivo.</p></div></div>
         </section>
+
+        <section class="view-panel" id="voices-view" hidden>
+          <div class="page-intro voice-studio-intro"><div><div class="eyebrow">VOICE LAB · PRUEBAS LOCALES</div><h1>Voces de <em>anime.</em></h1><p>Probá tonos, ritmos y voces disponibles en tu dispositivo antes de elegir una.</p></div><div class="voice-studio-intro-note"><strong>Una voz, muchos matices.</strong>Los perfiles cambian el tono y la velocidad de la voz del sistema; la voz real depende de las opciones instaladas en tu navegador o equipo.</div></div>
+          <div class="voice-studio" id="voice-studio">
+            <section class="voice-panel">
+              <div class="voice-panel-heading"><div><h2>Elegí una personalidad vocal</h2><p>Seleccioná una tarjeta para aplicar un punto de partida; después podés retocar los controles.</p></div><span class="voice-studio-kicker">10 perfiles</span></div>
+              <div class="voice-preset-grid" id="voice-preset-grid" aria-label="Perfiles de voz"></div>
+            </section>
+            <div class="voice-studio-workbench">
+              <section class="voice-panel">
+                <div class="voice-panel-heading"><div><h2>Tu cabina de pruebas</h2><p>Escribí una frase corta y compará cómo cambia con cada perfil.</p></div></div>
+                <label class="voice-field" for="voice-system-voice">Voz disponible en el sistema<select id="voice-system-voice" aria-label="Voz del sistema"></select></label>
+                <label class="voice-field" for="voice-sample-text">Texto de muestra<textarea id="voice-sample-text" maxlength="400" rows="4" placeholder="Escribí aquí la frase que querés escuchar."></textarea></label>
+                <div class="voice-control-grid">
+                  <label class="voice-range-field" for="voice-pitch"><span>Tono / agudeza</span><output id="voice-pitch-value">1.80×</output><input id="voice-pitch" type="range" min="0.5" max="2" step="0.05" value="1.8"></label>
+                  <label class="voice-range-field" for="voice-rate"><span>Velocidad</span><output id="voice-rate-value">1.08×</output><input id="voice-rate" type="range" min="0.6" max="1.8" step="0.05" value="1.08"></label>
+                  <label class="voice-range-field" for="voice-output-volume"><span>Volumen de la voz</span><output id="voice-output-volume-value">86%</output><input id="voice-output-volume" type="range" min="0" max="100" step="1" value="86"></label>
+                </div>
+                <label class="voice-pause-choice" for="voice-pause-music"><input id="voice-pause-music" type="checkbox" checked><span>Pausar la música mientras se escucha la muestra<span>Cuando Ritmo controla la reproducción, la retoma al terminar. Si iniciás otra canción, se respeta tu nueva acción.</span></span></label>
+                <div class="voice-studio-actions"><button class="button button-primary" id="voice-preview-play" type="button">▶ Escuchar muestra</button><button class="button button-soft" id="voice-preview-stop" type="button" disabled>■ Detener voz</button></div>
+                <p class="voice-preview-status" id="voice-preview-status" role="status" aria-live="polite">Cargando voces del sistema…</p>
+                <p class="voice-runtime-note" id="voice-runtime-note" role="status" aria-live="polite">Las voces disponibles dependen del navegador y del sistema operativo.</p>
+              </section>
+              <aside class="voice-panel voice-info-panel">
+                <span class="voice-info-mark" aria-hidden="true">♫</span>
+                <h3>Cómo conseguir más voces</h3>
+                <p>Ritmo no descarga audios ni envía tus frases a un servidor. Usa la API de síntesis de voz que ofrece el navegador, con el motor y las voces instalados en tu equipo.</p>
+                <ul><li>Probá una voz en español para frases naturales.</li><li>Si tu sistema ofrece voces japonesas, aparecerán en el selector y podrás combinarlas con un perfil agudo o acelerado.</li><li>Para un rap rápido, subí la velocidad y probá una frase corta con ritmo.</li></ul>
+                <p class="voice-privacy-note">Los perfiles no son imitaciones exactas de personajes o actrices de doblaje. Son ajustes de tono y velocidad aplicados a voces genéricas del sistema.</p>
+              </aside>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   </div>
@@ -457,6 +491,7 @@
     })();
   </script>
   <script type="module" src="./src/ui-sounds.js"></script>
+  <script type="module" src="./src/voice-studio.js"></script>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
