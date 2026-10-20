@@ -156,12 +156,12 @@ function initializeVoiceStudio() {
     voices.forEach((voice, index) => {
       const option = document.createElement("option");
       option.value = String(index);
-      option.textContent = voice.name + " — " + voice.lang + (voice.localService ? " · sistema/local" : " · proveedor del navegador");
+      option.textContent = voice.name + " — " + voice.lang + (voice.localService ? " · sistema/local" : " · posible servicio remoto");
       voiceSelect.append(option);
     });
     voiceSelect.value = String(preferredIndex);
     settings.voiceURI = voices[preferredIndex].voiceURI || "";
-    voiceNote.textContent = voices.length + " voz/ces disponibles en este dispositivo. Las voces japonesas aparecen si el sistema o navegador las tiene instaladas.";
+    voiceNote.textContent = voices.length + " voz/ces disponibles. Las voces japonesas aparecen si están instaladas; las voces de servicio remoto pueden requerir conexión.";
     persistSettings();
   }
 
