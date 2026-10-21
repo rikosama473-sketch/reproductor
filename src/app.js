@@ -1522,7 +1522,7 @@ function safeWavFilename(name) {
   const base = String(name || "audio").replace(/\\.[^.]+$/, "").replace(/[<>:"/\\|?*\\u0000-\\u001f]/g, "-").replace(/[. ]+$/g, "").trim().slice(0, 100);
   return (base || "audio") + ".wav";
 }
-function renderConverterSelection() {
+function renderConverterSelection(preserveStatus = false) {
   const list = $("#converter-file-list");
   const summary = $("#converter-selection-summary");
   const start = $("#converter-start");
@@ -1559,6 +1559,7 @@ function renderConverterSelection() {
   }
   if (!converterRunning) {
     start.disabled = !converterFiles.length || invalid;
+    if (preserveStatus) return;
     if (converterFiles.length > MAX_CONVERTER_FILES) $("#converter-status").textContent = "Elegí como máximo cinco archivos por tanda.";
     else if (totalBytes > MAX_CONVERTER_TOTAL_INPUT_BYTES) $("#converter-status").textContent = "La tanda supera los 100 MiB permitidos.";
     else if (converterFiles.some(file => !file.size || file.size > MAX_CONVERTER_INPUT_BYTES)) $("#converter-status").textContent = "Quitá los archivos vacíos o mayores de 50 MiB.";
@@ -1669,7 +1670,7 @@ async function runAudioConversion() {
     $("#converter-cancel").disabled = true;
     $("#converter-clear").disabled = false;
     $("#converter-files").disabled = false;
-    renderConverterSelection();
+    renderConverterSelection(true);
   }
 }
 function bindAudioConverterEvents() {
