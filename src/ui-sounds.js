@@ -1,8 +1,8 @@
 const STORAGE_KEY = "ritmo.ui-sounds.v2";
 const LEGACY_STORAGE_KEY = "ritmo.ui-sounds.v1";
-const MAX_OUTPUT_GAIN = 0.045;
-const MUSIC_DUCK_FACTOR = 0.15;
-const MIN_SOUND_INTERVAL_MS = 75;
+const MAX_OUTPUT_GAIN = 0.035;
+const MUSIC_DUCK_FACTOR = 0.10;
+const MIN_SOUND_INTERVAL_MS = 90;
 
 export const UI_SOUND_PACKS = Object.freeze({
   piano: Object.freeze({ label: "Piano clásico", description: "Nota cálida, breve y amortiguada." }),
@@ -10,12 +10,18 @@ export const UI_SOUND_PACKS = Object.freeze({
   cyber: Object.freeze({ label: "Cibernético", description: "Pulso electrónico corto, sin pitidos estridentes." }),
   wood: Object.freeze({ label: "Madera suave", description: "Pequeño toque opaco, como madera o un botón físico." }),
   glass: Object.freeze({ label: "Cristal delicado", description: "Campanilla corta con armónicos suaves." }),
+  marimba: Object.freeze({ label: "Marimba suave", description: "Nota de madera con ataque redondo y sin resonancia larga." }),
+  bubble: Object.freeze({ label: "Burbuja", description: "Pequeño tono descendente, blando y juguetón." }),
+  bell: Object.freeze({ label: "Campana tenue", description: "Destello armónico amortiguado, sin brillo estridente." }),
+  sparkle: Object.freeze({ label: "Destello anime", description: "Doble nota ascendente, corta y de volumen contenido." }),
+  pluck: Object.freeze({ label: "Cuerda pulsada", description: "Ataque de cuerda sintetizada, cálido y breve." }),
   retro: Object.freeze({ label: "Retro 8-bit", description: "Tono de videojuego clásico, muy corto." }),
   warm: Object.freeze({ label: "Sintetizador cálido", description: "Pulso redondo, sin agudos agresivos." }),
+  drum: Object.freeze({ label: "Percusión amortiguada", description: "Toque grave, corto y suave, parecido a un botón acolchado." }),
   minimal: Object.freeze({ label: "Clic minimalista", description: "Confirmación discreta, casi imperceptible." })
 });
 
-export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 24 });
+export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 20 });
 
 export function normalizeUiSoundPreferences(value) {
   const source = value && typeof value === "object" ? value : {};
@@ -49,6 +55,7 @@ let audioContext = null;
 let masterGain = null;
 let noteIndex = 0;
 let lastAutomaticSoundAt = 0;
+let voicePreviewActive = false;
 const pianoNotes = [392, 440, 493.88, 587.33, 523.25, 440, 493.88, 659.25];
 
 function getAudioContext() {
@@ -138,8 +145,20 @@ function mediaIsPlayingOrEmbedded(documentRef) {
   ));
 }
 
+function voiceOutputIsActive() {
+  return voicePreviewActive || Boolean(globalThis.speechSynthesis?.speaking);
+}
+
+function silenceUiEffectsForVoice() {
+  voicePreviewActive = true;
+  if (!audioContext || !masterGain) return;
+  const now = audioContext.currentTime;
+  masterGain.gain.cancelScheduledValues(now);
+  masterGain.gain.setTargetAtTime(0, now, 0.002);
+}
+
 function synthesize(context, pack, volume, documentRef) {
-  if (!masterGain || volume <= 0) return;
+  if (!masterGain || volume <= 0 || voiceOutputIsActive()) return;
   const now = context.currentTime;
   const activeMusic = mediaIsPlayingOrEmbedded(documentRef);
   const safeGain = MAX_OUTPUT_GAIN * (volume / 100) * (activeMusic ? MUSIC_DUCK_FACTOR : 1);
@@ -180,6 +199,33 @@ function synthesize(context, pack, volume, documentRef) {
     addTone(context, masterGain, note * 1.5, { type: "sine", duration: 0.035, amplitude: 0.018, attack: 0.003, filterType: "lowpass", cutoff: 1800 });
     return;
   }
+  if (pack === "marimba") {
+    const note = [392, 440, 523.25, 493.88][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.05, amplitude: 0.085, attack: 0.004, filterType: "lowpass", cutoff: 900 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.026, amplitude: 0.012, attack: 0.003, filterType: "lowpass", cutoff: 1200 });
+    return;
+  }
+  if (pack === "bubble") {
+    addTone(context, masterGain, 360, { type: "sine", endFrequency: 210, duration: 0.052, amplitude: 0.07, attack: 0.004, filterType: "lowpass", cutoff: 680 });
+    return;
+  }
+  if (pack === "bell") {
+    const note = [587.33, 659.25, 698.46, 659.25][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.052, amplitude: 0.055, attack: 0.004, filterType: "lowpass", cutoff: 1250 });
+    addTone(context, masterGain, note * 1.48, { type: "sine", duration: 0.029, amplitude: 0.01, attack: 0.003, filterType: "lowpass", cutoff: 1550 });
+    return;
+  }
+  if (pack === "sparkle") {
+    const note = [523.25, 587.33, 659.25, 587.33][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.036, amplitude: 0.048, attack: 0.003, filterType: "lowpass", cutoff: 1450 });
+    addTone(context, masterGain, note * 1.25, { type: "sine", duration: 0.03, amplitude: 0.018, attack: 0.003, filterType: "lowpass", cutoff: 1650 });
+    return;
+  }
+  if (pack === "pluck") {
+    const note = [293.66, 329.63, 349.23, 392][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.76, duration: 0.058, amplitude: 0.06, attack: 0.002, filterType: "lowpass", cutoff: 780 });
+    return;
+  }
   if (pack === "retro") {
     const note = [440, 493.88, 587.33, 523.25][noteIndex % 4];
     noteIndex += 1;
@@ -192,11 +238,15 @@ function synthesize(context, pack, volume, documentRef) {
     addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 1.08, duration: 0.062, amplitude: 0.085, attack: 0.005, filterType: "lowpass", cutoff: 720 });
     return;
   }
-  addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.085, attack: 0.002, filterType: "lowpass", cutoff: 470 });
+  if (pack === "drum") {
+    addTone(context, masterGain, 160, { type: "triangle", endFrequency: 92, duration: 0.033, amplitude: 0.052, attack: 0.002, filterType: "lowpass", cutoff: 310 });
+    return;
+  }
+  addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.045, attack: 0.002, filterType: "lowpass", cutoff: 470 });
 }
 
 function playUiSound(preferences, documentRef) {
-  if (preferences.volume <= 0) return;
+  if (preferences.volume <= 0 || voiceOutputIsActive()) return;
   const context = getAudioContext();
   if (!context) return;
   if (context.state === "suspended") {
@@ -214,6 +264,8 @@ function initUiSounds(documentRef) {
   const previewButton = documentRef.querySelector("#ui-sounds-preview");
   if (!enabledInput || !packInput || !volumeInput || !volumeOutput || !previewButton) return;
   let preferences = loadPreferences();
+  globalThis.addEventListener?.("ritmo:voice-preview-start", silenceUiEffectsForVoice);
+  globalThis.addEventListener?.("ritmo:voice-preview-end", () => { voicePreviewActive = false; });
   const persist = () => savePreferences(preferences);
   const syncControls = () => {
     enabledInput.checked = preferences.enabled;
@@ -240,11 +292,11 @@ function initUiSounds(documentRef) {
   });
   previewButton.addEventListener("click", () => playUiSound(preferences, documentRef));
   documentRef.addEventListener("click", event => {
-    if (!preferences.enabled || !event.isTrusted) return;
+    if (!preferences.enabled || !event.isTrusted || voiceOutputIsActive()) return;
     const target = event.target?.closest?.("button, [role='button'], input[type='button'], input[type='submit']");
     if (!target || target.id === "ui-sounds-preview" || target.disabled ||
         target.getAttribute("aria-disabled") === "true" ||
-        target.closest("[data-no-ui-sound], .eq-control, .settings-check, .settings-switch")) return;
+        target.closest("[data-no-ui-sound], #voice-studio, .companion-settings-section, .character-companion, .eq-control, .settings-check, .settings-switch")) return;
     const now = Date.now();
     if (now - lastAutomaticSoundAt < MIN_SOUND_INTERVAL_MS) return;
     lastAutomaticSoundAt = now;
