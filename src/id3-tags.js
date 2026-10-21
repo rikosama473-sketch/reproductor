@@ -50,6 +50,64 @@ function removeUnsynchronisation(bytes) {
   return result.subarray(0, length);
 }
 
+export const MAX_EMBEDDED_ARTWORK_BYTES = 512 * 1024;
+
+function findDescriptionTerminator(bytes, start, encoding) {
+  if (encoding === 1 || encoding === 2) {
+    for (let index = start; index + 1 < bytes.length; index += 2) {
+      if (bytes[index] === 0 && bytes[index + 1] === 0) return { end: index, next: index + 2 };
+    }
+    return null;
+  }
+  for (let index = start; index < bytes.length; index++) {
+    if (bytes[index] === 0) return { end: index, next: index + 1 };
+  }
+  return null;
+}
+
+function validPicturePayload(bytes, mimeType) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 8 || bytes.length > MAX_EMBEDDED_ARTWORK_BYTES) return false;
+  if (mimeType === "image/png") {
+    return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+      bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  }
+  return mimeType === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+}
+
+function parseAttachedPicture(frameBytes, version, unsynchronised) {
+  if (!(frameBytes instanceof Uint8Array) || frameBytes.length < 6) return null;
+  const bytes = unsynchronised ? removeUnsynchronisation(frameBytes) : frameBytes;
+  const encoding = bytes[0];
+  if (![0, 1, 2, 3].includes(encoding)) return null;
+
+  let mimeType = "";
+  let pictureTypeOffset;
+  let descriptionStart;
+  if (version === 2) {
+    const format = String.fromCharCode(bytes[1], bytes[2], bytes[3]).toUpperCase();
+    mimeType = format === "PNG" ? "image/png" : format === "JPG" ? "image/jpeg" : "";
+    pictureTypeOffset = 4;
+    descriptionStart = 5;
+  } else {
+    const mimeEnd = bytes.indexOf(0, 1);
+    if (mimeEnd < 0 || mimeEnd + 2 >= bytes.length) return null;
+    mimeType = String.fromCharCode(...bytes.subarray(1, mimeEnd)).trim().toLowerCase();
+    pictureTypeOffset = mimeEnd + 1;
+    descriptionStart = pictureTypeOffset + 1;
+  }
+
+  if (mimeType === "image/jpg") mimeType = "image/jpeg";
+  // Linked artwork ("-->") and unrecognised types are deliberately ignored:
+  // only bounded, embedded JPEG/PNG data is retained locally.
+  if (mimeType !== "image/jpeg" && mimeType !== "image/png") return null;
+  const pictureType = bytes[pictureTypeOffset];
+  const terminator = findDescriptionTerminator(bytes, descriptionStart, encoding);
+  if (!terminator || terminator.next >= bytes.length) return null;
+  const data = bytes.subarray(terminator.next);
+  if (!validPicturePayload(data, mimeType)) return null;
+  return { pictureType, mimeType, data: new Uint8Array(data) };
+}
+
 /**
  * Read only the ID3 title/artist/album/genre text frames used by Ritmo.
  * Unsupported, compressed, encrypted, malformed, or truncated frames are
@@ -70,6 +128,7 @@ export function parseId3Tags(input, fallback = {}) {
 
   const tagEnd = Math.min(bytes.length, 10 + tagSize);
   let offset = 10;
+  let selectedArtworkType = -1;
   if (flags & 0x40) {
     if (offset + 4 > tagEnd) return result;
     const extendedSize = version === 4 ? synchsafe(bytes, offset) : bigEndian(bytes, offset, 4);
@@ -103,11 +162,22 @@ export function parseId3Tags(input, fallback = {}) {
         ? Boolean(formatFlags & (0x80 | 0x40)) // compression or encryption
         : Boolean(formatFlags & (0x08 | 0x04)); // compression or encryption
     }
+    const rawPayload = bytes.subarray(offset + headerSize, offset + headerSize + frameSize);
+    const frameUnsynchronised = Boolean((flags & 0x80) || (version === 4 && (bytes[offset + 9] & 0x02)));
     if (mappedField && !skipFrame) {
-      let payload = bytes.subarray(offset + headerSize, offset + headerSize + frameSize);
-      if ((flags & 0x80) || (version === 4 && (bytes[offset + 9] & 0x02))) payload = removeUnsynchronisation(payload);
+      const payload = frameUnsynchronised ? removeUnsynchronisation(rawPayload) : rawPayload;
       const value = decodeText(payload);
       if (value) result[mappedField] = mappedField === "genre" ? normalizeGenre(value) : value;
+    }
+    const isPictureFrame = (version === 2 && frameId === "PIC") || (version >= 3 && frameId === "APIC");
+    if (isPictureFrame && !skipFrame) {
+      const picture = parseAttachedPicture(rawPayload, version, frameUnsynchronised);
+      if (picture && (selectedArtworkType < 0 || (picture.pictureType === 3 && selectedArtworkType !== 3))) {
+        result.artwork = picture.data;
+        result.artworkMimeType = picture.mimeType;
+        result.artworkPictureType = picture.pictureType;
+        selectedArtworkType = picture.pictureType;
+      }
     }
     offset += headerSize + frameSize;
   }
