@@ -12,8 +12,9 @@ Los acentos solo ocurren cuando el usuario interactúa con un botón. No hay met
 
 ## Cómo se determina el género
 1. Al importar un MP3, el lector ID3 obtiene `TCON` si ese fotograma está presente; se reconocen identificadores numéricos comunes, entre ellos Pop (13), Dance (3), Techno (18), Industrial (19), Trance (31) y Electronic (38/52).
-2. Para emisoras de Radio Browser se pueden usar las etiquetas `radioTags` ya guardadas.
-3. Si el género falta o no es reconocible, la opción automática se mantiene conservadora: usa el ritmo suave, salvo que el perfil de sonido elegido sea uno de los efectos digitales/cyber, en cuyo caso acompaña ese carácter. También se puede seleccionar Pop o Cyber manualmente.
+2. Si una pista MP3 ya estaba guardada antes de añadir este comportamiento, Ritmo intenta recuperar la etiqueta en su primera reproducción local, lee como máximo 2 MB del principio del archivo y guarda solo el campo de género. No necesita volver a importar el archivo y no sube su contenido.
+3. Para emisoras de Radio Browser se pueden usar las etiquetas `radioTags` ya guardadas.
+4. Si el género falta o no es reconocible, la opción automática se mantiene conservadora: usa el ritmo suave, salvo que el perfil de sonido elegido sea uno de los efectos digitales/cyber, en cuyo caso acompaña ese carácter. También se puede seleccionar Pop o Cyber manualmente.
 
 No se infiere el género a partir de nombres de artistas o títulos porque sería poco fiable. Tampoco se hace análisis de audio, extracción de BPM ni sincronización con el pulso musical en tiempo real. Esas funciones serían un proyecto aparte; esta versión realiza una adaptación semántica a partir de etiquetas de género.
 
