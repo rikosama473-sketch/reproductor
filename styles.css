@@ -554,3 +554,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .converter-warning p+p{margin-top:9px}
 @media(max-width:1000px){.converter-layout{grid-template-columns:1fr}.converter-intro-note{max-width:360px}}
 @media(max-width:560px){.converter-intro{flex-direction:column}.converter-intro-note{max-width:none}.converter-panel{padding:16px 13px;border-radius:15px}.converter-options{grid-template-columns:1fr}.converter-actions{display:grid;grid-template-columns:1fr 1fr}.converter-actions .button{padding-inline:10px}.converter-actions #converter-start{grid-column:1/-1}.converter-panel-heading{align-items:flex-start}.converter-badge{font-size:9px}.converter-selection-head{align-items:flex-start;flex-direction:column}.converter-selection-head span{text-align:left}}
+
+/* Compact local save/recall controls for custom sound profiles. */
+.eq-profile-saver{display:grid;gap:8px;margin:12px 0 16px}
+.eq-profile-saver>label{font-size:11px;font-weight:700;color:var(--muted)}
+.eq-profile-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.eq-profile-controls .form-input{flex:1;min-width:180px}
+.eq-profile-controls .button{min-height:36px}
+@media(max-width:640px){.eq-profile-controls{align-items:stretch}.eq-profile-controls .form-input,.eq-profile-controls .button{width:100%;min-width:0}}
