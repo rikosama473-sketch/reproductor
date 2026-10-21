@@ -20,7 +20,8 @@ const v23 = parseId3Tags(tag(3, [frame("TIT2", "Piano nocturno"), frame("TPE1", 
 assert.equal(v23.title, "Piano nocturno");
 assert.equal(v23.artist, "Artista");
 assert.equal(v23.album, "Álbum");
-assert.equal(v23.genre, "17");
+assert.equal(v23.genre, "Rock");
+assert.equal(parseId3Tags(tag(3, [frame("TIT2", "AC/DC - Live")]), fallback).title, "AC/DC - Live", "preserve slash characters in titles");
 
 const v22 = parseId3Tags(tag(2, [frame("TT2", "Tema v2.2", 2), frame("TP1", "Banda", 2)]), fallback);
 assert.equal(v22.title, "Tema v2.2");
