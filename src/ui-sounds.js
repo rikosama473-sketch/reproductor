@@ -1,8 +1,9 @@
 const STORAGE_KEY = "ritmo.ui-sounds.v2";
 const LEGACY_STORAGE_KEY = "ritmo.ui-sounds.v1";
-const MAX_OUTPUT_GAIN = 0.035;
-const MUSIC_DUCK_FACTOR = 0.10;
-const MIN_SOUND_INTERVAL_MS = 90;
+// Conservative master headroom keeps UI feedback secondary to music and speech.
+const MAX_OUTPUT_GAIN = 0.025;
+const MUSIC_DUCK_FACTOR = 0.06;
+const MIN_SOUND_INTERVAL_MS = 125;
 
 export const UI_SOUND_PACKS = Object.freeze({
   piano: Object.freeze({ label: "Piano clásico", description: "Nota cálida, breve y amortiguada." }),
@@ -34,7 +35,17 @@ export const UI_SOUND_PACKS = Object.freeze({
   retro: Object.freeze({ label: "Retro 8-bit", description: "Tono de videojuego clásico, muy corto." }),
   warm: Object.freeze({ label: "Sintetizador cálido", description: "Pulso redondo, sin agudos agresivos." }),
   drum: Object.freeze({ label: "Percusión amortiguada", description: "Toque grave, corto y suave, parecido a un botón acolchado." }),
-  minimal: Object.freeze({ label: "Clic minimalista", description: "Confirmación discreta, casi imperceptible." })
+  minimal: Object.freeze({ label: "Clic minimalista", description: "Confirmación discreta, casi imperceptible." }),
+  felt: Object.freeze({ label: "Piano de fieltro", description: "Tecla amortiguada, cálida y muy corta; pensada para no competir con voces." }),
+  lofi: Object.freeze({ label: "Lo-fi aterciopelado", description: "Pulso redondo y filtrado, sin ruido de fondo ni colas largas." }),
+  pixel: Object.freeze({ label: "Píxel pastel", description: "Tono retro triangular, sin onda cuadrada estridente." }),
+  musicbox: Object.freeze({ label: "Caja musical tenue", description: "Destello melódico breve con armónicos suaves y volumen moderado." }),
+  ceramic: Object.freeze({ label: "Cerámica mate", description: "Pequeño toque opaco, más táctil que musical." }),
+  water: Object.freeze({ label: "Gota de agua suave", description: "Gota descendente con caída rápida y sin silbido agudo." }),
+  analog: Object.freeze({ label: "Sintetizador analógico suave", description: "Barrido cálido y bajo, limitado en brillo y duración." }),
+  windchime: Object.freeze({ label: "Carillón de viento tenue", description: "Nota aérea breve, amortiguada para mantener la música y la voz al frente." }),
+  typewriter: Object.freeze({ label: "Tecla mecánica suave", description: "Clic acolchado para botones; nunca suena al escribir en campos." }),
+  moonlight: Object.freeze({ label: "Luz de luna", description: "Dos tonos graves y ligeros, con presencia discreta." })
 });
 
 export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 20 });
@@ -335,7 +346,57 @@ function synthesize(context, pack, volume, documentRef) {
     addTone(context, masterGain, 160, { type: "triangle", endFrequency: 92, duration: 0.033, amplitude: 0.052, attack: 0.002, filterType: "lowpass", cutoff: 310 });
     return;
   }
-  addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.045, attack: 0.002, filterType: "lowpass", cutoff: 470 });
+  if (pack === "felt") {
+    const note = [261.63, 293.66, 329.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.044, amplitude: 0.025, attack: 0.006, filterType: "lowpass", cutoff: 620 });
+    return;
+  }
+  if (pack === "lofi") {
+    const note = [220, 246.94, 261.63, 246.94][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.985, duration: 0.048, amplitude: 0.019, attack: 0.006, filterType: "lowpass", cutoff: 540 });
+    return;
+  }
+  if (pack === "pixel") {
+    const note = [329.63, 392, 349.23, 392][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.027, amplitude: 0.024, attack: 0.002, filterType: "lowpass", cutoff: 720 });
+    return;
+  }
+  if (pack === "musicbox") {
+    const note = [440, 493.88, 523.25, 493.88][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.038, amplitude: 0.021, attack: 0.004, filterType: "lowpass", cutoff: 980 });
+    addTone(context, masterGain, note * 1.5, { type: "sine", duration: 0.024, amplitude: 0.004, attack: 0.003, filterType: "lowpass", cutoff: 1120 });
+    return;
+  }
+  if (pack === "ceramic") {
+    addWoodClick(context, masterGain, { duration: 0.022, cutoff: 710, amplitude: 0.010 });
+    return;
+  }
+  if (pack === "water") {
+    addTone(context, masterGain, 510, { type: "sine", endFrequency: 350, duration: 0.035, amplitude: 0.020, attack: 0.003, filterType: "lowpass", cutoff: 780 });
+    return;
+  }
+  if (pack === "analog") {
+    addTone(context, masterGain, 196, { type: "triangle", endFrequency: 220, duration: 0.044, amplitude: 0.020, attack: 0.006, filterType: "lowpass", cutoff: 520 });
+    return;
+  }
+  if (pack === "windchime") {
+    const note = [349.23, 392, 369.99, 392][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.036, amplitude: 0.020, attack: 0.005, filterType: "lowpass", cutoff: 980 });
+    return;
+  }
+  if (pack === "typewriter") {
+    addWoodClick(context, masterGain, { duration: 0.018, cutoff: 850, amplitude: 0.008 });
+    return;
+  }
+  if (pack === "moonlight") {
+    addTone(context, masterGain, 220, { type: "sine", duration: 0.040, amplitude: 0.011, attack: 0.006, filterType: "lowpass", cutoff: 520 });
+    addTone(context, masterGain, 329.63, { type: "sine", duration: 0.028, amplitude: 0.0035, attack: 0.005, filterType: "lowpass", cutoff: 560 });
+    return;
+  }
+  if (pack === "minimal") {
+    addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.025, attack: 0.002, filterType: "lowpass", cutoff: 470 });
+    return;
+  }
 }
 
 function playUiSound(preferences, documentRef) {
