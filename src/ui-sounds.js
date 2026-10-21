@@ -60,14 +60,41 @@ export const UI_SOUND_PACKS = Object.freeze({
   arcade: Object.freeze({ label: "Arcade cálido", description: "Confirmación retro grave y breve, sin ráfagas de tonos." })
 });
 
-export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 15 });
+export const UI_SOUND_RHYTHMS = Object.freeze({
+  auto: Object.freeze({ label: "Automático por género", description: "Usa etiquetas fiables de la pista; si faltan, mantiene un pulso discreto." }),
+  soft: Object.freeze({ label: "Suave y espaciado", description: "Sin notas adicionales: un solo efecto breve por acción." }),
+  pop: Object.freeze({ label: "Pop animado", description: "Añade un pequeño acento ascendente y corto a algunas respuestas de interfaz." }),
+  cyber: Object.freeze({ label: "Cyber / electrónico", description: "Usa dos micropulsos electrónicos de bajo nivel, solo al interactuar." })
+});
+
+const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog"]);
+
+function normalizedGenreText(value) {
+  return String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+}
+
+export function inferUiSoundRhythm(genre) {
+  const text = normalizedGenreText(genre);
+  if (!text) return null;
+  if (/\\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum.?and.?bass|dnb|tech.?house|house|breakbeat)\\b/.test(text)) return "cyber";
+  if (/\\b(pop|k-pop|j-pop|dance.?pop|pop.?rock|teen.?pop|electropop|popular)\\b/.test(text)) return "pop";
+  return null;
+}
+
+export function resolveUiSoundRhythm(preference, genre, pack = "piano") {
+  if (preference && preference !== "auto" && Object.prototype.hasOwnProperty.call(UI_SOUND_RHYTHMS, preference)) return preference;
+  return inferUiSoundRhythm(genre) || (CYBER_SOUND_PACKS.has(pack) ? "cyber" : "soft");
+}
+
+export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 15, rhythm: "auto" });
 
 export function normalizeUiSoundPreferences(value) {
   const source = value && typeof value === "object" ? value : {};
   const pack = Object.prototype.hasOwnProperty.call(UI_SOUND_PACKS, source.pack) ? source.pack : DEFAULT_UI_SOUND_PREFERENCES.pack;
   const rawVolume = source.volume === undefined ? DEFAULT_UI_SOUND_PREFERENCES.volume : Number(source.volume);
   const volume = Number.isFinite(rawVolume) ? Math.max(0, Math.min(100, Math.round(rawVolume))) : DEFAULT_UI_SOUND_PREFERENCES.volume;
-  return { enabled: source.enabled === true, pack, volume };
+  const rhythm = Object.prototype.hasOwnProperty.call(UI_SOUND_RHYTHMS, source.rhythm) ? source.rhythm : DEFAULT_UI_SOUND_PREFERENCES.rhythm;
+  return { enabled: source.enabled === true, pack, volume, rhythm };
 }
 
 function loadPreferences() {
@@ -95,6 +122,8 @@ let masterGain = null;
 let noteIndex = 0;
 let lastAutomaticSoundAt = 0;
 let voicePreviewActive = false;
+let currentMusicGenre = "";
+let rhythmNoteIndex = 0;
 const pianoNotes = [392, 440, 493.88, 587.33, 523.25, 440, 493.88, 659.25];
 
 function getAudioContext() {
@@ -115,7 +144,7 @@ function getAudioContext() {
 }
 
 function addTone(context, output, frequency, options = {}) {
-  const now = context.currentTime;
+  const now = context.currentTime + Math.max(0, Number(options.delay) || 0);
   const oscillator = context.createOscillator();
   const envelope = context.createGain();
   let filter = null;
@@ -196,13 +225,30 @@ function silenceUiEffectsForVoice() {
   masterGain.gain.setTargetAtTime(0, now, 0.002);
 }
 
-function synthesize(context, pack, volume, documentRef) {
+function addRhythmAccent(context, output, rhythm) {
+  if (rhythm === "pop") {
+    const notes = [493.88, 587.33, 523.25, 659.25];
+    const note = notes[rhythmNoteIndex++ % notes.length];
+    addTone(context, output, note, { type: "sine", duration: 0.016, amplitude: 0.010, attack: 0.002, filterType: "lowpass", cutoff: 920, delay: 0.014 });
+    return;
+  }
+  if (rhythm === "cyber") {
+    const notes = [392, 440, 349.23, 493.88];
+    const note = notes[rhythmNoteIndex++ % notes.length];
+    addTone(context, output, note, { type: "sine", endFrequency: note * 0.96, duration: 0.014, amplitude: 0.007, attack: 0.002, filterType: "lowpass", cutoff: 690, delay: 0.012 });
+    addTone(context, output, note * 1.25, { type: "sine", duration: 0.011, amplitude: 0.0025, attack: 0.002, filterType: "lowpass", cutoff: 760, delay: 0.031 });
+  }
+}
+
+function synthesize(context, pack, volume, documentRef, rhythmPreference = "auto") {
   if (!masterGain || volume <= 0 || voiceOutputIsActive()) return;
   const now = context.currentTime;
   const activeMusic = mediaIsPlayingOrEmbedded(documentRef);
   const safeGain = MAX_OUTPUT_GAIN * (volume / 100) * (activeMusic ? MUSIC_DUCK_FACTOR : 1);
   masterGain.gain.cancelScheduledValues(now);
   masterGain.gain.setTargetAtTime(Math.min(MAX_OUTPUT_GAIN, safeGain), now, 0.008);
+  const rhythm = resolveUiSoundRhythm(rhythmPreference, currentMusicGenre, pack);
+  addRhythmAccent(context, masterGain, rhythm);
 
   if (pack === "piano") {
     const note = pianoNotes[noteIndex % pianoNotes.length];
@@ -473,29 +519,52 @@ function playUiSound(preferences, documentRef) {
   const context = getAudioContext();
   if (!context) return;
   if (context.state === "suspended") {
-    context.resume().then(() => synthesize(context, preferences.pack, preferences.volume, documentRef)).catch(() => {});
+    context.resume().then(() => synthesize(context, preferences.pack, preferences.volume, documentRef, preferences.rhythm)).catch(() => {});
     return;
   }
-  synthesize(context, preferences.pack, preferences.volume, documentRef);
+  synthesize(context, preferences.pack, preferences.volume, documentRef, preferences.rhythm);
 }
 
 function initUiSounds(documentRef) {
   const enabledInput = documentRef.querySelector("#ui-sounds-enabled");
   const packInput = documentRef.querySelector("#ui-sounds-pack");
+  const rhythmInput = documentRef.querySelector("#ui-sounds-rhythm");
+  const rhythmStatus = documentRef.querySelector("#ui-sounds-rhythm-status");
   const volumeInput = documentRef.querySelector("#ui-sounds-volume");
   const volumeOutput = documentRef.querySelector("#ui-sounds-volume-value");
   const previewButton = documentRef.querySelector("#ui-sounds-preview");
   if (!enabledInput || !packInput || !volumeInput || !volumeOutput || !previewButton) return;
   let preferences = loadPreferences();
+  const persist = () => savePreferences(preferences);
+  const updateRhythmStatus = () => {
+    if (!rhythmStatus) return;
+    const detected = inferUiSoundRhythm(currentMusicGenre);
+    if (preferences.rhythm !== "auto") {
+      rhythmStatus.textContent = "Ritmo manual: " + UI_SOUND_RHYTHMS[preferences.rhythm].label + ".";
+    } else if (detected) {
+      rhythmStatus.textContent = "Ritmo automático: " + UI_SOUND_RHYTHMS[detected].label + " (según etiquetas de género).";
+    } else {
+      const fallback = resolveUiSoundRhythm("auto", "", preferences.pack);
+      rhythmStatus.textContent = fallback === "cyber"
+        ? "Sin género reconocible: se usa Cyber por el estilo de efecto elegido."
+        : "Sin género reconocible: se usa el modo suave. Podés elegir Pop o Cyber manualmente.";
+    }
+  };
   globalThis.addEventListener?.("ritmo:voice-preview-start", silenceUiEffectsForVoice);
   globalThis.addEventListener?.("ritmo:voice-preview-end", () => { voicePreviewActive = false; });
-  const persist = () => savePreferences(preferences);
+  globalThis.addEventListener?.("ritmo:track-context", event => {
+    const detail = event?.detail || {};
+    currentMusicGenre = [detail.genre, detail.radioTags].filter(Boolean).join(" ");
+    updateRhythmStatus();
+  });
   const syncControls = () => {
     enabledInput.checked = preferences.enabled;
     packInput.value = preferences.pack;
+    if (rhythmInput) rhythmInput.value = preferences.rhythm;
     volumeInput.value = String(preferences.volume);
     volumeOutput.value = preferences.volume + "%";
     volumeOutput.textContent = preferences.volume + "%";
+    updateRhythmStatus();
   };
   syncControls();
   enabledInput.addEventListener("change", () => {
@@ -505,7 +574,13 @@ function initUiSounds(documentRef) {
   packInput.addEventListener("change", () => {
     preferences = normalizeUiSoundPreferences({ ...preferences, pack: packInput.value });
     persist();
+    updateRhythmStatus();
     if (preferences.enabled) playUiSound(preferences, documentRef);
+  });
+  rhythmInput?.addEventListener("change", () => {
+    preferences = normalizeUiSoundPreferences({ ...preferences, rhythm: rhythmInput.value });
+    persist();
+    updateRhythmStatus();
   });
   volumeInput.addEventListener("input", () => {
     preferences = normalizeUiSoundPreferences({ ...preferences, volume: volumeInput.value });
