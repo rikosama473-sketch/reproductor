@@ -1,28 +1,41 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { UI_SOUND_PACKS, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES } from "../src/ui-sounds.js";
+import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES } from "../src/ui-sounds.js";
 
 assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
   assert.ok(pack.label, key + " has a visible label");
   assert.ok(pack.description, key + " explains its sound");
 }
-assert.deepEqual(normalizeUiSoundPreferences(null), { enabled: false, pack: "piano", volume: 15 });
+assert.deepEqual(normalizeUiSoundPreferences(null), { enabled: false, pack: "piano", volume: 15, rhythm: "auto" });
 assert.equal(DEFAULT_UI_SOUND_PREFERENCES.enabled, false);
-assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "punk", volume: 45 }), { enabled: true, pack: "punk", volume: 45 });
-assert.deepEqual(normalizeUiSoundPreferences({ enabled: "true", pack: "unknown", volume: 150 }), { enabled: false, pack: "piano", volume: 100 });
-assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "glass", volume: -20 }), { enabled: true, pack: "glass", volume: 0 });
-assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "wood", volume: 38.6 }), { enabled: true, pack: "wood", volume: 39 });
+assert.deepEqual(Object.keys(UI_SOUND_RHYTHMS), ["auto", "soft", "pop", "cyber"]);
+assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "punk", volume: 45 }), { enabled: true, pack: "punk", volume: 45, rhythm: "auto" });
+assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "cyber", volume: 30, rhythm: "pop" }), { enabled: true, pack: "cyber", volume: 30, rhythm: "pop" });
+assert.deepEqual(normalizeUiSoundPreferences({ enabled: "true", pack: "unknown", volume: 150, rhythm: "bad-value" }), { enabled: false, pack: "piano", volume: 100, rhythm: "auto" });
+assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "glass", volume: -20 }), { enabled: true, pack: "glass", volume: 0, rhythm: "auto" });
+assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "wood", volume: 38.6 }), { enabled: true, pack: "wood", volume: 39, rhythm: "auto" });
+assert.equal(inferUiSoundRhythm("Pop"), "pop");
+assert.equal(inferUiSoundRhythm("K-pop"), "pop");
+assert.equal(inferUiSoundRhythm("Electrónica"), "cyber");
+assert.equal(inferUiSoundRhythm("Techno / synthwave"), "cyber");
+assert.equal(inferUiSoundRhythm("Rock"), null);
+assert.equal(resolveUiSoundRhythm("auto", "Pop", "piano"), "pop");
+assert.equal(resolveUiSoundRhythm("auto", "Techno", "piano"), "cyber");
+assert.equal(resolveUiSoundRhythm("auto", "", "cyber"), "cyber");
+assert.equal(resolveUiSoundRhythm("auto", "", "piano"), "soft");
+assert.equal(resolveUiSoundRhythm("pop", "Techno", "piano"), "pop");
 
 const root = new URL("../", import.meta.url);
-const [html, sw, prepare, mobileCheck, moduleSource] = await Promise.all([
+const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.all([
   readFile(new URL("index.html", root), "utf8"),
   readFile(new URL("sw.js", root), "utf8"),
   readFile(new URL("scripts/prepare-mobile.mjs", root), "utf8"),
   readFile(new URL("scripts/mobile-package-check.mjs", root), "utf8"),
-  readFile(new URL("src/ui-sounds.js", root), "utf8")
+  readFile(new URL("src/ui-sounds.js", root), "utf8"),
+  readFile(new URL("src/app.js", root), "utf8")
 ]);
-for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-volume", "ui-sounds-preview"]) {
+for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
   assert.match(html, new RegExp('id="' + selector + '"'));
 }
 for (const snippet of [
@@ -51,17 +64,26 @@ for (const snippet of [
   '<option value="plush">Terciopelo</option>', '<option value="cloud">Nube suave</option>',
   '<option value="sakura">Sakura</option>', '<option value="shore">Ola mansa</option>',
   '<option value="holo">Holograma suave</option>', '<option value="softbit">8-bit aterciopelado</option>',
-  '<option value="starglow">Brillo estelar</option>', '<option value="arcade">Arcade cálido</option>'
+  '<option value="starglow">Brillo estelar</option>', '<option value="arcade">Arcade cálido</option>',
+  '<option value="auto">Automático por género</option>', '<option value="soft">Suave y espaciado</option>',
+  '<option value="pop">Pop animado</option>', '<option value="cyber">Cyber / electrónico</option>'
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v53/);
+assert.match(sw, /ritmo-shell-v54/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
 assert.match(moduleSource, /MAX_OUTPUT_GAIN = 0\.025/);
 assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.04/);
 assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 160/);
+assert.match(moduleSource, /function addRhythmAccent\(context, output, rhythm\)/);
+assert.match(moduleSource, /resolveUiSoundRhythm\(rhythmPreference, currentMusicGenre, pack\)/);
+assert.match(moduleSource, /ritmo:track-context/);
+assert.match(appSource, /frameId === "TCON"/);
+assert.match(appSource, /genre: meta\.genre \|\| ""/);
+assert.match(appSource, /notifySoundTrackContext\(track\)/);
+assert.match(appSource, /radioTags: String\(track\?\.radioTags \|\| ""\)/);
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
@@ -79,4 +101,4 @@ assert.match(moduleSource, /ritmo\.ui-sounds\.v2/);
 assert.match(moduleSource, /LEGACY_STORAGE_KEY = "ritmo\.ui-sounds\.v1"/);
 assert.match(moduleSource, /JSON\.parse\(legacy\), enabled: false/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-console.log("UI sound tests passed: fifty-two profiles, lower default volume, stronger media ducking, voice suppression, click cooldown and offline/Android packaging.");
+console.log("UI sound tests passed: 52 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
