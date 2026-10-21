@@ -50,7 +50,11 @@ export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
     for (let channel = 0; channel < channels; channel++) {
       let sample;
       if (sourceChannels.length === 1) sample = sourceChannels[0][frame];
-      else if (sourceChannels.length === 2) sample = sourceChannels[channel][frame];
+      else if (channels === 1) {
+        let sum = 0;
+        for (const source of sourceChannels) sum += source[frame];
+        sample = sum / sourceChannels.length;
+      } else if (sourceChannels.length === 2) sample = sourceChannels[channel][frame];
       else {
         // Fold multichannel input down to stereo without allocating another full buffer.
         let sum = 0, count = 0;
