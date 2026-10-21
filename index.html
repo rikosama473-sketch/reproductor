@@ -420,15 +420,15 @@
 
     <section class="settings-section ui-sound-settings">
       <div class="settings-section-heading">
-        <div><h3>Sonidos de interfaz</h3><p>Perfiles breves y suaves para botones; se atenúan automáticamente cuando Ritmo detecta música.</p></div>
+        <div><h3>Sonidos de interfaz</h3><p>14 timbres breves y suaves. Se reducen con la música y se silencian durante las muestras de voz; los controles del personaje y del estudio vocal permanecen silenciosos.</p></div>
         <label class="settings-switch"><input type="checkbox" id="ui-sounds-enabled"><span>Activar</span></label>
       </div>
       <label class="eq-control" for="ui-sounds-pack"><span>Estilo de teclas y botones</span><select id="ui-sounds-pack" class="form-input" aria-label="Estilo de sonidos de interfaz">
-        <option value="piano">Piano clásico</option><option value="punk">Punk / rock suave</option><option value="cyber">Cibernético</option><option value="wood">Madera suave</option><option value="glass">Cristal delicado</option><option value="retro">Retro 8-bit</option><option value="warm">Sintetizador cálido</option><option value="minimal">Clic minimalista</option>
+        <option value="piano">Piano clásico</option><option value="punk">Punk / rock suave</option><option value="cyber">Cibernético</option><option value="wood">Madera suave</option><option value="glass">Cristal delicado</option><option value="marimba">Marimba suave</option><option value="bubble">Burbuja</option><option value="bell">Campana tenue</option><option value="sparkle">Destello anime</option><option value="pluck">Cuerda pulsada</option><option value="retro">Retro 8-bit</option><option value="warm">Sintetizador cálido</option><option value="drum">Percusión amortiguada</option><option value="minimal">Clic minimalista</option>
       </select></label>
-      <label class="eq-control" for="ui-sounds-volume"><span>Volumen máximo de efectos</span><output id="ui-sounds-volume-value">24%</output><input id="ui-sounds-volume" type="range" min="0" max="100" step="1" value="24"></label>
+      <label class="eq-control" for="ui-sounds-volume"><span>Volumen máximo de efectos</span><output id="ui-sounds-volume-value">20%</output><input id="ui-sounds-volume" type="range" min="0" max="100" step="1" value="20"></label>
       <button class="button button-soft" id="ui-sounds-preview" type="button">Probar sonido elegido</button>
-      <p class="settings-note">Los efectos duran menos de una décima de segundo y tienen un límite de volumen. Cuando detecta música o un reproductor externo, Ritmo reduce todavía más su nivel para evitar competir con las voces. Empieza desactivado; no se descargan audios.</p>
+      <p class="settings-note">Los efectos duran menos de una décima de segundo, tienen un límite de salida más bajo y se reducen al detectar música. Durante las muestras de voz se silencian, y no suenan al editar el personaje ni dentro del estudio vocal. Empiezan desactivados; todos los timbres se generan localmente.</p>
     </section>
 
     <section class="settings-section">
