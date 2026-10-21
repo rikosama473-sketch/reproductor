@@ -3,7 +3,7 @@ import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
-import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
+import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
@@ -46,14 +46,21 @@ let youtubeModeEnabledState = readYoutubeModeEnabled();
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
-const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: true, userEqProfiles: [], keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
+    const userEqProfiles = normalizeSavedEqualizerProfiles(saved?.userEqProfiles);
+    const savedPresetExists = saved && (
+      saved.eqPreset === "custom" ||
+      Object.prototype.hasOwnProperty.call(EQUALIZER_PRESETS, saved.eqPreset) ||
+      userEqProfiles.some(profile => "user:" + profile.id === saved.eqPreset)
+    );
     return {
       ...DEFAULT_AUDIO_PREFS,
       ...(saved && typeof saved === "object" ? saved : {}),
-      eqPreset: (saved && (saved.eqPreset === "custom" || Object.prototype.hasOwnProperty.call(EQUALIZER_PRESETS, saved.eqPreset))) ? saved.eqPreset : "custom",
+      userEqProfiles,
+      eqPreset: savedPresetExists ? saved.eqPreset : "custom",
       bass: Math.max(-12, Math.min(12, Number(saved?.bass) || 0)),
       mid: Math.max(-12, Math.min(12, Number(saved?.mid) || 0)),
       treble: Math.max(-12, Math.min(12, Number(saved?.treble) || 0)),
@@ -820,9 +827,29 @@ function bindAudioEngineEvents(element) {
     showPlaybackStatus(mediaErrorMessage(currentTrack(), element.error), "error", true);
   });
 }
+function renderSavedEqualizerProfileOptions() {
+  const group = $("#eq-user-profiles");
+  if (!group) return;
+  audioPrefs.userEqProfiles = normalizeSavedEqualizerProfiles(audioPrefs.userEqProfiles);
+  group.replaceChildren();
+  for (const profile of audioPrefs.userEqProfiles) {
+    const option = document.createElement("option");
+    option.value = "user:" + profile.id;
+    option.textContent = profile.name;
+    group.append(option);
+  }
+  group.hidden = audioPrefs.userEqProfiles.length === 0;
+}
 function syncSettingsUI() {
+  renderSavedEqualizerProfileOptions();
   $("#eq-enabled").checked = audioPrefs.equalizerEnabled;
-  $("#eq-preset").value = audioPrefs.eqPreset || "custom";
+  const presetSelect = $("#eq-preset");
+  presetSelect.value = audioPrefs.eqPreset || "custom";
+  if (!presetSelect.value) {
+    audioPrefs.eqPreset = "custom";
+    presetSelect.value = "custom";
+  }
+  $("#eq-profile-delete").disabled = !presetSelect.value.startsWith("user:");
   $("#eq-bass").value = String(audioPrefs.bass);
   $("#eq-mid").value = String(audioPrefs.mid);
   $("#eq-treble").value = String(audioPrefs.treble);
@@ -3597,7 +3624,10 @@ function bindEvents() {
       $("#eq-status").textContent = "Modo limpio activado: ecualizador y limitador apagados; el audio original no se modifica.";
       return;
     }
-    const values = getEqualizerPreset(presetName);
+    const savedProfile = audioPrefs.userEqProfiles.find(profile => "user:" + profile.id === presetName);
+    const values = savedProfile
+      ? { bass: savedProfile.bass, mid: savedProfile.mid, treble: savedProfile.treble }
+      : getEqualizerPreset(presetName);
     if (!values) {
       audioPrefs.eqPreset = "custom";
       syncSettingsUI();
@@ -3623,10 +3653,51 @@ function bindEvents() {
       }
       applyCurrentEnginePreference();
     }
-    const profile = EQUALIZER_PRESETS[presetName];
+    const profile = savedProfile
+      ? { label: savedProfile.name, description: "Perfil personalizado guardado en este dispositivo." }
+      : EQUALIZER_PRESETS[presetName];
     $("#eq-status").textContent = track && isLocal(track)
       ? "Perfil «" + profile.label + "» aplicado a este archivo local. " + profile.description
       : "Perfil «" + profile.label + "» guardado para archivos locales; no procesa fuentes online. " + profile.description;
+  });
+  $("#eq-profile-save").addEventListener("click", () => {
+    const name = String($("#eq-profile-name").value || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    if (!name) {
+      $("#eq-status").textContent = "Escribí un nombre para guardar el perfil.";
+      $("#eq-profile-name").focus();
+      return;
+    }
+    const existing = audioPrefs.userEqProfiles.find(profile =>
+      profile.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+    );
+    if (existing && !window.confirm("«" + existing.name + "» ya existe. ¿Querés reemplazar sus valores por los actuales?")) return;
+    const id = existing?.id || ("saved-" + (globalThis.crypto?.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10)));
+    try {
+      audioPrefs.userEqProfiles = upsertSavedEqualizerProfile(audioPrefs.userEqProfiles, {
+        id, name, bass: audioPrefs.bass, mid: audioPrefs.mid, treble: audioPrefs.treble
+      });
+      audioPrefs.eqPreset = "user:" + id;
+      saveAudioPreferences();
+      syncSettingsUI();
+      $("#eq-profile-name").value = name;
+      $("#eq-status").textContent = "Perfil «" + name + "» guardado en este dispositivo. Seleccionalo para recuperar estos valores.";
+    } catch (error) {
+      $("#eq-status").textContent = error?.message || "No se pudo guardar el perfil personalizado.";
+    }
+  });
+  $("#eq-profile-delete").addEventListener("click", () => {
+    const selected = $("#eq-preset").value;
+    if (!selected.startsWith("user:")) return;
+    const id = selected.slice("user:".length);
+    const profile = audioPrefs.userEqProfiles.find(item => item.id === id);
+    if (!profile || !window.confirm("¿Eliminar el perfil «" + profile.name + "» de este dispositivo?")) return;
+    audioPrefs.userEqProfiles = removeSavedEqualizerProfile(audioPrefs.userEqProfiles, id);
+    audioPrefs.eqPreset = "custom";
+    saveAudioPreferences();
+    syncSettingsUI();
+    $("#eq-status").textContent = "Perfil «" + profile.name + "» eliminado de este dispositivo; no se borró ningún archivo de audio.";
   });
   $("#limiter-toggle").addEventListener("change", event => {
     audioPrefs.limiter = event.target.checked;
