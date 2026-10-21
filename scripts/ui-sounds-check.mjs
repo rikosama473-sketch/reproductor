@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES } from "../src/ui-sounds.js";
+import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES, getUiSoundMinIntervalMs } from "../src/ui-sounds.js";
 
 assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette", "pizzicato", "ocarina", "woodblock", "nylon", "softkick", "marbles", "deepfm", "ripple"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
@@ -25,6 +25,9 @@ assert.equal(resolveUiSoundRhythm("auto", "Techno", "piano"), "cyber");
 assert.equal(resolveUiSoundRhythm("auto", "", "cyber"), "cyber");
 assert.equal(resolveUiSoundRhythm("auto", "", "piano"), "soft");
 assert.equal(resolveUiSoundRhythm("pop", "Techno", "piano"), "pop");
+assert.equal(getUiSoundMinIntervalMs("auto", "Pop", "piano"), 170);
+assert.equal(getUiSoundMinIntervalMs("auto", "Techno", "piano"), 150);
+assert.equal(getUiSoundMinIntervalMs("soft", "", "piano"), 240);
 
 const root = new URL("../", import.meta.url);
 const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.all([
@@ -35,7 +38,7 @@ const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.
   readFile(new URL("src/ui-sounds.js", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8")
 ]);
-assert.match(html, /72 perfiles discretos con ritmo ajustable/, "Settings copy should match the 64 implemented profiles");
+assert.match(html, /80 perfiles discretos con ritmo ajustable/, "Settings copy should match the 64 implemented profiles");
 for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
   assert.match(html, new RegExp('id="' + selector + '"'));
 }
@@ -81,13 +84,14 @@ for (const snippet of [
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v58/);
+assert.match(sw, /ritmo-shell-v59/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
 assert.match(moduleSource, /MAX_OUTPUT_GAIN = 0\.025/);
 assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.04/);
-assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 160/);
+assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 150/);
+assert.match(moduleSource, /getUiSoundMinIntervalMs\(preferences.rhythm, currentMusicGenre, preferences.pack\)/);
 assert.match(moduleSource, /function addRhythmAccent\(context, output, rhythm\)/);
 assert.match(moduleSource, /resolveUiSoundRhythm\(rhythmPreference, currentMusicGenre, pack\)/);
 assert.match(moduleSource, /ritmo:track-context/);
@@ -108,6 +112,10 @@ assert.doesNotMatch(moduleSource.slice(packChangeStart, packChangeEnd), /playUiS
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
+assert.match(moduleSource, /appPlaybackIsActive \|\| media\.some/, "App-reported native playback must also activate ducking");
+assert.match(moduleSource, /ritmo:playback-context/, "UI sounds should receive playback state from all Ritmo engines");
+assert.match(appSource, /uiSoundPlaybackSource = state\.nativePlayback\.active \? "native"/, "Native Android playback must be reported even without an HTML audio element");
+assert.match(appSource, /detail: \{ playing: uiSoundIsPlaying, source: uiSoundPlaybackSource \}/, "The sound engine must receive the current engine's playback state");
 assert.match(moduleSource, /MAX_OUTPUT_GAIN \* \(volume \/ 100\) \* \(activeMusic \? MUSIC_DUCK_FACTOR : 1\)/, "Effects must be automatically attenuated while media plays");
 assert.match(moduleSource, /if \(preferences\.volume <= 0 \|\| voiceOutputIsActive\(\)\) return/, "Effects must stay silent while a voice preview or system speech is active");
 assert.match(moduleSource, /#voice-studio, \.companion-settings-section, \.character-companion/, "Voice and character design controls must remain silent");
@@ -122,4 +130,4 @@ assert.match(moduleSource, /ritmo\.ui-sounds\.v2/);
 assert.match(moduleSource, /LEGACY_STORAGE_KEY = "ritmo\.ui-sounds\.v1"/);
 assert.match(moduleSource, /JSON\.parse\(legacy\), enabled: false/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-console.log("UI sound tests passed: 72 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
+console.log("UI sound tests passed: 80 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
