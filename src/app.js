@@ -3623,7 +3623,11 @@ function bindEvents() {
       } else if (track && isLocal(track)) {
         applyCurrentEnginePreference();
       }
-      $("#eq-status").textContent = "Modo limpio activado: ecualizador y limitador apagados; el audio original no se modifica.";
+      $("#eq-status").textContent = nativeTrackActive
+        ? "Modo limpio: ecualizador nativo desactivado. Media3 Android no aplica el limitador suave en esta integración."
+        : track && isLocal(track)
+          ? "Modo limpio activado: ecualizador y limitador apagados en el procesamiento Web Audio; el archivo original no se modifica."
+          : "Modo limpio guardado para archivos locales: ecualizador y limitador desactivados cuando se use el procesamiento Web Audio.";
       return;
     }
     const savedProfile = selectedSavedProfile;
