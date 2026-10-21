@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  claimUniqueWavFilename,
   convertAudioFileToWav,
   encodePcm16Wav,
   MAX_CONVERTER_DURATION_SECONDS,
@@ -47,6 +48,15 @@ const surround = fakeBuffer([[1, 0], [0, 1], [-1, 0], [0, -1]]);
 const downmix = new DataView(await encodePcm16Wav(surround, 2).arrayBuffer());
 assert.equal(downmix.getUint16(22, true), 2, "Multichannel sources are downmixed to stereo");
 assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
+
+// Duplicate basenames and case-only differences must not collide on common filesystems.
+{
+  const usedNames = new Set();
+  assert.equal(claimUniqueWavFilename("Theme.mp3", usedNames), "Theme.wav");
+  assert.equal(claimUniqueWavFilename("theme.flac", usedNames), "theme (2).wav");
+  assert.equal(claimUniqueWavFilename("CON.ogg", usedNames), "_CON.wav");
+  assert.equal(claimUniqueWavFilename("Folder/Track?.mp3", usedNames), "Folder-Track-.wav");
+}
 
 // Metadata probing must revoke its temporary URL on success.
 {
