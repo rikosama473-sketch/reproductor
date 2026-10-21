@@ -91,8 +91,65 @@ export const EQUALIZER_PRESETS = Object.freeze({
   })
 });
 
-export function getEqualizerPreset(name) {
-  const preset = EQUALIZER_PRESETS[name];
-  if (!preset) return null;
-  return { bass: preset.bass, mid: preset.mid, treble: preset.treble };
+export const MAX_SAVED_EQUALIZER_PROFILES = 20;
+
+function boundedGain(value) {
+  return Math.round(Math.max(-12, Math.min(12, Number(value))));
+}
+
+/** Validate local custom profiles before they are loaded into the selector. */
+export function normalizeSavedEqualizerProfiles(value) {
+  if (!Array.isArray(value)) return [];
+  const result = [];
+  const ids = new Set();
+  const names = new Set();
+
+  for (const item of value) {
+    if (result.length >= MAX_SAVED_EQUALIZER_PROFILES) break;
+    if (!item || typeof item !== "object") continue;
+    const id = String(item.id ?? "").trim();
+    const name = String(item.name ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
+    const key = name.toLocaleLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]{0,59}$/i.test(id) || !name ||
+        ids.has(id) || names.has(key)) continue;
+    const bands = ["bass", "mid", "treble"];
+    if (bands.some(band => !Number.isFinite(Number(item[band])))) continue;
+
+    result.push({
+      id,
+      name,
+      bass: boundedGain(item.bass),
+      mid: boundedGain(item.mid),
+      treble: boundedGain(item.treble)
+    });
+    ids.add(id);
+    names.add(key);
+  }
+  return result;
+}
+
+/** Insert or replace a profile, rejecting accidental case-insensitive name collisions. */
+export function upsertSavedEqualizerProfile(profiles, profile) {
+  const current = normalizeSavedEqualizerProfiles(profiles);
+  const incoming = normalizeSavedEqualizerProfiles([profile])[0];
+  if (!incoming) throw new TypeError("El perfil personalizado no contiene un nombre, identificador o valores válidos.");
+  const duplicateName = current.find(item =>
+    item.name.toLocaleLowerCase() === incoming.name.toLocaleLowerCase() && item.id !== incoming.id
+  );
+  if (duplicateName) throw new Error("Ya existe un perfil llamado «" + duplicateName.name + "».");
+  const existingIndex = current.findIndex(item => item.id === incoming.id);
+  if (existingIndex >= 0) {
+    current[existingIndex] = incoming;
+    return current;
+  }
+  if (current.length >= MAX_SAVED_EQUALIZER_PROFILES) {
+    throw new RangeError("Podés guardar hasta " + MAX_SAVED_EQUALIZER_PROFILES + " perfiles personalizados.");
+  }
+  current.push(incoming);
+  return current;
+}
+
+export function removeSavedEqualizerProfile(profiles, profileId) {
+  const id = String(profileId ?? "");
+  return normalizeSavedEqualizerProfiles(profiles).filter(profile => profile.id !== id);
 }
