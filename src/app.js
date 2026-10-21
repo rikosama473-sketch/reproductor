@@ -3600,6 +3600,8 @@ function bindEvents() {
   }
   $("#eq-preset").addEventListener("change", async event => {
     const presetName = event.target.value;
+    const selectedSavedProfile = audioPrefs.userEqProfiles.find(profile => "user:" + profile.id === presetName);
+    $("#eq-profile-name").value = selectedSavedProfile?.name || "";
     if (presetName === "custom") {
       audioPrefs.eqPreset = "custom";
       saveAudioPreferences();
@@ -3624,7 +3626,7 @@ function bindEvents() {
       $("#eq-status").textContent = "Modo limpio activado: ecualizador y limitador apagados; el audio original no se modifica.";
       return;
     }
-    const savedProfile = audioPrefs.userEqProfiles.find(profile => "user:" + profile.id === presetName);
+    const savedProfile = selectedSavedProfile;
     const values = savedProfile
       ? { bass: savedProfile.bass, mid: savedProfile.mid, treble: savedProfile.treble }
       : getEqualizerPreset(presetName);
@@ -3697,6 +3699,7 @@ function bindEvents() {
     audioPrefs.eqPreset = "custom";
     saveAudioPreferences();
     syncSettingsUI();
+    $("#eq-profile-name").value = profile.name;
     $("#eq-status").textContent = "Perfil «" + profile.name + "» eliminado de este dispositivo; no se borró ningún archivo de audio.";
   });
   $("#limiter-toggle").addEventListener("change", event => {
