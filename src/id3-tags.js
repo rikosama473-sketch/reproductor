@@ -90,7 +90,7 @@ function parseAttachedPicture(frameBytes, version, unsynchronised) {
     descriptionStart = 5;
   } else {
     const mimeEnd = bytes.indexOf(0, 1);
-    if (mimeEnd < 0 || mimeEnd + 2 >= bytes.length) return null;
+    if (mimeEnd < 0 || mimeEnd - 1 > 64 || mimeEnd + 2 >= bytes.length) return null;
     mimeType = String.fromCharCode(...bytes.subarray(1, mimeEnd)).trim().toLowerCase();
     pictureTypeOffset = mimeEnd + 1;
     descriptionStart = pictureTypeOffset + 1;
