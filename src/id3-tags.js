@@ -121,6 +121,15 @@ function validPicturePayload(bytes, mimeType) {
   return false;
 }
 
+export function validateEmbeddedArtwork(input, mimeType) {
+  const bytes = input instanceof Uint8Array ? input : null;
+  const normalizedMime = String(mimeType || "").trim().toLowerCase();
+  if (!(bytes instanceof Uint8Array) ||
+      (normalizedMime !== "image/jpeg" && normalizedMime !== "image/png") ||
+      !validPicturePayload(bytes, normalizedMime)) return null;
+  return new Uint8Array(bytes);
+}
+
 function parseAttachedPicture(frameBytes, version, unsynchronised) {
   if (!(frameBytes instanceof Uint8Array) || frameBytes.length < 6) return null;
   const bytes = unsynchronised ? removeUnsynchronisation(frameBytes) : frameBytes;
