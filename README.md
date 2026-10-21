@@ -59,7 +59,7 @@ El almacenamiento offline actual está pensado para archivos importados por el u
 ## Limitaciones actuales / siguiente etapa
 
 - No hay todavía catálogo de búsqueda musical online, backend de cuentas ni sincronización en la nube.
-- Los metadatos se infieren del nombre del archivo; aún no se leen etiquetas ID3/Vorbis, carátulas embebidas ni letras sincronizadas.
+- La importación lee etiquetas de texto ID3v2 de MP3 y carátulas JPEG/PNG incrustadas en ID3 APIC/PIC (máximo 512 KiB por imagen); todavía no lee etiquetas Vorbis/MP4, no edita las etiquetas originales y no extrae letras sincronizadas.
 - La cola reproduce la biblioteca cargada; todavía no tiene administración manual de cola ni listas de reproducción editables.
 - Un reproductor web no garantiza la reproducción en segundo plano o controles de pantalla bloqueada en todos los navegadores/dispositivos.
 - La compatibilidad PWA depende del navegador. La carpeta `mobile/` empaqueta la versión Android nativa; iOS nativo todavía no se declara compatible.
@@ -97,7 +97,7 @@ IndexedDB v2 conserva los archivos importados, el historial de reproducciones y 
 
 La reproducción local integra Media Session cuando el navegador lo soporta para exponer título, artista, progreso y controles de play/pausa, anterior/siguiente y búsqueda en los controles del sistema. La API tiene soporte desigual y el navegador/OS decide si permite reproducción en segundo plano con la pantalla bloqueada.
 
-La importación se procesa en lotes de 20, conserva los blobs originales sin recodificarlos y evita una transacción única gigante. El navegador decide la cuota real disponible. Los metadatos ID3v2 básicos (título, artista, álbum) se leen de archivos MP3; en otros formatos el título se infiere del nombre de archivo en esta versión.
+La importación se procesa en lotes de 20, conserva los blobs originales sin recodificarlos y evita una transacción única gigante. El navegador decide la cuota real disponible. En archivos MP3 se leen los textos ID3v2 de título, artista, álbum y género, y se extrae la primera portada JPEG/PNG compatible; si hay varias, se prioriza la imagen de tipo «cover frontal». Las portadas quedan guardadas como Blob local junto con el audio, se muestran en la biblioteca y en el reproductor, y se ofrecen a Media Session cuando el navegador admite esa API. La lectura examina solo los primeros 2 MiB de la etiqueta, conserva como máximo 512 KiB de imagen por pista y descarta MIME no soportados, firmas de imagen inconsistentes, enlaces remotos y portadas sobredimensionadas. Las pistas MP3 importadas antes de esta mejora se vuelven a analizar de forma diferida la primera vez que se reproducen; no se modifica ni recodifica el audio original. En otros formatos, el título se sigue infiriendo del nombre del archivo.
 
 Formatos frecuentes en navegadores modernos incluyen MP3, AAC/M4A, WAV, Ogg Vorbis/Opus, WebM Opus y FLAC, dependiendo del navegador, sistema y códec. La interfaz informa `canPlayType()` para varios tipos. WMA, APE, AIFF y otros códecs poco comunes no están garantizados. No se falsifica compatibilidad. La importación conserva los originales; el conversor local puede crear WAV PCM16 únicamente desde formatos que el navegador consiga decodificar, con límites explícitos de tamaño y duración.
 
