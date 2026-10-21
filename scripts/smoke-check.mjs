@@ -46,6 +46,9 @@ assert.match(css, /\.sidebar\{[^}]*background:#1a1512/s, "The sidebar must use t
 assert.match(css, /\.topbar\{[^}]*background:#171310ee/s, "The top bar must use the matching warm dark surface");
 assert.match(css, /\.character-companion\.is-playing img\{animation:ritmoCompanionWalk/, "The companion must animate while playing");
 assert.match(css, /pointer-events:none/, "The decorative companion must never block player controls");
+assert.match(css, /\.album-artwork\{[^}]*object-fit:cover/s, "Embedded artwork must cover its thumbnail without stretching");
+assert.match(css, /\.library-album-art\.has-artwork:before[\s\S]*?display:none/, "Real library art should not be obscured by decorative placeholder vinyl rings");
+
 assert.match(css, /prefers-reduced-motion:reduce\)[\s\S]*?character-companion\.is-playing img/, "The companion must respect reduced-motion preferences");
 assert.match(appIcon, /stop-color="#c1a398"[\s\S]*?stop-color="#8b6658"/, "The installed app icon should use the same character-inspired palette");
 assert.match(app, /data-delete/, "Library must expose delete actions for imported entries");
@@ -90,6 +93,12 @@ assert.match(app, /if \(item\.persisted === true\)[\s\S]*nativeUri: uri,/, "Pers
 assert.match(app, /function renderFormatCapabilities/, "The app should report device audio format support");
 assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
 assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
+assert.match(app, /MAX_EMBEDDED_ARTWORK_BYTES/, "Embedded artwork reads must have a strict memory limit");
+assert.match(app, /function trackArtworkUrl\(track\)/, "Embedded album-art object URLs must be shared and managed");
+assert.match(app, /metadata\.artwork instanceof Uint8Array[\s\S]*?new Blob\(\[meta\.artwork\]/, "Imported MP3 covers must persist in IndexedDB as local Blob data");
+assert.match(app, /artwork: artworkUrl && track\?\.artworkBlob/, "Browser Media Session should use the real local artwork when available");
+assert.match(app, /releaseUnusedArtworkObjectUrls\(\)/, "Removed or replaced artwork Blob URLs must be released");
+
 assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadata should be cacheable for offline discovery");
 assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
