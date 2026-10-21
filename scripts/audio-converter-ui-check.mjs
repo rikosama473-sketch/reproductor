@@ -19,6 +19,9 @@ assert.match(html, /id="converter-view" hidden/, "Converter must use the app's r
 assert.match(app, /import \{ convertAudioFileToWav, MAX_CONVERTER_FILES/, "UI must call the real conversion engine");
 assert.match(app, /await convertAudioFileToWav\(file, converterAudioContext/, "Each selected file must be decoded and encoded");
 assert.match(app, /converterCancelRequested/, "Batch cancellation must be handled");
+assert.match(app, /converterAbortController\?\.abort\(\)/, "Cancel must abort duration metadata probing.");
+assert.match(app, /signal: converterAbortController\?\.signal/, "The converter must receive the active cancellation signal.");
+assert.match(engine, /throwIfConverterAborted\(signal\)/, "The engine must check cancellation before allocating decoded/output buffers.");
 assert.match(app, /createObjectURL\(blob\)/, "Converted output must be available as a downloadable file");
 assert.match(app, /URL\.revokeObjectURL\(url\)/, "Generated object URLs must be released");
 assert.match(engine, /RIFF/);
