@@ -73,6 +73,7 @@ function initializeVoiceStudio() {
   let voices = [];
   let previewToken = 0;
   let previewActive = false;
+  let previewSessionNotified = false;
   let pauseRequestedForPreview = false;
 
   function persistSettings() {
@@ -166,9 +167,11 @@ function initializeVoiceStudio() {
   }
 
   function endPauseIfNeeded() {
-    if (!pauseRequestedForPreview) return;
+    const resumeMusic = pauseRequestedForPreview;
     pauseRequestedForPreview = false;
-    window.dispatchEvent(new CustomEvent("ritmo:voice-preview-end"));
+    if (!previewSessionNotified) return;
+    previewSessionNotified = false;
+    window.dispatchEvent(new CustomEvent("ritmo:voice-preview-end", { detail: { resumeMusic } }));
   }
 
   function finishPreview(token, message) {
@@ -202,14 +205,16 @@ function initializeVoiceStudio() {
       return;
     }
 
-    const continuingPause = previewActive && pauseRequestedForPreview;
+    const continuingPreview = previewActive && previewSessionNotified;
+    const continuingPause = continuingPreview && pauseRequestedForPreview;
     if (previewActive) {
       previewToken += 1;
       synthesis.cancel();
       previewActive = false;
     }
-    if (!continuingPause && pauseMusicInput.checked) {
-      window.dispatchEvent(new CustomEvent("ritmo:voice-preview-start", { detail: { pauseMusic: true } }));
+    if (!continuingPreview) {
+      previewSessionNotified = true;
+      window.dispatchEvent(new CustomEvent("ritmo:voice-preview-start", { detail: { pauseMusic: pauseMusicInput.checked } }));
     }
     pauseRequestedForPreview = continuingPause || pauseMusicInput.checked;
 
