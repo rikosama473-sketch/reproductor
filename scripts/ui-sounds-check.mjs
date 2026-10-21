@@ -48,7 +48,7 @@ assert.match(moduleSource, /MAX_OUTPUT_GAIN = 0\.035/);
 assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.10/);
 assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 90/);
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
-for (const key of ["harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord"]) assert.match(moduleSource, new RegExp('pack === "' + key + '"\'));
+for (const key of ["harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord"]) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 
 assert.match(moduleSource, /globalThis\.speechSynthesis\?\.speaking/);
 assert.match(moduleSource, /ritmo:voice-preview-start/);
