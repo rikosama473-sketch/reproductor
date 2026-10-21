@@ -51,6 +51,8 @@ function removeUnsynchronisation(bytes) {
 }
 
 export const MAX_EMBEDDED_ARTWORK_BYTES = 512 * 1024;
+export const MAX_EMBEDDED_ARTWORK_DIMENSION = 4096;
+export const MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608;
 
 function findDescriptionTerminator(bytes, start, encoding) {
   if (encoding === 1 || encoding === 2) {
@@ -65,13 +67,58 @@ function findDescriptionTerminator(bytes, start, encoding) {
   return null;
 }
 
+function dimensionsWithinArtworkBudget(width, height) {
+  return Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0 &&
+    width <= MAX_EMBEDDED_ARTWORK_DIMENSION && height <= MAX_EMBEDDED_ARTWORK_DIMENSION &&
+    width * height <= MAX_EMBEDDED_ARTWORK_PIXELS;
+}
+
+function readBigEndian16(bytes, offset) {
+  return (bytes[offset] << 8) | bytes[offset + 1];
+}
+function readBigEndian32(bytes, offset) {
+  return bytes[offset] * 0x1000000 + (bytes[offset + 1] << 16) + (bytes[offset + 2] << 8) + bytes[offset + 3];
+}
+function hasSafePngDimensions(bytes) {
+  if (bytes.length < 29 || bytes[8] !== 0 || bytes[9] !== 0 || bytes[10] !== 0 || bytes[11] !== 13 ||
+      String.fromCharCode(...bytes.subarray(12, 16)) !== "IHDR") return false;
+  return dimensionsWithinArtworkBudget(readBigEndian32(bytes, 16), readBigEndian32(bytes, 20));
+}
+function hasSafeJpegDimensions(bytes) {
+  if (bytes.length < 8 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return false;
+  const startOfFrameMarkers = new Set([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf]);
+  let offset = 2;
+  while (offset + 1 < bytes.length) {
+    if (bytes[offset] !== 0xff) { offset++; continue; }
+    while (offset < bytes.length && bytes[offset] === 0xff) offset++;
+    if (offset >= bytes.length) return false;
+    const marker = bytes[offset++];
+    if (marker === 0xd9 || marker === 0xda) return false; // EOI/SOS before a dimensions frame
+    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 2 > bytes.length) return false;
+    const segmentLength = readBigEndian16(bytes, offset);
+    if (segmentLength < 2 || offset + segmentLength > bytes.length) return false;
+    if (startOfFrameMarkers.has(marker)) {
+      if (segmentLength < 8) return false;
+      const height = readBigEndian16(bytes, offset + 3);
+      const width = readBigEndian16(bytes, offset + 5);
+      return dimensionsWithinArtworkBudget(width, height);
+    }
+    offset += segmentLength;
+  }
+  return false;
+}
 function validPicturePayload(bytes, mimeType) {
   if (!(bytes instanceof Uint8Array) || bytes.length < 8 || bytes.length > MAX_EMBEDDED_ARTWORK_BYTES) return false;
   if (mimeType === "image/png") {
-    return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
-      bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+    if (bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47 ||
+        bytes[4] !== 0x0d || bytes[5] !== 0x0a || bytes[6] !== 0x1a || bytes[7] !== 0x0a) return false;
+    return hasSafePngDimensions(bytes);
   }
-  return mimeType === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return hasSafeJpegDimensions(bytes);
+  }
+  return false;
 }
 
 function parseAttachedPicture(frameBytes, version, unsynchronised) {
