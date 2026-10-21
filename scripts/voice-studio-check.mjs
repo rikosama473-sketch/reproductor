@@ -36,7 +36,7 @@ assert.match(moduleSource, /ritmo:voice-preview-end/);
 assert.match(moduleSource, /previewSessionNotified/);
 assert.match(moduleSource, /pauseMusic: pauseMusicInput\.checked/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-assert.match(sw, /ritmo-shell-v56/);
+assert.match(sw, /ritmo-shell-v57/);
 assert.match(sw, /\.\/src\/voice-studio\.js/);
 assert.match(prepare, /src\/voice-studio\.js/);
 assert.match(mobileCheck, /src\/voice-studio\.js/);

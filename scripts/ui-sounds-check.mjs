@@ -35,6 +35,7 @@ const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.
   readFile(new URL("src/ui-sounds.js", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8")
 ]);
+assert.match(html, /64 perfiles discretos con ritmo ajustable/, "Settings copy should match the 64 implemented profiles");
 for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
   assert.match(html, new RegExp('id="' + selector + '"'));
 }
@@ -76,7 +77,7 @@ for (const snippet of [
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v56/);
+assert.match(sw, /ritmo-shell-v57/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
