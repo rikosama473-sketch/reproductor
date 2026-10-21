@@ -91,6 +91,12 @@ export const EQUALIZER_PRESETS = Object.freeze({
   })
 });
 
+export function getEqualizerPreset(name) {
+  const preset = EQUALIZER_PRESETS[name];
+  if (!preset) return null;
+  return { bass: preset.bass, mid: preset.mid, treble: preset.treble };
+}
+
 export const MAX_SAVED_EQUALIZER_PROFILES = 20;
 
 function boundedGain(value) {
