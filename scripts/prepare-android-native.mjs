@@ -15,9 +15,9 @@ const manifest = path.join(androidRoot, "app", "src", "main", "AndroidManifest.x
 const gradleFile = path.join(androidRoot, "app", "build.gradle");
 
 await mkdir(javaDirectory, { recursive: true });
-await copyFile(path.join(root, "native", "android", "RitmoMusicLibraryPlugin.java"), targetJava);
-await copyFile(path.join(root, "native", "android", "RitmoPlaybackPlugin.java"), path.join(javaDirectory, "RitmoPlaybackPlugin.java"));
-await copyFile(path.join(root, "native", "android", "RitmoPlaybackService.java"), path.join(javaDirectory, "RitmoPlaybackService.java"));
+await copyFile(path.join(root, "mobile", "native", "android", "RitmoMusicLibraryPlugin.java"), targetJava);
+await copyFile(path.join(root, "mobile", "native", "android", "RitmoPlaybackPlugin.java"), path.join(javaDirectory, "RitmoPlaybackPlugin.java"));
+await copyFile(path.join(root, "mobile", "native", "android", "RitmoPlaybackService.java"), path.join(javaDirectory, "RitmoPlaybackService.java"));
 
 let activity = await readFile(mainActivity, "utf8");
 if (!activity.includes("import android.os.Bundle;")) {
