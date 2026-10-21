@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const webDir = path.join(root, "www");
+const webDir = path.resolve(process.env.RITMO_WEB_DIR || path.join(root, "mobile", "www"));
 const files = ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "pngtuber-capibara.png"];
 const directories = ["src", "assets"];
 
@@ -25,7 +25,8 @@ for (const name of directories) {
 
 // Vanilla ES modules do not bundle @capacitor/core. The native bridge runtime
 // must be copied into the packaged site and loaded before src/app.js.
-const runtimeSource = path.join(root, "node_modules", "@capacitor", "core", "dist", "capacitor.js");
+const nodeModulesRoot = path.resolve(process.env.RITMO_NODE_MODULES_DIR || path.join(root, "mobile", "node_modules"));
+const runtimeSource = path.join(nodeModulesRoot, "@capacitor", "core", "dist", "capacitor.js");
 const runtimeInfo = await stat(runtimeSource).catch(() => null);
 if (!runtimeInfo?.isFile()) {
   throw new Error("Falta @capacitor/core/dist/capacitor.js. Ejecutá npm install antes de preparar Android.");
@@ -63,6 +64,7 @@ const requiredFiles = [
   "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
   "src/app.js", "src/storage.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js",
+  "src/import-fingerprint.js", "src/id3-tags.js", "src/audio-converter.js", "src/external-navigation.js",
   "src/youtube-player-errors.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "pngtuber-capibara.png"
 ];
 for (const name of requiredFiles) {
@@ -82,6 +84,6 @@ for (const entry of entries) {
 }
 
 const topLevel = await readdir(webDir);
-console.log("Paquete Android preparado: runtime de Capacitor incluido y cargado antes de app.js; " +
+console.log("Paquete Android preparado en " + path.relative(root, webDir) + ": runtime de Capacitor incluido y cargado antes de app.js; " +
   requiredFiles.length + " archivos críticos y " + entries.length + " recursos offline verificados. " +
   topLevel.length + " entradas principales.");
