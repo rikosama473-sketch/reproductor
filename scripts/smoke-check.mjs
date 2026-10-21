@@ -106,6 +106,13 @@ for (const preset of ["clean", "piano", "classical", "orchestral", "cinematic", 
   assert.match(html, new RegExp('option value="' + preset + '"'), "Settings UI must expose the " + preset + " sound profile");
 }
 assert.match(app, /presetName === "clean"/, "Clean mode must bypass EQ and limiter instead of merely setting gains to zero");
+for (const id of ["eq-user-profiles", "eq-profile-name", "eq-profile-save", "eq-profile-delete"]) {
+  assert.match(html, new RegExp('id="' + id + '"'), "Custom equalizer profile UI must expose " + id);
+}
+assert.match(app, /upsertSavedEqualizerProfile/, "Custom equalizer save must update the persisted profile collection");
+assert.match(app, /removeSavedEqualizerProfile/, "Custom equalizer delete must remove only the selected saved profile");
+assert.match(app, /normalizeSavedEqualizerProfiles\(saved\?\.userEqProfiles\)/, "Saved profile data must be normalized before restoring the selector");
+
 
 assert.match(eqPresets, /clean:[\s\S]*flat:[\s\S]*piano:[\s\S]*classical:[\s\S]*orchestral:[\s\S]*cinematic:[\s\S]*acoustic:[\s\S]*pop:[\s\S]*rock:[\s\S]*jazz:[\s\S]*bass:[\s\S]*vocal:[\s\S]*electronic:[\s\S]*cyberpunk:[\s\S]*synthwave:[\s\S]*ambient:[\s\S]*"game-anime":[\s\S]*experimental:/, "Equalizer must provide its documented genre presets");
 assert.match(app, /getEqualizerPreset\(presetName\)/, "Preset selection must apply a real equalizer profile");
