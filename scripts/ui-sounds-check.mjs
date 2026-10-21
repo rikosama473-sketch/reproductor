@@ -149,4 +149,4 @@ assert.match(moduleSource, /ritmo\.ui-sounds\.v2/);
 assert.match(moduleSource, /LEGACY_STORAGE_KEY = "ritmo\.ui-sounds\.v1"/);
 assert.match(moduleSource, /JSON\.parse\(legacy\), enabled: false/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-console.log("UI sound tests passed: 80 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
+console.log("UI sound tests passed: 88 profiles, genre-aware Pop/Rock/Cyber rhythm, sparse accents, voice suppression, cooldown and offline/Android packaging.");
