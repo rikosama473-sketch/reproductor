@@ -420,7 +420,7 @@
 
     <section class="settings-section ui-sound-settings">
       <div class="settings-section-heading">
-        <div><h3>Sonidos de interfaz</h3><p>52 perfiles breves y discretos. El volumen inicial es menor; si hay música o vídeo, los efectos se reducen todavía más y se silencian durante la voz del estudio o el diseño del personaje.</p></div>
+        <div><h3>Sonidos de interfaz</h3><p>52 perfiles discretos con ritmo ajustable: automático por género cuando hay etiquetas fiables, o Pop/Cyber manual. Los efectos siguen muy por detrás de la música y se silencian durante las voces y el diseño del personaje.</p></div>
         <label class="settings-switch"><input type="checkbox" id="ui-sounds-enabled"><span>Activar</span></label>
       </div>
       <label class="eq-control" for="ui-sounds-pack"><span>Estilo de teclas y botones</span><select id="ui-sounds-pack" class="form-input" aria-label="Estilo de sonidos de interfaz">
@@ -437,6 +437,13 @@
           <option value="glass">Cristal delicado</option><option value="bell">Campana tenue</option><option value="night">Noche tranquila</option><option value="moonlight">Luz de luna</option><option value="minimal">Clic minimalista</option>
         </optgroup>
       </select></label>
+      <label class="eq-control" for="ui-sounds-rhythm"><span>Ritmo de respuesta</span><select id="ui-sounds-rhythm" class="form-input" aria-label="Ritmo adaptativo de sonidos de interfaz">
+        <option value="auto">Automático por género</option>
+        <option value="soft">Suave y espaciado</option>
+        <option value="pop">Pop animado</option>
+        <option value="cyber">Cyber / electrónico</option>
+      </select></label>
+      <p class="settings-note" id="ui-sounds-rhythm-status" role="status">Automático: utiliza etiquetas de género cuando están disponibles.</p>
       <label class="eq-control" for="ui-sounds-volume"><span>Volumen máximo de efectos</span><output id="ui-sounds-volume-value">15%</output><input id="ui-sounds-volume" type="range" min="0" max="100" step="1" value="15"></label>
       <button class="button button-soft" id="ui-sounds-preview" type="button">Probar sonido elegido</button>
       <p class="settings-note">Los efectos comienzan desactivados, con volumen inicial del 15 % y sonidos muy breves. Si Ritmo detecta música o vídeo, la ganancia de los efectos cae al 4 % de lo que correspondería al volumen elegido. Las muestras vocales y la síntesis de voz los silencian; los editores de personajes/diseños y el estudio vocal nunca emiten clics. No suenan al escribir ni desplazarte. Se generan localmente, sin bibliotecas ni descargas.</p>
