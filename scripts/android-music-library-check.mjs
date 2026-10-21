@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 
 const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
-const service = await readFile(new URL("../native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
-const plugin = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
-const java = await readFile(new URL("../native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
-const playbackPlugin = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
-const playbackService = await readFile(new URL("../native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
+const service = await readFile(new URL("../mobile/native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
+const plugin = await readFile(new URL("../mobile/native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
+const java = await readFile(new URL("../mobile/native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
+const playbackPlugin = await readFile(new URL("../mobile/native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
+const playbackService = await readFile(new URL("../mobile/native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
 const prep = await readFile(new URL("./prepare-android-native.mjs", import.meta.url), "utf8");
 const workflow = await readFile(new URL("../.github/workflows/android-apk.yml", import.meta.url), "utf8");
 
