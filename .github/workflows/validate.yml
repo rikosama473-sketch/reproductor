@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Install pinned Capacitor runtime dependencies
-        run: npm install --no-audit --no-fund
-      - name: Run the shared validation and regression suite
+      - name: Install the pinned mobile Capacitor dependencies
+        run: npm install --prefix mobile --no-audit --no-fund
+      - name: Run shared validation and both platform package checks
         run: npm run validate
