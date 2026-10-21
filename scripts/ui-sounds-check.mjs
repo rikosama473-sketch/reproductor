@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES, getUiSoundMinIntervalMs } from "../src/ui-sounds.js";
 
-assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette", "pizzicato", "ocarina", "woodblock", "nylon", "softkick", "marbles", "deepfm", "ripple", "vibraphone", "shamisen", "reed", "mutedbrass", "framedrum", "pulsebass", "sweep", "circuit"]);
+assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette", "pizzicato", "ocarina", "woodblock", "nylon", "softkick", "marbles", "deepfm", "ripple", "vibraphone", "shamisen", "reed", "mutedbrass", "framedrum", "pulsebass", "sweep", "circuit", "sax", "cello", "clavinet", "glockenspiel", "conga", "synthbass", "softpad", "tubular"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
   assert.ok(pack.label, key + " has a visible label");
   assert.ok(pack.description, key + " explains its sound");
 }
 assert.deepEqual(normalizeUiSoundPreferences(null), { enabled: false, pack: "piano", volume: 15, rhythm: "auto" });
 assert.equal(DEFAULT_UI_SOUND_PREFERENCES.enabled, false);
-assert.deepEqual(Object.keys(UI_SOUND_RHYTHMS), ["auto", "soft", "pop", "cyber"]);
+assert.deepEqual(Object.keys(UI_SOUND_RHYTHMS), ["auto", "soft", "pop", "rock", "cyber"]);
 assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "punk", volume: 45 }), { enabled: true, pack: "punk", volume: 45, rhythm: "auto" });
 assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "cyber", volume: 30, rhythm: "pop" }), { enabled: true, pack: "cyber", volume: 30, rhythm: "pop" });
 assert.deepEqual(normalizeUiSoundPreferences({ enabled: "true", pack: "unknown", volume: 150, rhythm: "bad-value" }), { enabled: false, pack: "piano", volume: 100, rhythm: "auto" });
@@ -19,14 +19,19 @@ assert.equal(inferUiSoundRhythm("Pop"), "pop");
 assert.equal(inferUiSoundRhythm("K-pop"), "pop");
 assert.equal(inferUiSoundRhythm("Electrónica"), "cyber");
 assert.equal(inferUiSoundRhythm("Techno / synthwave"), "cyber");
-assert.equal(inferUiSoundRhythm("Rock"), null);
+assert.equal(inferUiSoundRhythm("Rock"), "rock");
+assert.equal(inferUiSoundRhythm("Punk rock"), "rock");
+assert.equal(inferUiSoundRhythm("Alternative Metal"), "rock");
+assert.equal(inferUiSoundRhythm("Jazz"), null);
 assert.equal(resolveUiSoundRhythm("auto", "Pop", "piano"), "pop");
 assert.equal(resolveUiSoundRhythm("auto", "Techno", "piano"), "cyber");
+assert.equal(resolveUiSoundRhythm("auto", "Punk Rock", "piano"), "rock");
 assert.equal(resolveUiSoundRhythm("auto", "", "cyber"), "cyber");
 assert.equal(resolveUiSoundRhythm("auto", "", "piano"), "soft");
 assert.equal(resolveUiSoundRhythm("pop", "Techno", "piano"), "pop");
 assert.equal(getUiSoundMinIntervalMs("auto", "Pop", "piano"), 170);
 assert.equal(getUiSoundMinIntervalMs("auto", "Techno", "piano"), 150);
+assert.equal(getUiSoundMinIntervalMs("auto", "Punk Rock", "piano"), 210);
 assert.equal(getUiSoundMinIntervalMs("soft", "", "piano"), 240);
 
 const root = new URL("../", import.meta.url);
@@ -38,7 +43,7 @@ const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.
   readFile(new URL("src/ui-sounds.js", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8")
 ]);
-assert.match(html, /80 perfiles discretos con ritmo ajustable/, "Settings copy should match the 80 implemented profiles");
+assert.match(html, /88 perfiles discretos con ritmo ajustable/, "Settings copy should match the 80 implemented profiles");
 for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
   assert.match(html, new RegExp('id="' + selector + '"'));
 }
@@ -83,12 +88,17 @@ for (const snippet of [
   '<option value="reed">Caña suave</option>', '<option value="mutedbrass">Metal apagado</option>',
   '<option value="framedrum">Tambor de marco</option>', '<option value="pulsebass">Bajo de circuito</option>',
   '<option value="sweep">Barrido suave</option>', '<option value="circuit">Circuito digital</option>',
+  '<option value="sax">Saxo aterciopelado</option>', '<option value="cello">Chelo cálido</option>',
+  '<option value="clavinet">Clavinet suave</option>', '<option value="glockenspiel">Metalófono mate</option>',
+  '<option value="conga">Conga acolchada</option>', '<option value="synthbass">Subgrave sintético</option>',
+  '<option value="softpad">Pad de seda</option>', '<option value="tubular">Campana tubular tenue</option>',
+  '<option value="rock">Rock / punk suave</option>',
   '<option value="auto">Automático por género</option>', '<option value="soft">Suave y espaciado</option>',
   '<option value="pop">Pop animado</option>', '<option value="cyber">Cyber / electrónico</option>'
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v59/);
+assert.match(sw, /ritmo-shell-v60/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
@@ -97,6 +107,9 @@ assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.04/);
 assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 150/);
 assert.match(moduleSource, /getUiSoundMinIntervalMs\(preferences.rhythm, currentMusicGenre, preferences.pack\)/);
 assert.match(moduleSource, /function addRhythmAccent\(context, output, rhythm\)/);
+assert.match(moduleSource, /accentIndex % 2 !== 0/, "Pop/Rock accents must be sparse");
+assert.match(moduleSource, /accentIndex % 3 !== 0/, "Cyber accents must be sparse");
+assert.match(moduleSource, /if \(rhythm === "rock"\)/, "Rock rhythm needs a filtered fifth accent");
 assert.match(moduleSource, /resolveUiSoundRhythm\(rhythmPreference, currentMusicGenre, pack\)/);
 assert.match(moduleSource, /ritmo:track-context/);
 assert.match(appSource, /frameId === "TCON"/);
