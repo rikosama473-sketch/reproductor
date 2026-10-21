@@ -4,7 +4,7 @@ import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
-import { areBlobsByteIdentical, importedFileFingerprint } from "./import-fingerprint.js";
+import { findIdenticalBlobCandidate, importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
@@ -2443,27 +2443,13 @@ async function importFiles(fileList, options = {}) {
     const candidates = Number.isSafeInteger(fileSize) && fileSize > 0
       ? (candidatesBySize.get(fileSize) || [])
       : [];
-    let identicalContent = false;
-    let comparisonFailed = false;
     if (candidates.length && !comparisonStatusShown) {
       toast("Comprobando copias idénticas por contenido…");
       comparisonStatusShown = true;
     }
-    for (const candidate of candidates) {
-      try {
-        if (await areBlobsByteIdentical(file, candidate)) {
-          identicalContent = true;
-          break;
-        }
-      } catch (error) {
-        if (error?.name === "AbortError") throw error;
-        // If a provider refuses to read a candidate, keep the new item rather
-        // than risk throwing away audio whose identity could not be verified.
-        comparisonFailed = true;
-      }
-    }
-    if (comparisonFailed) comparisonWarnings++;
-    if (identicalContent) {
+    const comparison = await findIdenticalBlobCandidate(file, candidates);
+    if (comparison.comparisonFailed) comparisonWarnings++;
+    if (comparison.identical) {
       skippedByContent++;
       existing.add(fingerprint);
       continue;

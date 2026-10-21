@@ -77,3 +77,24 @@ export async function areBlobsByteIdentical(left, right, {
   }
   return true;
 }
+
+/**
+ * Look for an exact content match. Unreadable candidates are recorded but do
+ * not stop the search; the caller must keep the incoming file if no verified
+ * match is found. A confirmed match is conclusive even if another candidate
+ * could not be read.
+ */
+export async function findIdenticalBlobCandidate(blob, candidates, options = {}) {
+  let comparisonFailed = false;
+  for (const candidate of candidates || []) {
+    try {
+      if (await areBlobsByteIdentical(blob, candidate, options)) {
+        return { identical: true, comparisonFailed: false };
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      comparisonFailed = true;
+    }
+  }
+  return { identical: false, comparisonFailed };
+}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { areBlobsByteIdentical, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -100,6 +100,33 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
     areBlobsByteIdentical(abortingBlob, original, { chunkSize: 64 * 1024, signal: controller.signal }),
     error => error?.name === "AbortError",
     "Cancellation during a chunk read must stop the comparison before the next chunk"
+  );
+}
+
+
+// A failed source read must not cause a file to be discarded. If another
+// candidate proves byte-identical, the verified match is sufficient.
+{
+  const reference = new Blob([new Uint8Array([1, 2, 3, 4])]);
+  const unreadable = {
+    size: 4,
+    slice() { return { arrayBuffer: async () => { throw new Error("provider read failed"); } }; }
+  };
+  const distinct = new Blob([new Uint8Array([1, 2, 3, 5])]);
+  const unmatched = await findIdenticalBlobCandidate(reference, [unreadable, distinct]);
+  assert.deepEqual(unmatched, { identical: false, comparisonFailed: true },
+    "Unreadable candidates must be reported as inconclusive, not matches");
+
+  const matched = await findIdenticalBlobCandidate(reference, [unreadable, new Blob([new Uint8Array([1, 2, 3, 4])])]);
+  assert.deepEqual(matched, { identical: true, comparisonFailed: false },
+    "A confirmed exact match can be used even if another candidate failed to read");
+
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    findIdenticalBlobCandidate(reference, [reference], { signal: controller.signal }),
+    error => error?.name === "AbortError",
+    "Explicit cancellation must propagate instead of being downgraded to a read warning"
   );
 }
 
