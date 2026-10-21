@@ -29,6 +29,9 @@ const stereoBytes = new DataView(await encodePcm16Wav(stereo, 2).arrayBuffer());
 assert.equal(stereoBytes.getUint16(22, true), 2);
 assert.equal(stereoBytes.getUint32(28, true), 44100 * 4);
 assert.equal(stereoBytes.getUint32(40, true), 8);
+const monoDownmix = new DataView(await encodePcm16Wav(stereo, 1).arrayBuffer());
+assert.equal(monoDownmix.getUint16(22, true), 1);
+assert.equal(monoDownmix.getInt16(44, true), 12287 + 1, "Stereo-to-mono should average both source channels");
 
 const expanded = new DataView(await encodePcm16Wav(mono, 2).arrayBuffer());
 assert.equal(expanded.getUint16(22, true), 2, "Mono source may be duplicated to stereo");
