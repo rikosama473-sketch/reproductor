@@ -113,8 +113,23 @@ function metadataForFile(file) {
   const split = clean.split(" - ");
   return { title: split.length > 1 ? split.slice(1).join(" - ").trim() : clean, artist: split.length > 1 ? split[0].trim() : "Artista desconocido" };
 }
+function normalizeId3Genre(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const numeric = raw.match(/^\(?(\d{1,3})\)?$/);
+  if (numeric) {
+    const knownGenres = { 3: "Dance", 4: "Disco", 13: "Pop", 17: "Rock", 18: "Techno", 19: "Industrial", 20: "Alternative", 25: "Euro-Techno", 26: "Ambient", 31: "Trance", 38: "Electronic", 52: "Electronic", 80: "Folk" };
+    return knownGenres[Number(numeric[1])] || "";
+  }
+  return raw.replace(/^\(\d+\)\s*/, "").trim();
+}
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
+function notifySoundTrackContext(track) {
+  window.dispatchEvent(new CustomEvent("ritmo:track-context", {
+    detail: { genre: String(track?.genre || ""), radioTags: String(track?.radioTags || "") }
+  }));
+}
 function isLocal(track) {
   return track?.kind === "file" && (
     track.blob instanceof Blob ||
@@ -1517,6 +1532,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   if (Array.isArray(options.queueIds)) state.queueIds = options.queueIds.filter(id => Boolean(getTrack(id)));
   else if (!options.keepQueue) state.queueIds = null;
   state.currentId = track.id;
+  notifySoundTrackContext(track);
   try {
     if (useNativePlayer) {
       // Pass MediaStore/SAF URI directly to Media3 instead of copying audio into app cache.
@@ -1691,7 +1707,7 @@ async function readMp3Tags(file) {
     const tagSize = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
     let offset = 10;
     const limit = Math.min(bytes.length, 10 + tagSize);
-    const parsed = { ...fallback };
+    const parsed = { ...fallback, genre: "" };
     function decodeText(data) {
       if (!data.length) return "";
       const encoding = data[0], payload = data.slice(1);
@@ -1708,9 +1724,14 @@ async function readMp3Tags(file) {
         ? ((sizeBytes[0] & 0x7f) << 21) | ((sizeBytes[1] & 0x7f) << 14) | ((sizeBytes[2] & 0x7f) << 7) | (sizeBytes[3] & 0x7f)
         : ((sizeBytes[0] << 24) | (sizeBytes[1] << 16) | (sizeBytes[2] << 8) | sizeBytes[3]);
       if (!size || size < 0 || offset + 10 + size > limit) break;
-      if (["TIT2", "TPE1", "TALB"].includes(frameId)) {
+      if (["TIT2", "TPE1", "TALB", "TCON"].includes(frameId)) {
         const value = decodeText(bytes.slice(offset + 10, offset + 10 + size));
-        if (value) { if (frameId === "TIT2") parsed.title = value; if (frameId === "TPE1") parsed.artist = value; if (frameId === "TALB") parsed.album = value; }
+        if (value) {
+          if (frameId === "TIT2") parsed.title = value;
+          if (frameId === "TPE1") parsed.artist = value;
+          if (frameId === "TALB") parsed.album = value;
+          if (frameId === "TCON") parsed.genre = normalizeId3Genre(value);
+        }
       }
       offset += 10 + size;
     }
@@ -1777,7 +1798,7 @@ async function downloadStreamOffline(trackId) {
     }
     const offlineTrack = {
       id: id(), kind: "file", name: filename, title: source.title || titleFromFilename(filename),
-      artist: source.artist || "Fuente online", album: source.album || "", blob, size: blob.size,
+      artist: source.artist || "Fuente online", album: source.album || "", genre: source.genre || source.radioTags || "", blob, size: blob.size,
       mimeType: blob.type || rawType || "application/octet-stream", lastModified: Date.now(),
       favorite: false, addedAt: Date.now(), duration: source.duration || 0, lastPlayedAt: 0,
       downloadedFromUrl: source.url
@@ -2041,7 +2062,7 @@ async function importFiles(fileList, options = {}) {
     try {
       const tracks = await Promise.all(batch.map(async file => {
         const meta = await readMp3Tags(file);
-        return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "",
+        return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "", genre: meta.genre || "",
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
@@ -2252,6 +2273,7 @@ async function loadSpotifyEmbed(rawLink, { persist = true } = {}) {
     return false;
   }
   stopSpotifyEmbed({ preserveSaved: true, refresh: false });
+  notifySoundTrackContext(null);
   const requestId = ++spotifyEmbedRequestId;
   spotifyCurrentEmbed = { ...descriptor, title: descriptor.label };
   spotifyMediaPlaybackState = "paused";
@@ -3025,6 +3047,7 @@ function playYoutubeVideo(videoId, title = "Video de YouTube") {
     toast("El enlace de YouTube no contiene un ID de video válido.");
     return;
   }
+  notifySoundTrackContext(null);
   // Selecting a YouTube video supersedes any native-audio request still awaiting play().
   cancelPendingPlaybackIntent();
   const frame = $("#youtube-iframe");
