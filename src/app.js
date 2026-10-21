@@ -6,6 +6,7 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags } from "./id3-tags.js";
+import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
@@ -78,8 +79,15 @@ let libraryMode = (() => {
 })();
 
 
-const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online", voices: "Estudio de voces" };
+const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
 let voicePreviewPausedPlayback = null;
+let converterFiles = [];
+let converterRunning = false;
+let converterCancelRequested = false;
+let converterAudioContext = null;
+let converterOutputUrls = [];
+let converterOutputBytes = 0;
+
 
 function escapeHTML(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -1505,6 +1513,182 @@ function setMobileMenuOpen(open) {
   const toggle = $("#menu-toggle");
   if (toggle) toggle.setAttribute("aria-expanded", String(isOpen));
 }
+function clearConverterOutputUrls() {
+  for (const url of converterOutputUrls) URL.revokeObjectURL(url);
+  converterOutputUrls = [];
+  converterOutputBytes = 0;
+}
+function safeWavFilename(name) {
+  const base = String(name || "audio").replace(/\\.[^.]+$/, "").replace(/[<>:"/\\|?*\\u0000-\\u001f]/g, "-").replace(/[. ]+$/g, "").trim().slice(0, 100);
+  return (base || "audio") + ".wav";
+}
+function renderConverterSelection() {
+  const list = $("#converter-file-list");
+  const summary = $("#converter-selection-summary");
+  const start = $("#converter-start");
+  if (!list || !summary || !start) return;
+  list.replaceChildren();
+  const totalBytes = converterFiles.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
+  const invalid = converterFiles.some(file => !file.size || file.size > MAX_CONVERTER_INPUT_BYTES) ||
+    converterFiles.length > MAX_CONVERTER_FILES || totalBytes > MAX_CONVERTER_TOTAL_INPUT_BYTES;
+  summary.textContent = converterFiles.length
+    ? converterFiles.length + (converterFiles.length === 1 ? " archivo · " : " archivos · ") + formatBytes(totalBytes)
+    : "Todavía no elegiste archivos.";
+  if (!converterFiles.length) {
+    const empty = document.createElement("li");
+    empty.className = "converter-empty";
+    empty.textContent = "Los archivos seleccionados aparecerán aquí.";
+    list.append(empty);
+  } else {
+    for (const file of converterFiles) {
+      const item = document.createElement("li");
+      const copy = document.createElement("span");
+      copy.className = "converter-file-copy";
+      const name = document.createElement("strong");
+      name.textContent = file.name || "Audio sin nombre";
+      const detail = document.createElement("small");
+      detail.textContent = !file.size ? "Archivo vacío" : file.size > MAX_CONVERTER_INPUT_BYTES
+        ? "Supera el límite de 50 MiB" : formatBytes(file.size);
+      copy.append(name, detail);
+      const size = document.createElement("span");
+      size.className = "converter-file-size";
+      size.textContent = file.size ? formatBytes(file.size) : "0 B";
+      item.append(copy, size);
+      list.append(item);
+    }
+  }
+  if (!converterRunning) {
+    start.disabled = !converterFiles.length || invalid;
+    if (converterFiles.length > MAX_CONVERTER_FILES) $("#converter-status").textContent = "Elegí como máximo cinco archivos por tanda.";
+    else if (totalBytes > MAX_CONVERTER_TOTAL_INPUT_BYTES) $("#converter-status").textContent = "La tanda supera los 100 MiB permitidos.";
+    else if (converterFiles.some(file => !file.size || file.size > MAX_CONVERTER_INPUT_BYTES)) $("#converter-status").textContent = "Quitá los archivos vacíos o mayores de 50 MiB.";
+    else if (!converterFiles.length) $("#converter-status").textContent = "Esperando archivos.";
+    else $("#converter-status").textContent = "Listo para convertir " + converterFiles.length + (converterFiles.length === 1 ? " archivo." : " archivos.");
+  }
+}
+function appendConverterResult(fileName, detail, blob = null, tone = "success") {
+  const list = $("#converter-results");
+  const item = document.createElement("li");
+  item.className = "converter-result";
+  if (tone === "error") item.dataset.tone = "error";
+  const copy = document.createElement("span");
+  copy.className = "converter-result-copy";
+  const title = document.createElement("strong");
+  title.textContent = fileName;
+  const description = document.createElement("small");
+  description.textContent = detail;
+  copy.append(title, description);
+  item.append(copy);
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    converterOutputUrls.push(url);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = safeWavFilename(fileName);
+    link.textContent = "Descargar WAV";
+    link.setAttribute("aria-label", "Descargar WAV convertido de " + fileName);
+    item.append(link);
+  }
+  list.append(item);
+}
+function clearConverterWorkspace() {
+  if (converterRunning) return;
+  clearConverterOutputUrls();
+  converterFiles = [];
+  $("#converter-files").value = "";
+  $("#converter-results").replaceChildren();
+  $("#converter-progress").value = 0;
+  $("#converter-progress-label").textContent = "0%";
+  renderConverterSelection();
+}
+async function runAudioConversion() {
+  if (converterRunning || !converterFiles.length) return;
+  const files = [...converterFiles];
+  const totalInputBytes = files.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
+  if (files.length > MAX_CONVERTER_FILES || totalInputBytes > MAX_CONVERTER_TOTAL_INPUT_BYTES ||
+      files.some(file => !file.size || file.size > MAX_CONVERTER_INPUT_BYTES)) {
+    renderConverterSelection();
+    return;
+  }
+  clearConverterOutputUrls();
+  $("#converter-results").replaceChildren();
+  converterRunning = true;
+  converterCancelRequested = false;
+  $("#converter-start").disabled = true;
+  $("#converter-cancel").disabled = false;
+  $("#converter-clear").disabled = true;
+  $("#converter-files").disabled = true;
+  const requestedRate = Number($("#converter-sample-rate").value) === 48000 ? 48000 : 44100;
+  const channels = Number($("#converter-channels").value) === 1 ? 1 : 2;
+  let converted = 0, failed = 0;
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) throw new Error("Este navegador no ofrece Web Audio para decodificar archivos.");
+    try { converterAudioContext = new AudioContextClass({ sampleRate: requestedRate }); }
+    catch { converterAudioContext = new AudioContextClass(); }
+    const actualRate = Number(converterAudioContext.sampleRate) || requestedRate;
+    if (actualRate !== requestedRate) {
+      $("#converter-status").textContent = "El dispositivo usa " + Math.round(actualRate / 1000 * 10) / 10 + " kHz; se usará esa frecuencia real.";
+    }
+    for (let index = 0; index < files.length; index++) {
+      if (converterCancelRequested) break;
+      const file = files[index];
+      $("#converter-status").textContent = "Convirtiendo " + (index + 1) + " de " + files.length + ": " + file.name;
+      try {
+        const result = await convertAudioFileToWav(file, converterAudioContext, { channels });
+        if (converterCancelRequested) break;
+        if (converterOutputBytes + result.blob.size > MAX_CONVERTER_OUTPUT_BYTES) {
+          throw new Error("La tanda superaría el límite de 120 MiB de resultados. Descargá los WAV actuales y empezá otra tanda.");
+        }
+        converterOutputBytes += result.blob.size;
+        const rate = Math.round(result.sampleRate / 1000 * 10) / 10;
+        appendConverterResult(file.name, formatBytes(result.blob.size) + " · " + formatTime(result.duration) +
+          " · " + rate + " kHz · " + result.channels + (result.channels === 1 ? " canal" : " canales"), result.blob);
+        converted++;
+      } catch (error) {
+        failed++;
+        appendConverterResult(file.name, error?.message || "No se pudo convertir este archivo.", null, "error");
+      }
+      $("#converter-progress").value = Math.round(((index + 1) / files.length) * 100);
+      $("#converter-progress-label").textContent = $("#converter-progress").value + "%";
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    if (converterCancelRequested) $("#converter-status").textContent = "Tanda cancelada. " + converted + " archivo(s) convertido(s); los resultados ya preparados siguen disponibles.";
+    else $("#converter-status").textContent = "Terminado: " + converted + " convertido(s), " + failed + " con error.";
+    if (!converterCancelRequested) {
+      $("#converter-progress").value = 100;
+      $("#converter-progress-label").textContent = "100%";
+    }
+  } catch (error) {
+    $("#converter-status").textContent = error?.message || "No se pudo iniciar el conversor.";
+  } finally {
+    try { await converterAudioContext?.close(); } catch {}
+    converterAudioContext = null;
+    converterRunning = false;
+    $("#converter-start").disabled = !converterFiles.length;
+    $("#converter-cancel").disabled = true;
+    $("#converter-clear").disabled = false;
+    $("#converter-files").disabled = false;
+    renderConverterSelection();
+  }
+}
+function bindAudioConverterEvents() {
+  $("#converter-files").addEventListener("change", event => {
+    converterFiles = Array.from(event.currentTarget.files || []);
+    renderConverterSelection();
+  });
+  $("#converter-start").addEventListener("click", runAudioConversion);
+  $("#converter-cancel").addEventListener("click", () => {
+    if (!converterRunning) return;
+    converterCancelRequested = true;
+    $("#converter-cancel").disabled = true;
+    $("#converter-status").textContent = "Cancelación solicitada; se detendrá al terminar la decodificación actual.";
+  });
+  $("#converter-clear").addEventListener("click", clearConverterWorkspace);
+  window.addEventListener("pagehide", clearConverterOutputUrls);
+  renderConverterSelection();
+}
+
 function showView(view) {
   if (!viewNames[view]) return;
   if (view !== "online") stopYoutubePlayback();
@@ -3105,6 +3289,7 @@ function updateYoutubeKeyStatus(message = "") {
 }
 
 function bindEvents() {
+  bindAudioConverterEvents();
   window.addEventListener("ritmo:voice-preview-start", event => {
     if (event.detail?.pauseMusic !== true || voicePreviewPausedPlayback || playbackIsPaused()) return;
     pauseCurrentTrack();
