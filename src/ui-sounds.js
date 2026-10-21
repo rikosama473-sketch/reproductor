@@ -76,8 +76,8 @@ function normalizedGenreText(value) {
 export function inferUiSoundRhythm(genre) {
   const text = normalizedGenreText(genre);
   if (!text) return null;
-  if (/\\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum.?and.?bass|dnb|tech.?house|house|breakbeat)\\b/.test(text)) return "cyber";
-  if (/\\b(pop|k-pop|j-pop|dance.?pop|pop.?rock|teen.?pop|electropop|popular)\\b/.test(text)) return "pop";
+  if (/\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum.?and.?bass|dnb|tech.?house|house|breakbeat)\b/.test(text)) return "cyber";
+  if (/\b(pop|k-pop|j-pop|dance.?pop|pop.?rock|teen.?pop|electropop|popular)\b/.test(text)) return "pop";
   return null;
 }
 
