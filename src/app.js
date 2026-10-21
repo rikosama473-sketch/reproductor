@@ -125,10 +125,24 @@ function normalizeId3Genre(value) {
 }
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
+const trackGenreReadsInProgress = new Set();
 function notifySoundTrackContext(track) {
   window.dispatchEvent(new CustomEvent("ritmo:track-context", {
     detail: { genre: String(track?.genre || ""), radioTags: String(track?.radioTags || "") }
   }));
+}
+function backfillTrackGenre(track) {
+  if (!track || track.genre || !(track.blob instanceof Blob) || !/\.mp3$/i.test(track.name || "") || trackGenreReadsInProgress.has(track.id)) return;
+  trackGenreReadsInProgress.add(track.id);
+  void readMp3Tags(track.blob, track.name).then(metadata => {
+    if (!metadata.genre) return;
+    const current = getTrack(track.id);
+    if (!current || current.genre) return;
+    current.genre = metadata.genre;
+    return saveTrack(current).then(() => {
+      if (state.currentId === current.id) notifySoundTrackContext(current);
+    });
+  }).catch(() => {}).finally(() => trackGenreReadsInProgress.delete(track.id));
 }
 function isLocal(track) {
   return track?.kind === "file" && (
@@ -1533,6 +1547,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   else if (!options.keepQueue) state.queueIds = null;
   state.currentId = track.id;
   notifySoundTrackContext(track);
+  backfillTrackGenre(track);
   try {
     if (useNativePlayer) {
       // Pass MediaStore/SAF URI directly to Media3 instead of copying audio into app cache.
@@ -1697,9 +1712,10 @@ function nextTrack(direction = 1) {
   if (nextIndex < 0) { pauseCurrentTrack(); return; }
   playTrack(candidates[nextIndex].id, true, { keepQueue: true });
 }
-async function readMp3Tags(file) {
-  const fallback = metadataForFile(file);
-  if (!/\.mp3$/i.test(file.name) || file.size < 10) return fallback;
+async function readMp3Tags(file, filename = file?.name || "") {
+  const metadataName = String(filename || file?.name || "audio");
+  const fallback = metadataForFile({ name: metadataName });
+  if (!/\.mp3$/i.test(metadataName) || file.size < 10) return fallback;
   try {
     const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer());
     if (String.fromCharCode(bytes[0], bytes[1], bytes[2]) !== "ID3") return fallback;
