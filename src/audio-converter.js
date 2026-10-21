@@ -164,41 +164,55 @@ export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
   writeAscii(view, 36, "data");
   view.setUint32(40, dataBytes, true);
 
-  const sourceChannels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) => audioBuffer.getChannelData(index));
-  const sourceChannelCount = sourceChannels.length;
+function mixedPcmSample(sourceChannels, frame, outputChannel, outputChannels) {
+  const count = sourceChannels.length;
   const surroundGain = Math.SQRT1_2;
+  let sample;
+  if (count === 1) {
+    sample = sourceChannels[0][frame];
+  } else if (count === 2) {
+    sample = outputChannels === 1
+      ? 0.5 * (sourceChannels[0][frame] + sourceChannels[1][frame])
+      : sourceChannels[outputChannel][frame];
+  } else if (count === 4) {
+    // Standard Web Audio quad order: L, R, surround-L, surround-R.
+    sample = outputChannels === 1
+      ? 0.25 * (sourceChannels[0][frame] + sourceChannels[1][frame] +
+        sourceChannels[2][frame] + sourceChannels[3][frame])
+      : 0.5 * (sourceChannels[outputChannel][frame] + sourceChannels[outputChannel + 2][frame]);
+  } else if (count === 6) {
+    // Standard Web Audio 5.1 order: L, R, C, LFE, surround-L, surround-R.
+    // LFE is omitted when down-mixing to mono/stereo.
+    sample = outputChannels === 1
+      ? surroundGain * (sourceChannels[0][frame] + sourceChannels[1][frame]) +
+        sourceChannels[2][frame] + 0.5 * (sourceChannels[4][frame] + sourceChannels[5][frame])
+      : sourceChannels[outputChannel][frame] + surroundGain *
+        (sourceChannels[2][frame] + sourceChannels[outputChannel === 0 ? 4 : 5][frame]);
+  } else {
+    // Unknown layouts are not assumed to be surround speakers.
+    sample = count > outputChannel ? sourceChannels[outputChannel][frame] : 0;
+  }
+  return Number.isFinite(sample) ? sample : 0;
+}
+
+  const sourceChannels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) => audioBuffer.getChannelData(index));
+
+  // Measure the mixed peak before encoding. A fixed whole-output attenuation
+  // is applied only if channel summation would exceed full scale; this avoids
+  // hard clipping without changing relative dynamics or allocating a new PCM
+  // buffer in memory.
+  let mixedPeak = 0;
+  for (let frame = 0; frame < frames; frame++) {
+    for (let channel = 0; channel < channels; channel++) {
+      mixedPeak = Math.max(mixedPeak, Math.abs(mixedPcmSample(sourceChannels, frame, channel, channels)));
+    }
+  }
+  const mixGain = mixedPeak > 1 ? 1 / mixedPeak : 1;
   let offset = 44;
   for (let frame = 0; frame < frames; frame++) {
     for (let channel = 0; channel < channels; channel++) {
-      let sample;
-      if (sourceChannelCount === 1) {
-        // Duplicate mono for stereo output; mono remains unchanged.
-        sample = sourceChannels[0][frame];
-      } else if (sourceChannelCount === 2) {
-        sample = channels === 1
-          ? 0.5 * (sourceChannels[0][frame] + sourceChannels[1][frame])
-          : sourceChannels[channel][frame];
-      } else if (sourceChannelCount === 4) {
-        // Standard Web Audio quad order: L, R, surround-L, surround-R.
-        sample = channels === 1
-          ? 0.25 * (sourceChannels[0][frame] + sourceChannels[1][frame] +
-            sourceChannels[2][frame] + sourceChannels[3][frame])
-          : 0.5 * (sourceChannels[channel][frame] + sourceChannels[channel + 2][frame]);
-      } else if (sourceChannelCount === 6) {
-        // Standard Web Audio 5.1 order: L, R, C, LFE, surround-L, surround-R.
-        // LFE is omitted when down-mixing to mono/stereo, as defined by Web Audio.
-        sample = channels === 1
-          ? surroundGain * (sourceChannels[0][frame] + sourceChannels[1][frame]) +
-            sourceChannels[2][frame] + 0.5 * (sourceChannels[4][frame] + sourceChannels[5][frame])
-          : sourceChannels[channel][frame] + surroundGain *
-            (sourceChannels[2][frame] + sourceChannels[channel === 0 ? 4 : 5][frame]);
-      } else {
-        // Unknown layouts are not assumed to be surround speakers: preserve
-        // only the matching output channel(s), rather than misrouting center/LFE.
-        sample = sourceChannelCount > channel ? sourceChannels[channel][frame] : 0;
-      }
-      if (!Number.isFinite(sample)) sample = 0;
-      sample = Math.max(-1, Math.min(1, sample));
+      const mixed = mixedPcmSample(sourceChannels, frame, channel, channels) * mixGain;
+      const sample = Math.max(-1, Math.min(1, mixed));
       view.setInt16(offset, sample < 0 ? Math.round(sample * 32768) : Math.round(sample * 32767), true);
       offset += 2;
     }
