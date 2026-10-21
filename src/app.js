@@ -85,6 +85,7 @@ let converterFiles = [];
 let converterRunning = false;
 let converterCancelRequested = false;
 let converterAudioContext = null;
+let converterAbortController = null;
 let converterOutputUrls = [];
 let converterOutputBytes = 0;
 let converterOutputFilenames = new Set();
@@ -1613,6 +1614,7 @@ async function runAudioConversion() {
   $("#converter-results").replaceChildren();
   converterRunning = true;
   converterCancelRequested = false;
+  converterAbortController = new AbortController();
   $("#converter-start").disabled = true;
   $("#converter-cancel").disabled = false;
   $("#converter-clear").disabled = true;
@@ -1634,7 +1636,7 @@ async function runAudioConversion() {
       const file = files[index];
       $("#converter-status").textContent = "Convirtiendo " + (index + 1) + " de " + files.length + ": " + file.name;
       try {
-        const result = await convertAudioFileToWav(file, converterAudioContext, { channels, maxOutputBytes: MAX_CONVERTER_OUTPUT_BYTES - converterOutputBytes });
+        const result = await convertAudioFileToWav(file, converterAudioContext, { channels, maxOutputBytes: MAX_CONVERTER_OUTPUT_BYTES - converterOutputBytes, signal: converterAbortController?.signal });
         if (converterCancelRequested) break;
         if (converterOutputBytes + result.blob.size > MAX_CONVERTER_OUTPUT_BYTES) {
           throw new Error("La tanda superaría el límite de 120 MiB de resultados. Descargá los WAV actuales y empezá otra tanda.");
@@ -1645,6 +1647,7 @@ async function runAudioConversion() {
           " · " + rate + " kHz · " + result.channels + (result.channels === 1 ? " canal" : " canales"), result.blob);
         converted++;
       } catch (error) {
+        if (converterCancelRequested && error?.name === "AbortError") break;
         failed++;
         appendConverterResult(file.name, error?.message || "No se pudo convertir este archivo.", null, "error");
       }
@@ -1663,6 +1666,7 @@ async function runAudioConversion() {
   } finally {
     try { await converterAudioContext?.close(); } catch {}
     converterAudioContext = null;
+    converterAbortController = null;
     converterRunning = false;
     $("#converter-start").disabled = !converterFiles.length;
     $("#converter-cancel").disabled = true;
@@ -1680,8 +1684,9 @@ function bindAudioConverterEvents() {
   $("#converter-cancel").addEventListener("click", () => {
     if (!converterRunning) return;
     converterCancelRequested = true;
+    converterAbortController?.abort();
     $("#converter-cancel").disabled = true;
-    $("#converter-status").textContent = "Cancelación solicitada; se detendrá al terminar la decodificación actual.";
+    $("#converter-status").textContent = "Cancelación solicitada. Si se están leyendo metadatos, se detendrá ahora; una decodificación ya iniciada no se puede interrumpir y su resultado se descartará al terminar.";
   });
   $("#converter-clear").addEventListener("click", clearConverterWorkspace);
   window.addEventListener("pagehide", clearConverterOutputUrls);
