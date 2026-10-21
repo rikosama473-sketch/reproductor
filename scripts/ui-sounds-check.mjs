@@ -118,6 +118,8 @@ for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
 assert.match(moduleSource, /appPlaybackIsActive \|\| media\.some/, "App-reported native playback must also activate ducking");
 assert.match(moduleSource, /ritmo:playback-context/, "UI sounds should receive playback state from all Ritmo engines");
+assert.ok(moduleSource.includes("if (!wasPlaying && appPlaybackIsActive && audioContext && masterGain)"), "An active UI note must be attenuated immediately when playback starts");
+assert.ok(moduleSource.includes("now, 0.003"), "Playback-start ducking should use a short gain transition");
 assert.match(appSource, /uiSoundPlaybackSource = state\.nativePlayback\.active \? "native"/, "Native Android playback must be reported even without an HTML audio element");
 assert.match(appSource, /detail: \{ playing: uiSoundIsPlaying, source: uiSoundPlaybackSource \}/, "The sound engine must receive the current engine's playback state");
 assert.match(moduleSource, /MAX_OUTPUT_GAIN \* \(volume \/ 100\) \* \(activeMusic \? MUSIC_DUCK_FACTOR : 1\)/, "Effects must be automatically attenuated while media plays");
