@@ -24,10 +24,12 @@ jobs:
         uses: actions/checkout@v7
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
+      - name: Prepare desktop PWA output
+        run: node desktop/scripts/prepare.mjs
       - name: Upload static app
         uses: actions/upload-pages-artifact@v4
         with:
-          path: .
+          path: desktop/dist
           # A retry reuses the workflow run ID, but creates another artifact.
           # Give each attempt a distinct name so deploy-pages never sees duplicates.
           name: github-pages-${{ github.run_attempt }}
