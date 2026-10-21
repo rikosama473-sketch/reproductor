@@ -45,7 +45,7 @@ assert.match(native, /"www\.youtube\.com"\.equals\(host\)/);
 assert.match(native, /"open\.spotify\.com"\.equals\(host\)/);
 assert.match(native, /"https"\.equalsIgnoreCase\(uri\.getScheme\(\)\)/);
 assert.match(mobilePackage, /RitmoPlaybackPlugin/);
-assert.match(serviceWorker, /ritmo-shell-v59/);
+assert.match(serviceWorker, /ritmo-shell-v60/);
 assert.match(serviceWorker, /"\.\/src\/external-navigation\.js"/);
 assert.match(app, /youtubeSearchURL\(query\)/);
 assert.match(app, /youtubeVideoURL\(videoId\)/);
