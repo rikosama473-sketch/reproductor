@@ -1636,7 +1636,7 @@ async function runAudioConversion() {
       const file = files[index];
       $("#converter-status").textContent = "Convirtiendo " + (index + 1) + " de " + files.length + ": " + file.name;
       try {
-        const result = await convertAudioFileToWav(file, converterAudioContext, { channels });
+        const result = await convertAudioFileToWav(file, converterAudioContext, { channels, maxOutputBytes: MAX_CONVERTER_OUTPUT_BYTES - converterOutputBytes });
         if (converterCancelRequested) break;
         if (converterOutputBytes + result.blob.size > MAX_CONVERTER_OUTPUT_BYTES) {
           throw new Error("La tanda superaría el límite de 120 MiB de resultados. Descargá los WAV actuales y empezá otra tanda.");
