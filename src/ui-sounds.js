@@ -1,9 +1,9 @@
 const STORAGE_KEY = "ritmo.ui-sounds.v2";
 const LEGACY_STORAGE_KEY = "ritmo.ui-sounds.v1";
-// Conservative master headroom keeps UI feedback secondary to music and speech.
+// Keep UI feedback secondary to music, dialogue, and voice-design previews.
 const MAX_OUTPUT_GAIN = 0.025;
-const MUSIC_DUCK_FACTOR = 0.06;
-const MIN_SOUND_INTERVAL_MS = 125;
+const MUSIC_DUCK_FACTOR = 0.04;
+const MIN_SOUND_INTERVAL_MS = 160;
 
 export const UI_SOUND_PACKS = Object.freeze({
   piano: Object.freeze({ label: "Piano clásico", description: "Nota cálida, breve y amortiguada." }),
@@ -45,7 +45,19 @@ export const UI_SOUND_PACKS = Object.freeze({
   analog: Object.freeze({ label: "Sintetizador analógico suave", description: "Barrido cálido y bajo, limitado en brillo y duración." }),
   windchime: Object.freeze({ label: "Carillón de viento tenue", description: "Nota aérea breve, amortiguada para mantener la música y la voz al frente." }),
   typewriter: Object.freeze({ label: "Tecla mecánica suave", description: "Clic acolchado para botones; nunca suena al escribir en campos." }),
-  moonlight: Object.freeze({ label: "Luz de luna", description: "Dos tonos graves y ligeros, con presencia discreta." })
+  moonlight: Object.freeze({ label: "Luz de luna", description: "Dos tonos graves y ligeros, con presencia discreta." }),
+  celesta: Object.freeze({ label: "Celesta amortiguada", description: "Destello tonal pequeño, con ataque suave y caída de 30 ms." }),
+  electricpiano: Object.freeze({ label: "Piano eléctrico mate", description: "Tecla redonda con armónico bajo y sin brillo incisivo." }),
+  handpan: Object.freeze({ label: "Handpan apacible", description: "Nota percusiva de registro bajo, breve y sin golpe fuerte." }),
+  mutedguitar: Object.freeze({ label: "Guitarra limpia muteada", description: "Cuerda sintetizada apagada, sin distorsión ni acorde agresivo." }),
+  plush: Object.freeze({ label: "Terciopelo", description: "Toque casi táctil de ruido filtrado, sin cola ni agudos." }),
+  cloud: Object.freeze({ label: "Nube suave", description: "Pulso redondo con una caída lenta, muy bajo en volumen." }),
+  sakura: Object.freeze({ label: "Sakura", description: "Dos notas cálidas y delicadas, inspiradas en una interfaz serena." }),
+  shore: Object.freeze({ label: "Ola mansa", description: "Susurro filtrado de corta duración, sin sonido ambiental continuo." }),
+  holo: Object.freeze({ label: "Holograma suave", description: "Deslizamiento electrónico discreto, sin pitido agudo." }),
+  softbit: Object.freeze({ label: "8-bit aterciopelado", description: "Tono retro triangular, más redondo que una onda cuadrada." }),
+  starglow: Object.freeze({ label: "Brillo estelar", description: "Dos destellos pequeños, cortos y con armónicos contenidos." }),
+  arcade: Object.freeze({ label: "Arcade cálido", description: "Confirmación retro grave y breve, sin ráfagas de tonos." })
 });
 
 export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 20 });
@@ -393,8 +405,65 @@ function synthesize(context, pack, volume, documentRef) {
     addTone(context, masterGain, 329.63, { type: "sine", duration: 0.028, amplitude: 0.0035, attack: 0.005, filterType: "lowpass", cutoff: 560 });
     return;
   }
+  if (pack === "celesta") {
+    const note = [392, 440, 493.88, 440][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.030, amplitude: 0.014, attack: 0.004, filterType: "lowpass", cutoff: 820 });
+    return;
+  }
+  if (pack === "electricpiano") {
+    const note = [261.63, 293.66, 329.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.038, amplitude: 0.018, attack: 0.005, filterType: "lowpass", cutoff: 590 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.018, amplitude: 0.0025, attack: 0.004, filterType: "lowpass", cutoff: 740 });
+    return;
+  }
+  if (pack === "handpan") {
+    addTone(context, masterGain, 196, { type: "sine", endFrequency: 184, duration: 0.043, amplitude: 0.017, attack: 0.004, filterType: "lowpass", cutoff: 390 });
+    addTone(context, masterGain, 293.66, { type: "sine", duration: 0.024, amplitude: 0.003, attack: 0.004, filterType: "lowpass", cutoff: 520 });
+    return;
+  }
+  if (pack === "mutedguitar") {
+    const root = [146.83, 164.81, 174.61, 196][noteIndex++ % 4];
+    addTone(context, masterGain, root, { type: "triangle", duration: 0.034, amplitude: 0.018, attack: 0.003, filterType: "lowpass", cutoff: 510 });
+    addTone(context, masterGain, root * 1.5, { type: "triangle", duration: 0.026, amplitude: 0.004, attack: 0.003, filterType: "lowpass", cutoff: 620 });
+    return;
+  }
+  if (pack === "plush") {
+    addWoodClick(context, masterGain, { duration: 0.014, cutoff: 390, amplitude: 0.0055 });
+    return;
+  }
+  if (pack === "cloud") {
+    addTone(context, masterGain, 246.94, { type: "sine", endFrequency: 220, duration: 0.041, amplitude: 0.012, attack: 0.008, filterType: "lowpass", cutoff: 480 });
+    return;
+  }
+  if (pack === "sakura") {
+    addTone(context, masterGain, 329.63, { type: "sine", duration: 0.033, amplitude: 0.011, attack: 0.005, filterType: "lowpass", cutoff: 650 });
+    addTone(context, masterGain, 392, { type: "sine", duration: 0.023, amplitude: 0.003, attack: 0.004, filterType: "lowpass", cutoff: 710 });
+    return;
+  }
+  if (pack === "shore") {
+    addWoodClick(context, masterGain, { duration: 0.034, cutoff: 310, amplitude: 0.0045 });
+    return;
+  }
+  if (pack === "holo") {
+    addTone(context, masterGain, 293.66, { type: "sine", endFrequency: 349.23, duration: 0.032, amplitude: 0.010, attack: 0.005, filterType: "lowpass", cutoff: 630 });
+    return;
+  }
+  if (pack === "softbit") {
+    const note = [261.63, 293.66, 329.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.022, amplitude: 0.015, attack: 0.002, filterType: "lowpass", cutoff: 620 });
+    return;
+  }
+  if (pack === "starglow") {
+    addTone(context, masterGain, 392, { type: "sine", duration: 0.026, amplitude: 0.010, attack: 0.004, filterType: "lowpass", cutoff: 800 });
+    addTone(context, masterGain, 493.88, { type: "sine", duration: 0.021, amplitude: 0.0025, attack: 0.004, filterType: "lowpass", cutoff: 900 });
+    return;
+  }
+  if (pack === "arcade") {
+    addTone(context, masterGain, 246.94, { type: "triangle", endFrequency: 293.66, duration: 0.025, amplitude: 0.014, attack: 0.002, filterType: "lowpass", cutoff: 520 });
+    return;
+  }
   if (pack === "minimal") {
-    addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.025, attack: 0.002, filterType: "lowpass", cutoff: 470 });
+    addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.018, attack: 0.002, filterType: "lowpass", cutoff: 420 });
     return;
   }
 }
