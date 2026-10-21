@@ -2,6 +2,17 @@
 
 Ritmo es una aplicación web progresiva (PWA), sin framework ni dependencias de compilación, orientada a una experiencia de reproductor musical cuidada y respetuosa de la privacidad.
 
+## Plataformas separadas: móvil primero y PC
+
+El código del reproductor se conserva en una sola fuente compartida en la raíz, pero cada plataforma tiene su propia carpeta de configuración y salida generada para que sus dependencias y artefactos no se mezclen:
+
+- **Móvil Android — `mobile/`**: prioridad de empaquetado nativo, permisos de biblioteca musical, selector de archivos/carpetas y reproducción Media3. Para prepararlo, ejecutá `npm install --prefix mobile` y después `npm --prefix mobile run android:init` (primera vez) o `npm --prefix mobile run android:sync` (actualizaciones).
+- **PC / navegador de escritorio — `desktop/`**: PWA preparada de forma independiente, sin el puente nativo de Android. Ejecutá `npm --prefix desktop run start` para preparar y abrir el reproductor en `http://127.0.0.1:4173`. `desktop/dist` es la salida publicada; no es un instalador .exe.
+- **Pruebas**: desde la raíz, `npm install --prefix mobile` y `npm run validate` prueban el paquete Android y ambas salidas. La aplicación móvil de navegador también puede abrir la PWA en el teléfono, pero iOS todavía no tiene un paquete nativo propio.
+
+Las carpetas `mobile/www`, `mobile/android` y `desktop/dist` se generan automáticamente: no las edites a mano. Los cambios funcionales se hacen en los archivos compartidos de la raíz y luego se reconstruye cada salida.
+
+
 ## Estado de esta base
 
 - Importar varios archivos de audio y guardarlos en IndexedDB en el dispositivo.
@@ -51,7 +62,7 @@ El almacenamiento offline actual está pensado para archivos importados por el u
 - Los metadatos se infieren del nombre del archivo; aún no se leen etiquetas ID3/Vorbis, carátulas embebidas ni letras sincronizadas.
 - La cola reproduce la biblioteca cargada; todavía no tiene administración manual de cola ni listas de reproducción editables.
 - Un reproductor web no garantiza la reproducción en segundo plano o controles de pantalla bloqueada en todos los navegadores/dispositivos.
-- La compatibilidad PWA depende del navegador; para Android/iOS nativos haría falta un empaquetado y una capa de audio nativa.
+- La compatibilidad PWA depende del navegador. La carpeta `mobile/` empaqueta la versión Android nativa; iOS nativo todavía no se declara compatible.
 
 
 ## Conversor de audio local — primera etapa
@@ -136,7 +147,7 @@ Ritmo también puede empaquetarse como aplicación Android con Capacitor. Cada c
 - La app incluye los archivos web del commit y puede funcionar sin conexión después de importar música local. Las búsquedas por internet y fuentes online siguen necesitando conexión.
 - En Android, **Buscar música del teléfono** pide el permiso de audio del sistema y consulta las canciones indexadas por Android; **Importar archivos** abre el selector nativo para navegar por carpetas y elegir varios audios. El selector solo comparte los archivos que elegís; el permiso amplio se solicita únicamente al escanear la biblioteca.
 - Es una APK de depuración firmada automáticamente por las herramientas Android, pensada para instalación personal y pruebas. **No es una publicación de Google Play ni una firma de lanzamiento permanente**; no uses esta firma como clave de distribución. Según el certificado de depuración de cada runner, una nueva APK podría exigir desinstalar la anterior antes de instalarla; desinstalar la app puede borrar sus archivos locales.
-- Para preparar el proyecto nativo en tu máquina: instalá Node.js 22 o superior, JDK 21 y el Android SDK (API 36); luego ejecutá `npm install`, `npm run android:init` (solo la primera vez) y `npm run android:sync`. En `android/`, ejecutá `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`).
+- Para preparar el proyecto nativo en tu máquina: instalá Node.js 22 o superior, JDK 21 y Android SDK (API 36); luego ejecutá `npm install --prefix mobile`, `npm --prefix mobile run android:init` (solo la primera vez) y `npm --prefix mobile run android:sync`. Compilá dentro de `mobile/android/` con `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`).
 - Para distribuir actualizaciones sin perder instalaciones existentes o publicar en Play Console hace falta configurar una clave privada de lanzamiento y protegerla como secreto del entorno de compilación. No debe guardarse en este repositorio público.
 
 Detalles y fuentes del empaquetado: [docs/android-apk-packaging.md](docs/android-apk-packaging.md).
