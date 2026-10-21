@@ -731,7 +731,18 @@ function initUiSounds(documentRef) {
     }
   };
   globalThis.addEventListener?.("ritmo:playback-context", event => {
+    const wasPlaying = appPlaybackIsActive;
     appPlaybackIsActive = event?.detail?.playing === true;
+    // If music starts while a UI note is still ringing, duck it immediately
+    // instead of waiting for the next click to recalculate master gain.
+    if (!wasPlaying && appPlaybackIsActive && audioContext && masterGain) {
+      const now = audioContext.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setTargetAtTime(
+        MAX_OUTPUT_GAIN * (preferences.volume / 100) * MUSIC_DUCK_FACTOR,
+        now, 0.003
+      );
+    }
   });
   globalThis.addEventListener?.("ritmo:voice-preview-start", silenceUiEffectsForVoice);
   globalThis.addEventListener?.("ritmo:voice-preview-end", () => { voicePreviewActive = false; });
