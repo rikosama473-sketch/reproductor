@@ -68,6 +68,17 @@ assert.equal(expanded.getInt16(44, true), expanded.getInt16(46, true));
   assert.equal(mono51.getInt16(44, true), Math.round(0.2 * 32767), "Mono 5.1 downmix must omit LFE.");
 }
 
+// Peak protection applies one fixed gain to a hot 5.1 mix instead of hard-clipping
+// every channel independently; normal-level mixes retain their original gain.
+{
+  const hot51 = fakeBuffer([[1], [1], [1], [1], [1], [1]]);
+  const stereoHot = new DataView(await encodePcm16Wav(hot51, 2).arrayBuffer());
+  assert.equal(stereoHot.getInt16(44, true), 32767, "Hot 5.1 left mix should be attenuated to full scale without clipping.");
+  assert.equal(stereoHot.getInt16(46, true), 32767, "Hot 5.1 right mix should share the same static gain.");
+  const monoHot = new DataView(await encodePcm16Wav(hot51, 1).arrayBuffer());
+  assert.equal(monoHot.getInt16(44, true), 32767, "Hot mono downmix should be peak-protected.");
+}
+
 // Unknown channel counts use a conservative discrete fallback.
 {
   const unknownLayout = fakeBuffer([[0.2], [-0.4], [0.9]]);
