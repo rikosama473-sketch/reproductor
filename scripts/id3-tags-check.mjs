@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MAX_EMBEDDED_ARTWORK_BYTES, parseId3Tags } from "../src/id3-tags.js";
+import { MAX_EMBEDDED_ARTWORK_BYTES, parseId3Tags, validateEmbeddedArtwork } from "../src/id3-tags.js";
 
 const fallback = { title: "Filename title", artist: "Unknown artist", album: "", genre: "" };
 const synchsafe = value => [(value >> 21) & 0x7f, (value >> 14) & 0x7f, (value >> 7) & 0x7f, value & 0x7f];
@@ -93,6 +93,12 @@ assert.deepEqual([...coverFallback.artwork], [...png], "Retain actual embedded i
 const coverV22 = parseId3Tags(tag(2, [apic("image/png", 3, png, 2)]), fallback);
 assert.equal(coverV22.artworkMimeType, "image/png", "Support ID3v2.2 PIC picture format");
 assert.deepEqual([...coverV22.artwork], [...png]);
+assert.deepEqual([...validateEmbeddedArtwork(png, "image/png")], [...png], "Shared validation should accept bounded PNG data");
+assert.deepEqual([...validateEmbeddedArtwork(jpeg, "image/jpeg")], [...jpeg], "Shared validation should accept bounded JPEG data");
+assert.equal(validateEmbeddedArtwork(jpeg, "image/png"), null, "Shared validation should reject mismatched MIME type");
+assert.equal(validateEmbeddedArtwork(pngHeader(5000, 1), "image/png"), null, "Shared validation should reject oversized dimensions");
+assert.equal(validateEmbeddedArtwork(png, "image/svg+xml"), null, "Shared validation should reject non-raster MIME types");
+
 
 const coverV24 = parseId3Tags(tag(4, [apic("image/jpeg", 3, jpeg, 4)]), fallback);
 assert.equal(coverV24.artworkMimeType, "image/jpeg");
