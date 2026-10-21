@@ -448,7 +448,8 @@ function coverClass(track) {
 }
 function trackArtworkUrl(track) {
   const blob = track?.artworkBlob;
-  if (!(blob instanceof Blob) || blob.size < 8 || blob.size > MAX_EMBEDDED_ARTWORK_BYTES ||
+  if (track?.artworkInvalid === true || !(blob instanceof Blob) || blob.size < 8 ||
+      blob.size > MAX_EMBEDDED_ARTWORK_BYTES ||
       !["image/jpeg", "image/png"].includes(String(blob.type || "").toLowerCase())) return "";
   const cached = artworkObjectUrls.get(track.id);
   if (cached?.blob === blob) return cached.url;
@@ -467,7 +468,7 @@ function trackArtworkUrl(track) {
 function releaseUnusedArtworkObjectUrls() {
   for (const [trackId, entry] of artworkObjectUrls) {
     const track = getTrack(trackId);
-    if (track?.artworkBlob === entry.blob) continue;
+    if (track?.artworkBlob === entry.blob && track?.artworkInvalid !== true) continue;
     try { URL.revokeObjectURL(entry.url); } catch {}
     artworkObjectUrls.delete(trackId);
   }
@@ -483,8 +484,24 @@ window.addEventListener("pagehide", event => {
 });
 function artworkImageHTML(track, className = "album-artwork") {
   const url = trackArtworkUrl(track);
-  return url ? '<img class="' + className + '" src="' + escapeHTML(url) + '" alt="" loading="lazy" decoding="async">' : "";
+  return url ? '<img class="' + className + '" data-artwork-track="' + escapeHTML(track.id) +
+    '" src="' + escapeHTML(url) + '" alt="" loading="lazy" decoding="async">' : "";
 }
+document.addEventListener("error", event => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.classList.contains("album-artwork")) return;
+  const track = getTrack(image.dataset.artworkTrack);
+  if (!track || track.artworkInvalid === true) return;
+  // A valid tag header can still contain corrupt compressed pixels. Remember
+  // that the browser rejected this artwork so rendering falls back to the
+  // placeholder instead of retrying the same broken decode on every view.
+  track.artworkInvalid = true;
+  state.mediaSessionArtworkUrl = "";
+  state.mediaSessionTrackId = null;
+  void saveTrack(track).catch(() => {});
+  render();
+  if (state.currentId === track.id) updateMediaSession();
+}, true);
 function coverHTML(track, extra = "") {
   const artwork = artworkImageHTML(track);
   return '<div class="track-mini-cover ' + coverClass(track) + (artwork ? " has-artwork" : "") + " " + extra + '">' +
@@ -1426,7 +1443,8 @@ function updatePlayer() {
   const playerArtwork = trackArtworkUrl(track);
   const playerCover = $("#player-cover");
   playerCover.className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "") + (playerArtwork ? " has-artwork" : "");
-  playerCover.innerHTML = playerArtwork ? '<img class="album-artwork" src="' + escapeHTML(playerArtwork) + '" alt="" decoding="async">' : "<span>♫</span>";
+  playerCover.innerHTML = playerArtwork ? '<img class="album-artwork" data-artwork-track="' + escapeHTML(track.id) +
+    '" src="' + escapeHTML(playerArtwork) + '" alt="" decoding="async">' : "<span>♫</span>";
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
   $("#player-favorite").classList.toggle("is-favorite", Boolean(track?.favorite));
   $("#player-favorite").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Marcar favorito");
