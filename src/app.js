@@ -1519,7 +1519,7 @@ function clearConverterOutputUrls() {
   converterOutputBytes = 0;
 }
 function safeWavFilename(name) {
-  const base = String(name || "audio").replace(/\\.[^.]+$/, "").replace(/[<>:"/\\|?*\\u0000-\\u001f]/g, "-").replace(/[. ]+$/g, "").trim().slice(0, 100);
+  const base = String(name || "audio").replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/[. ]+$/g, "").trim().slice(0, 100);
   return (base || "audio") + ".wav";
 }
 function renderConverterSelection(preserveStatus = false) {
