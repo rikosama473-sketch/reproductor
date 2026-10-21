@@ -31,7 +31,7 @@ const rawFrame = (id, payload, version = 3, frameFlags = 0) => {
 };
 const png = Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x01,0x02,0x03]);
 const jpeg = Uint8Array.from([0xff,0xd8,0xff,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46]);
-const apic = (mime, pictureType, data, version = 3, description = "") => {
+const apic = (mime, pictureType, data, version = 3, description = "", frameFlags = 0) => {
   const encoding = 0;
   return rawFrame(version === 2 ? "PIC" : "APIC", Uint8Array.from([
     encoding,
@@ -41,7 +41,7 @@ const apic = (mime, pictureType, data, version = 3, description = "") => {
     pictureType,
     ...new TextEncoder().encode(description), 0,
     ...data
-  ]), version);
+  ]), version, frameFlags);
 };
 
 const v23 = parseId3Tags(tag(3, [frame("TIT2", "Piano nocturno"), frame("TPE1", "Artista"), frame("TALB", "Álbum"), frame("TCON", "17")]), fallback);
@@ -71,7 +71,7 @@ assert.equal(parseId3Tags(truncatedHeader, fallback).title, fallback.title);
 
 const coverFallback = parseId3Tags(tag(3, [
   frame("TIT2", "Álbum con portada"),
-  apic("image/png", 0, jpeg),
+  apic("image/jpeg", 0, jpeg),
   apic("image/png", 3, png),
   apic("image/jpeg", 4, jpeg)
 ]), fallback);
@@ -88,7 +88,7 @@ assert.equal(coverV24.artworkMimeType, "image/jpeg");
 assert.deepEqual([...coverV24.artwork], [...jpeg]);
 
 const unsynchronisedJpeg = Uint8Array.from([0xff,0xd8,0xff,0x00,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46]);
-const coverUnsynchronised = parseId3Tags(tag(4, [apic("image/jpeg", 3, unsynchronisedJpeg, 4)], 0), fallback);
+const coverUnsynchronised = parseId3Tags(tag(4, [apic("image/jpeg", 3, unsynchronisedJpeg, 4, "", 0x02)], 0), fallback);
 assert.equal(coverUnsynchronised.artworkMimeType, "image/jpeg");
 assert.deepEqual([...coverUnsynchronised.artwork], [...jpeg], "Remove ID3v2.4 picture-frame unsynchronisation safely");
 
