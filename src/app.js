@@ -3524,6 +3524,7 @@ function bindEvents() {
   $("#close-settings-bottom").addEventListener("click", () => $("#settings-dialog").close());
   $("#eq-enabled").addEventListener("change", async event => {
     audioPrefs.equalizerEnabled = event.target.checked;
+    if (audioPrefs.equalizerEnabled && audioPrefs.eqPreset === "clean") audioPrefs.eqPreset = "flat";
     saveAudioPreferences();
     syncSettingsUI();
     const track = currentTrack();
@@ -3577,6 +3578,25 @@ function bindEvents() {
       saveAudioPreferences();
       return;
     }
+    if (presetName === "clean") {
+      Object.assign(audioPrefs, {
+        eqPreset: "clean", bass: 0, mid: 0, treble: 0,
+        equalizerEnabled: false, limiter: false
+      });
+      saveAudioPreferences();
+      syncSettingsUI();
+      const track = currentTrack();
+      const nativeTrackActive = Boolean(state.nativePlayback.active && track &&
+        state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
+      if (nativeTrackActive) {
+        try { await applyNativeEqualizerPreferences(); }
+        catch (error) { $("#eq-status").textContent = error.message || "No se pudo activar el modo limpio en Android."; return; }
+      } else if (track && isLocal(track)) {
+        applyCurrentEnginePreference();
+      }
+      $("#eq-status").textContent = "Modo limpio activado: ecualizador y limitador apagados; el audio original no se modifica.";
+      return;
+    }
     const values = getEqualizerPreset(presetName);
     if (!values) {
       audioPrefs.eqPreset = "custom";
@@ -3603,11 +3623,16 @@ function bindEvents() {
       }
       applyCurrentEnginePreference();
     }
-    $("#eq-status").textContent = "Preajuste «" + EQUALIZER_PRESETS[presetName].label + "» aplicado a archivos locales.";
+    const profile = EQUALIZER_PRESETS[presetName];
+    $("#eq-status").textContent = track && isLocal(track)
+      ? "Perfil «" + profile.label + "» aplicado a este archivo local. " + profile.description
+      : "Perfil «" + profile.label + "» guardado para archivos locales; no procesa fuentes online. " + profile.description;
   });
   $("#limiter-toggle").addEventListener("change", event => {
     audioPrefs.limiter = event.target.checked;
+    if (audioPrefs.limiter && audioPrefs.eqPreset === "clean") audioPrefs.eqPreset = "flat";
     saveAudioPreferences();
+    syncSettingsUI();
     applyAudioGraphPreferences();
   });
   $("#eq-reset").addEventListener("click", () => {
