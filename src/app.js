@@ -1,7 +1,7 @@
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage, getAppSetting, saveAppSetting, deleteAppSetting } from "./storage.js";
 import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
-import { clearMediaSession } from "./media-session-state.js";
+import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
@@ -1069,8 +1069,25 @@ function updateMediaSession() {
     try { navigator.mediaSession.playbackState = playbackIsPaused() ? "paused" : "playing"; } catch {}
   }
   const duration = playbackDuration();
-  if (Number.isFinite(duration) && duration > 0 && typeof navigator.mediaSession.setPositionState === "function") {
-    try { navigator.mediaSession.setPositionState({ duration, position: Math.min(playbackCurrentTime(), duration), playbackRate: audio.playbackRate || 1 }); } catch {}
+  const position = playbackCurrentTime();
+  const requestedRate = Number(audio.playbackRate);
+  const playbackRate = Number.isFinite(requestedRate) && requestedRate !== 0 ? requestedRate : 1;
+  if (Number.isFinite(duration) && duration > 0 && Number.isFinite(position) && position >= 0 &&
+      typeof navigator.mediaSession.setPositionState === "function") {
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        position: Math.max(0, Math.min(position, duration)),
+        playbackRate
+      });
+    } catch {
+      // Invalid/stale position data must never break playback or leave an old seek bar behind.
+      clearMediaSessionPositionState(navigator.mediaSession);
+    }
+  } else {
+    // A new track may not report its duration yet. Clear the previous track's OS seek bar
+    // rather than showing stale progress while metadata and playback are transitioning.
+    clearMediaSessionPositionState(navigator.mediaSession);
   }
 }
 function setupMediaSession() {
