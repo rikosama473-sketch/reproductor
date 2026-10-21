@@ -32,7 +32,7 @@ const capacitorRuntime = await readFile(path.join(webDir, "capacitor.js"), "utf8
 assert.match(capacitorRuntime, /nativePromise/, "Packaged Capacitor runtime must expose nativePromise");
 assert.match(capacitorRuntime, /getPlatform/, "Packaged Capacitor runtime must expose getPlatform");
 
-const nativePlugin = await readFile(path.join(root, "native/android/RitmoMusicLibraryPlugin.java"), "utf8");
+const nativePlugin = await readFile(path.join(root, "mobile/native/android/RitmoMusicLibraryPlugin.java"), "utf8");
 assert.match(nativePlugin, /READ_MEDIA_AUDIO/, "Android must request granular audio permission");
 assert.match(nativePlugin, /MediaStore\.Audio\.Media/, "Native plugin must query the audio media store");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT/, "Native plugin must open the system document picker");
