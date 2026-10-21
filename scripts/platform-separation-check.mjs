@@ -33,9 +33,9 @@ assert.ok(mobileHtml.indexOf(capacitorTag) >= 0 && mobileHtml.indexOf(capacitorT
   "Mobile must load the Capacitor bridge before the app module");
 assert.ok(desktopHtml.includes(appTag), "PC must load the shared real app module");
 assert.ok(!desktopHtml.includes(capacitorTag), "PC must not load Android's native bridge");
-assert.match(mobileWorker, /ritmo-shell-v66/, "Mobile cache version must be independent from PC");
+assert.match(mobileWorker, /ritmo-shell-v67/, "Mobile cache version must be independent from PC");
 assert.match(mobileWorker, /capacitor\.js/, "Mobile offline shell must include the native bridge runtime");
-assert.match(desktopWorker, /ritmo-shell-v65/, "PC must keep the web-only shell version");
+assert.match(desktopWorker, /ritmo-shell-v66/, "PC must keep the web-only shell version");
 assert.doesNotMatch(desktopWorker, /capacitor\.js/, "PC shell must not require an Android-only file");
 assert.notEqual(path.join(mobileRoot, "www"), path.join(desktopRoot, "dist"), "Mobile and desktop build outputs must be separate");
 
