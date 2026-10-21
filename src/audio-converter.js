@@ -4,12 +4,88 @@ export const MAX_CONVERTER_FILES = 5;
 export const MAX_CONVERTER_DURATION_SECONDS = 7 * 60;
 export const MAX_CONVERTER_DECODED_BYTES = 160 * 1024 * 1024;
 export const MAX_CONVERTER_OUTPUT_BYTES = 120 * 1024 * 1024;
+export const MAX_CONVERTER_DURATION_PROBE_MS = 10000;
 
 function writeAscii(view, offset, text) {
   for (let index = 0; index < text.length; index++) view.setUint8(offset + index, text.charCodeAt(index));
 }
 function safeChannels(value) {
   return Number(value) === 1 ? 1 : 2;
+}
+
+/**
+ * Read local-file duration from media metadata before allocating a decoded
+ * AudioBuffer. The conversion path fails closed when the browser cannot report
+ * a finite duration, rather than risking a large decode on an uncertain file.
+ * The injectable dependencies also let the metadata path be regression-tested
+ * without requiring browser audio hardware.
+ */
+export async function probeAudioFileDuration(file, {
+  createAudioElement = () => new Audio(),
+  createObjectURL = value => URL.createObjectURL(value),
+  revokeObjectURL = value => URL.revokeObjectURL(value),
+  timeoutMs = MAX_CONVERTER_DURATION_PROBE_MS
+} = {}) {
+  if (!file) throw new TypeError("No se recibió un archivo para comprobar.");
+  let objectUrl;
+  try {
+    objectUrl = createObjectURL(file);
+  } catch {
+    throw new Error("No se pudo preparar el archivo para comprobar su duración.");
+  }
+
+  return await new Promise((resolve, reject) => {
+    let element = null;
+    let settled = false;
+    let timer = null;
+
+    const finish = (error, duration) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      if (element) {
+        element.removeEventListener?.("loadedmetadata", onMetadata);
+        element.removeEventListener?.("error", onError);
+        try {
+          element.pause?.();
+          element.removeAttribute?.("src");
+          element.load?.();
+        } catch {}
+      }
+      try { revokeObjectURL(objectUrl); } catch {}
+      if (error) reject(error);
+      else resolve(duration);
+    };
+
+    const onMetadata = () => {
+      const duration = Number(element?.duration);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        finish(new Error("El navegador no informó una duración finita; se canceló la conversión por seguridad."));
+        return;
+      }
+      finish(null, duration);
+    };
+    const onError = () => finish(new Error(
+      "El navegador no pudo leer los metadatos de duración. No se inició la conversión para proteger la memoria."
+    ));
+
+    try {
+      element = createAudioElement();
+      if (!element || typeof element.addEventListener !== "function") {
+        throw new TypeError("No hay un lector de metadatos de audio disponible.");
+      }
+      element.preload = "metadata";
+      element.addEventListener("loadedmetadata", onMetadata, { once: true });
+      element.addEventListener("error", onError, { once: true });
+      timer = setTimeout(() => finish(new Error(
+        "Se agotó el tiempo para comprobar la duración; no se inició la conversión para proteger la memoria."
+      )), Math.max(1, Number(timeoutMs) || MAX_CONVERTER_DURATION_PROBE_MS));
+      element.src = objectUrl;
+      element.load?.();
+    } catch {
+      finish(new Error("No se pudo leer la duración del archivo antes de decodificarlo."));
+    }
+  });
 }
 
 /** Encode a decoded AudioBuffer as real little-endian PCM16 RIFF/WAVE data. */
@@ -75,13 +151,40 @@ export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
 
 /**
  * Decode only formats supported by the current browser, then encode PCM16 WAV.
- * Web Audio decodes a complete file into memory, so this intentionally enforces
- * conservative per-file size, duration and decoded-memory limits.
+ * Web Audio decodes complete file data into memory; duration and expected output
+ * size are therefore checked before decodeAudioData() whenever metadata allows it.
  */
-export async function convertAudioFileToWav(file, audioContext, { channels = 2 } = {}) {
+export async function convertAudioFileToWav(file, audioContext, {
+  channels = 2,
+  durationProbe = probeAudioFileDuration,
+  maxOutputBytes = MAX_CONVERTER_OUTPUT_BYTES
+} = {}) {
   if (!file || !Number.isFinite(file.size) || file.size <= 0) throw new Error("El archivo está vacío o no se puede leer.");
   if (file.size > MAX_CONVERTER_INPUT_BYTES) throw new Error("El archivo supera el límite de 50 MiB por conversión.");
   if (!audioContext || typeof audioContext.decodeAudioData !== "function") throw new Error("Este navegador no ofrece un decodificador de audio compatible.");
+  if (typeof durationProbe !== "function") throw new TypeError("No hay un comprobador de duración disponible.");
+
+  const durationBeforeDecode = await durationProbe(file);
+  if (!Number.isFinite(durationBeforeDecode) || durationBeforeDecode <= 0) {
+    throw new Error("No se pudo comprobar una duración válida antes de decodificar el audio.");
+  }
+  if (durationBeforeDecode > MAX_CONVERTER_DURATION_SECONDS) {
+    throw new Error("La pista supera el límite de 7 minutos para evitar agotar la memoria del dispositivo.");
+  }
+
+  const sampleRateBeforeDecode = Number(audioContext.sampleRate);
+  if (!Number.isFinite(sampleRateBeforeDecode) || sampleRateBeforeDecode < 8000) {
+    throw new Error("El motor de audio no informó una frecuencia de muestreo válida.");
+  }
+  const outputLimit = Number.isFinite(maxOutputBytes)
+    ? Math.max(0, Math.min(MAX_CONVERTER_OUTPUT_BYTES, Math.floor(maxOutputBytes)))
+    : MAX_CONVERTER_OUTPUT_BYTES;
+  const estimatedFrames = Math.ceil(durationBeforeDecode * sampleRateBeforeDecode);
+  const estimatedOutputBytes = 44 + estimatedFrames * safeChannels(channels) * 2;
+  if (!Number.isSafeInteger(estimatedOutputBytes) || estimatedOutputBytes > outputLimit) {
+    throw new Error("El WAV estimado supera el espacio disponible para resultados de esta tanda; descargá o limpiá los resultados antes de continuar.");
+  }
+
   let decoded;
   try {
     decoded = await audioContext.decodeAudioData(await file.arrayBuffer());
@@ -89,12 +192,13 @@ export async function convertAudioFileToWav(file, audioContext, { channels = 2 }
     throw new Error("El navegador no pudo decodificar este formato. Probá con un archivo que pueda reproducir en Ritmo.");
   }
   if (!decoded || !Number.isFinite(decoded.duration) || decoded.duration <= 0) throw new Error("El archivo decodificado no contiene una duración válida.");
+  // Keep a post-decode guard as a defense against inaccurate or malformed metadata.
   if (decoded.duration > MAX_CONVERTER_DURATION_SECONDS) throw new Error("La pista supera el límite de 7 minutos para evitar agotar la memoria del dispositivo.");
   const decodedBytes = decoded.length * decoded.numberOfChannels * 4;
   if (!Number.isSafeInteger(decodedBytes) || decodedBytes > MAX_CONVERTER_DECODED_BYTES) {
     throw new Error("El audio decodificado necesita demasiada memoria para convertirlo de forma segura en este dispositivo.");
   }
   const blob = encodePcm16Wav(decoded, channels);
-  if (blob.size > MAX_CONVERTER_OUTPUT_BYTES) throw new Error("El WAV resultante supera el límite de 120 MiB.");
+  if (blob.size > outputLimit) throw new Error("El WAV resultante supera el límite de espacio disponible para resultados.");
   return { blob, duration: decoded.duration, sampleRate: decoded.sampleRate, channels: safeChannels(channels), sourceChannels: decoded.numberOfChannels };
 }
