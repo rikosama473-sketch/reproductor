@@ -15,6 +15,14 @@ export const UI_SOUND_PACKS = Object.freeze({
   bell: Object.freeze({ label: "Campana tenue", description: "Destello armónico amortiguado, sin brillo estridente." }),
   sparkle: Object.freeze({ label: "Destello anime", description: "Doble nota ascendente, corta y de volumen contenido." }),
   pluck: Object.freeze({ label: "Cuerda pulsada", description: "Ataque de cuerda sintetizada, cálido y breve." }),
+  harp: Object.freeze({ label: "Arpa suave", description: "Cuerda redonda y fugaz, con caída corta." }),
+  flute: Object.freeze({ label: "Flauta tenue", description: "Tono redondo, sin silbido agudo ni cola larga." }),
+  rain: Object.freeze({ label: "Gota de lluvia", description: "Pequeña gota filtrada, apagada y corta." }),
+  orbit: Object.freeze({ label: "Órbita", description: "Dos tonos suaves que sugieren movimiento digital." }),
+  heartbeat: Object.freeze({ label: "Pulso grave", description: "Pulso bajo y amortiguado, sin golpe brusco." }),
+  bamboo: Object.freeze({ label: "Bambú", description: "Toque hueco de madera, breve y cálido." }),
+  vinyl: Object.freeze({ label: "Vinilo suave", description: "Pequeña textura analógica con graves discretos." }),
+  chord: Object.freeze({ label: "Acorde sereno", description: "Dos notas tenues para confirmar una acción." }),
   retro: Object.freeze({ label: "Retro 8-bit", description: "Tono de videojuego clásico, muy corto." }),
   warm: Object.freeze({ label: "Sintetizador cálido", description: "Pulso redondo, sin agudos agresivos." }),
   drum: Object.freeze({ label: "Percusión amortiguada", description: "Toque grave, corto y suave, parecido a un botón acolchado." }),
@@ -105,8 +113,8 @@ function addTone(context, output, frequency, options = {}) {
   oscillator.stop(now + options.duration + 0.015);
 }
 
-function addWoodClick(context, output) {
-  const duration = 0.032;
+function addWoodClick(context, output, options = {}) {
+  const duration = options.duration || 0.032;
   const frameCount = Math.max(1, Math.floor(context.sampleRate * duration));
   const buffer = context.createBuffer(1, frameCount, context.sampleRate);
   const channel = buffer.getChannelData(0);
@@ -120,9 +128,9 @@ function addWoodClick(context, output) {
   const now = context.currentTime;
   source.buffer = buffer;
   filter.type = "lowpass";
-  filter.frequency.setValueAtTime(520, now);
+  filter.frequency.setValueAtTime(options.cutoff || 520, now);
   filter.Q.value = 0.45;
-  envelope.gain.setValueAtTime(0.055, now);
+  envelope.gain.setValueAtTime(options.amplitude || 0.055, now);
   envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   source.connect(filter);
   filter.connect(envelope);
@@ -224,6 +232,45 @@ function synthesize(context, pack, volume, documentRef) {
   if (pack === "pluck") {
     const note = [293.66, 329.63, 349.23, 392][noteIndex++ % 4];
     addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.76, duration: 0.058, amplitude: 0.06, attack: 0.002, filterType: "lowpass", cutoff: 780 });
+    return;
+  }
+  if (pack === "harp") {
+    const note = [329.63, 392, 440, 523.25][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.92, duration: 0.046, amplitude: 0.04, attack: 0.002, filterType: "lowpass", cutoff: 850 });
+    return;
+  }
+  if (pack === "flute") {
+    const note = [392, 440, 493.88, 440][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", endFrequency: note * 1.025, duration: 0.048, amplitude: 0.028, attack: 0.006, filterType: "lowpass", cutoff: 950 });
+    return;
+  }
+  if (pack === "rain") {
+    addWoodClick(context, masterGain, { duration: 0.043, cutoff: 1050, amplitude: 0.02 });
+    return;
+  }
+  if (pack === "orbit") {
+    const note = [330, 349.23, 392, 440][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.038, amplitude: 0.022, attack: 0.003, filterType: "lowpass", cutoff: 760 });
+    addTone(context, masterGain, note * 1.25, { type: "sine", duration: 0.029, amplitude: 0.008, attack: 0.003, filterType: "lowpass", cutoff: 920 });
+    return;
+  }
+  if (pack === "heartbeat") {
+    addTone(context, masterGain, 104, { type: "sine", endFrequency: 72, duration: 0.038, amplitude: 0.035, attack: 0.002, filterType: "lowpass", cutoff: 220 });
+    return;
+  }
+  if (pack === "bamboo") {
+    const note = [261.63, 293.66, 329.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.04, amplitude: 0.035, attack: 0.003, filterType: "lowpass", cutoff: 640 });
+    return;
+  }
+  if (pack === "vinyl") {
+    addWoodClick(context, masterGain, { duration: 0.035, cutoff: 360, amplitude: 0.025 });
+    return;
+  }
+  if (pack === "chord") {
+    const note = [293.66, 329.63, 349.23, 392][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.045, amplitude: 0.023, attack: 0.003, filterType: "lowpass", cutoff: 720 });
+    addTone(context, masterGain, note * 1.5, { type: "sine", duration: 0.03, amplitude: 0.009, attack: 0.003, filterType: "lowpass", cutoff: 980 });
     return;
   }
   if (pack === "retro") {
