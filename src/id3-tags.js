@@ -79,8 +79,8 @@ export function parseId3Tags(input, fallback = {}) {
     offset += skip;
   }
 
-  let frameEnd = tagEnd;
-  if (version === 4 && (flags & 0x10)) frameEnd = Math.max(offset, frameEnd - 10);
+  // ID3v2.4 tag size excludes its optional 10-byte footer, so frameEnd stays at tagEnd.
+  const frameEnd = tagEnd;
   while (offset < frameEnd) {
     const headerSize = version === 2 ? 6 : 10;
     if (offset + headerSize > frameEnd) break;
