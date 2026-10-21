@@ -4,7 +4,8 @@ import {
   convertAudioFileToWav,
   encodePcm16Wav,
   MAX_CONVERTER_DURATION_SECONDS,
-  probeAudioFileDuration
+  probeAudioFileDuration,
+  validatePcm16WavBlob
 } from "../src/audio-converter.js";
 
 function fakeBuffer(channelSamples, sampleRate = 44100) {
@@ -240,4 +241,49 @@ assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
   assert.equal(result.channels, 2);
   assert.equal(result.blob.size, 52);
 }
+
+// Validate the generated file structure independently from the encoder.
+// RIFF size must equal file size - 8, PCM format must be coherent and the
+// declared data length must exactly match the real WAV payload.
+{
+  const info = await validatePcm16WavBlob(monoWav, { channels: 1, sampleRate: 44100 });
+  assert.deepEqual(info, {
+    format: "pcm_s16le",
+    channels: 1,
+    sampleRate: 44100,
+    bitsPerSample: 16,
+    blockAlign: 2,
+    byteRate: 88200,
+    dataBytes: 6,
+    frames: 3,
+    duration: 3 / 44100,
+    fileBytes: 50
+  });
+  await assert.rejects(
+    validatePcm16WavBlob(new Blob([new Uint8Array([1, 2, 3])])),
+    /tamaño inválido|incompleto/
+  );
+
+  async function mutateWav(offset, value, width = 1) {
+    const bytes = new Uint8Array(await monoWav.arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    if (width === 4) view.setUint32(offset, value, true);
+    else if (width === 2) view.setUint16(offset, value, true);
+    else view.setUint8(offset, value);
+    return new Blob([bytes], { type: "audio/wav" });
+  }
+
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(4, 99, 4)), /tamaño RIFF/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(20, 3, 2)), /PCM entero/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(22, 3, 2)), /PCM entero/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(28, 123, 4)), /frecuencia o la alineación/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(32, 4, 2)), /frecuencia o la alineación/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(34, 24, 2)), /PCM entero/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(40, 4, 4)), /longitud de las muestras/);
+  await assert.rejects(validatePcm16WavBlob(monoWav, { channels: 2 }), /canales WAV/);
+  const notData = new Uint8Array(await monoWav.arrayBuffer());
+  notData.set([0x4a, 0x55, 0x4e, 0x4b], 36);
+  await assert.rejects(validatePcm16WavBlob(new Blob([notData])), /Falta el bloque de muestras/);
+}
+
 console.log("Audio converter tests passed: PCM16 RIFF/WAVE, mono/stereo and multichannel output, duration preflight, URL cleanup and batch-output budget.");

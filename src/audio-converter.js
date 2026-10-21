@@ -220,6 +220,92 @@ export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
+
+/**
+ * Verify the exact PCM16 RIFF/WAVE layout written by encodePcm16Wav().
+ * Reads only the fixed 44-byte header; the payload is length-checked but never
+ * copied just for validation.
+ */
+export async function validatePcm16WavBlob(blob, expected = {}) {
+  const size = Number(blob?.size);
+  if (!blob || typeof blob.slice !== "function" || !Number.isSafeInteger(size) ||
+      size < 46 || size > 0x100000007) {
+    throw new Error("El WAV generado tiene un tamaño inválido o está incompleto.");
+  }
+  if (typeof blob.slice(0, 44)?.arrayBuffer !== "function") {
+    throw new Error("No se pudo leer la cabecera del WAV generado.");
+  }
+
+  let headerBuffer;
+  try {
+    headerBuffer = await blob.slice(0, 44).arrayBuffer();
+  } catch {
+    throw new Error("No se pudo leer la cabecera del WAV generado.");
+  }
+  if (headerBuffer.byteLength !== 44) {
+    throw new Error("La cabecera WAV está truncada; no se conservará el resultado.");
+  }
+
+  const header = new DataView(headerBuffer);
+  const ascii = (offset, length) => {
+    let result = "";
+    for (let index = 0; index < length; index++) result += String.fromCharCode(header.getUint8(offset + index));
+    return result;
+  };
+  if (ascii(0, 4) !== "RIFF" || ascii(8, 4) !== "WAVE") {
+    throw new Error("La salida no contiene una cabecera RIFF/WAVE válida.");
+  }
+  if (header.getUint32(4, true) !== size - 8) {
+    throw new Error("El tamaño RIFF no coincide con el tamaño real del archivo.");
+  }
+  if (ascii(12, 4) !== "fmt " || header.getUint32(16, true) !== 16) {
+    throw new Error("El bloque de formato WAV no tiene el tamaño PCM esperado.");
+  }
+
+  const formatCode = header.getUint16(20, true);
+  const channels = header.getUint16(22, true);
+  const sampleRate = header.getUint32(24, true);
+  const byteRate = header.getUint32(28, true);
+  const blockAlign = header.getUint16(32, true);
+  const bitsPerSample = header.getUint16(34, true);
+  if (formatCode !== 1 || (channels !== 1 && channels !== 2) || bitsPerSample !== 16) {
+    throw new Error("La salida no declara PCM entero de 16 bits mono/estéreo.");
+  }
+  if (sampleRate < 8000 || blockAlign !== channels * 2 ||
+      byteRate !== sampleRate * blockAlign) {
+    throw new Error("La frecuencia o la alineación de muestras del WAV no es coherente.");
+  }
+  if (ascii(36, 4) !== "data") {
+    throw new Error("Falta el bloque de muestras de audio WAV.");
+  }
+
+  const dataBytes = header.getUint32(40, true);
+  if (dataBytes <= 0 || dataBytes % blockAlign !== 0 ||
+      dataBytes !== size - 44) {
+    throw new Error("La longitud de las muestras no coincide con el contenido real del WAV.");
+  }
+  if (expected.channels !== undefined && Number(expected.channels) !== channels) {
+    throw new Error("Los canales WAV no coinciden con la configuración de conversión.");
+  }
+  if (expected.sampleRate !== undefined &&
+      Math.round(Number(expected.sampleRate)) !== sampleRate) {
+    throw new Error("La frecuencia WAV no coincide con la frecuencia de salida declarada.");
+  }
+
+  return {
+    format: "pcm_s16le",
+    channels,
+    sampleRate,
+    bitsPerSample,
+    blockAlign,
+    byteRate,
+    dataBytes,
+    frames: dataBytes / blockAlign,
+    duration: dataBytes / byteRate,
+    fileBytes: size
+  };
+}
+
 /**
  * Decode only formats supported by the current browser, then encode PCM16 WAV.
  * Web Audio decodes complete file data into memory; duration and expected output
@@ -281,11 +367,36 @@ export async function convertAudioFileToWav(file, audioContext, {
   if (!decoded || !Number.isFinite(decoded.duration) || decoded.duration <= 0) throw new Error("El archivo decodificado no contiene una duración válida.");
   // Keep a post-decode guard as a defense against inaccurate or malformed metadata.
   if (decoded.duration > MAX_CONVERTER_DURATION_SECONDS) throw new Error("La pista supera el límite de 7 minutos para evitar agotar la memoria del dispositivo.");
+  if (!Number.isInteger(decoded.length) || decoded.length < 1 ||
+      !Number.isInteger(decoded.numberOfChannels) || decoded.numberOfChannels < 1 ||
+      !Number.isFinite(decoded.sampleRate) || decoded.sampleRate < 8000) {
+    throw new Error("El decodificador devolvió muestras o metadatos de audio no válidos.");
+  }
   const decodedBytes = decoded.length * decoded.numberOfChannels * 4;
   if (!Number.isSafeInteger(decodedBytes) || decodedBytes > MAX_CONVERTER_DECODED_BYTES) {
     throw new Error("El audio decodificado necesita demasiada memoria para convertirlo de forma segura en este dispositivo.");
   }
-  const blob = encodePcm16Wav(decoded, channels);
+
+  // Duration metadata can be imperfect. Recalculate the exact PCM output size
+  // from the decoded frame count before allocating the potentially large WAV.
+  const outputChannels = safeChannels(channels);
+  const actualOutputBytes = 44 + decoded.length * outputChannels * 2;
+  if (!Number.isSafeInteger(actualOutputBytes) || actualOutputBytes > outputLimit) {
+    throw new Error("El WAV real supera el espacio restante para resultados; se rechazó antes de reservar el archivo de salida.");
+  }
+
+  const blob = encodePcm16Wav(decoded, outputChannels);
   if (blob.size > outputLimit) throw new Error("El WAV resultante supera el límite de espacio disponible para resultados.");
-  return { blob, duration: decoded.duration, sampleRate: decoded.sampleRate, channels: safeChannels(channels), sourceChannels: decoded.numberOfChannels };
+  const wavInfo = await validatePcm16WavBlob(blob, {
+    channels: outputChannels,
+    sampleRate: decoded.sampleRate
+  });
+  return {
+    blob,
+    duration: wavInfo.duration,
+    sampleRate: wavInfo.sampleRate,
+    channels: wavInfo.channels,
+    sourceChannels: decoded.numberOfChannels,
+    wavInfo
+  };
 }

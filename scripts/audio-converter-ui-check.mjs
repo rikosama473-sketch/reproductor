@@ -24,6 +24,8 @@ assert.match(app, /signal: converterAbortController\?\.signal/, "The converter m
 assert.match(engine, /throwIfConverterAborted\(signal\)/, "The engine must check cancellation before allocating decoded/output buffers.");
 assert.match(app, /createObjectURL\(blob\)/, "Converted output must be available as a downloadable file");
 assert.match(app, /URL\.revokeObjectURL\(url\)/, "Generated object URLs must be released");
+assert.match(engine, /validatePcm16WavBlob/, "Generated WAV output must be structurally verified before it is returned");
+assert.match(engine, /actualOutputBytes > outputLimit/, "Actual decoded frame count must be checked before WAV allocation");
 assert.match(engine, /RIFF/);
 assert.match(engine, /WAVE_FORMAT_PCM/);
 assert.match(engine, /MAX_CONVERTER_DURATION_SECONDS = 7 \* 60/);
