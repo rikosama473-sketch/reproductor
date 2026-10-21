@@ -468,7 +468,17 @@
             <option value="game-anime">Videojuegos / anime</option>
             <option value="experimental">Experimental</option>
           </optgroup>
+          <optgroup label="Mis perfiles guardados" id="eq-user-profiles" hidden></optgroup>
         </select></label>
+      <div class="eq-profile-saver">
+        <label for="eq-profile-name">Guardar los ajustes actuales como perfil</label>
+        <div class="eq-profile-controls">
+          <input id="eq-profile-name" class="form-input" type="text" maxlength="40" placeholder="Ej.: Piano suave de auriculares" autocomplete="off">
+          <button class="button button-soft" id="eq-profile-save" type="button">Guardar perfil</button>
+          <button class="button button-soft" id="eq-profile-delete" type="button" disabled>Eliminar guardado</button>
+        </div>
+        <p class="settings-note">Hasta 20 perfiles por dispositivo. Se guardan solo los tres valores de ecualización y no modifican los archivos originales.</p>
+      </div>
       <label class="eq-control" for="eq-bass"><span>Graves</span><output id="eq-bass-value">0 dB</output><input id="eq-bass" type="range" min="-12" max="12" step="1" value="0"></label>
       <label class="eq-control" for="eq-mid"><span>Medios / voces</span><output id="eq-mid-value">0 dB</output><input id="eq-mid" type="range" min="-12" max="12" step="1" value="0"></label>
       <label class="eq-control" for="eq-treble"><span>Agudos</span><output id="eq-treble-value">0 dB</output><input id="eq-treble" type="range" min="-12" max="12" step="1" value="0"></label>
