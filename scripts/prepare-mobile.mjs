@@ -72,7 +72,19 @@ for (const name of requiredFiles) {
   if (!info?.isFile()) throw new Error("El paquete web no contiene " + name);
 }
 
-const sw = await readFile(path.join(webDir, "sw.js"), "utf8");
+let sw = await readFile(path.join(webDir, "sw.js"), "utf8");
+if (!/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/.test(sw)) {
+  throw new Error("No se encontró una versión explícita del caché móvil en sw.js.");
+}
+sw = sw.replace(/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/, 'const CACHE_NAME = "ritmo-shell-v64";');
+if (!sw.includes('"./capacitor.js"') && !sw.includes("'./capacitor.js'")) {
+  const indexEntry = '  "./index.html",';
+  if (sw.split(indexEntry).length - 1 !== 1) {
+    throw new Error("No se pudo agregar capacitor.js al shell offline móvil.");
+  }
+  sw = sw.replace(indexEntry, indexEntry + '\n  "./capacitor.js",');
+}
+await writeFile(path.join(webDir, "sw.js"), sw, "utf8");
 const shellBlock = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
 if (!shellBlock) throw new Error("No se encontró APP_SHELL en sw.js.");
 const entries = [...shellBlock[1].matchAll(/["']\.\/([^"']*)["']/g)]
