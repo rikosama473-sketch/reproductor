@@ -121,6 +121,9 @@ assert.match(html, /id="eq-bass"/, "Audio settings must expose bass adjustment")
 assert.match(html, /id="eq-mid"/, "Audio settings must expose midrange adjustment");
 assert.match(html, /id="eq-treble"/, "Audio settings must expose treble adjustment");
 assert.match(html, /id="limiter-toggle"/, "Audio settings must expose soft peak limiting");
+assert.match(html, /Media3 Android no aplica este limitador/, "The UI must disclose that the soft limiter is not active in the native Android playback engine");
+assert.match(app, /Media3 Android no ofrece este limitador/, "Changing the limiter must explain its native-engine limitation when relevant");
+
 assert.match(html, /id="keep-screen-awake"/, "Playback settings must expose optional Wake Lock request");
 assert.match(html, /id="sleep-start"/, "Playback settings must provide a sleep timer");
 assert.match(html, /id="request-storage-button"/, "Storage settings must allow a user-directed persistent-storage request");
