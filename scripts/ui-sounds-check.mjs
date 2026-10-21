@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES, getUiSoundMinIntervalMs } from "../src/ui-sounds.js";
 
-assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette", "pizzicato", "ocarina", "woodblock", "nylon", "softkick", "marbles", "deepfm", "ripple"]);
+assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette", "pizzicato", "ocarina", "woodblock", "nylon", "softkick", "marbles", "deepfm", "ripple", "vibraphone", "shamisen", "reed", "mutedbrass", "framedrum", "pulsebass", "sweep", "circuit"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
   assert.ok(pack.label, key + " has a visible label");
   assert.ok(pack.description, key + " explains its sound");
@@ -79,6 +79,10 @@ for (const snippet of [
   '<option value="woodblock">Bloque de madera</option>', '<option value="nylon">Guitarra de nylon</option>',
   '<option value="softkick">Bombo acolchado</option>', '<option value="marbles">Canicas</option>',
   '<option value="deepfm">FM profunda</option>', '<option value="ripple">Ondulación</option>',
+  '<option value="vibraphone">Vibráfono aterciopelado</option>', '<option value="shamisen">Shamisen tenue</option>',
+  '<option value="reed">Caña suave</option>', '<option value="mutedbrass">Metal apagado</option>',
+  '<option value="framedrum">Tambor de marco</option>', '<option value="pulsebass">Bajo de circuito</option>',
+  '<option value="sweep">Barrido suave</option>', '<option value="circuit">Circuito digital</option>',
   '<option value="auto">Automático por género</option>', '<option value="soft">Suave y espaciado</option>',
   '<option value="pop">Pop animado</option>', '<option value="cyber">Cyber / electrónico</option>'
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
