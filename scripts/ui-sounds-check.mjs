@@ -35,13 +35,14 @@ assert.equal(getUiSoundMinIntervalMs("auto", "Punk Rock", "piano"), 210);
 assert.equal(getUiSoundMinIntervalMs("soft", "", "piano"), 240);
 
 const root = new URL("../", import.meta.url);
-const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.all([
+const [html, sw, prepare, mobileCheck, moduleSource, appSource, id3Source] = await Promise.all([
   readFile(new URL("index.html", root), "utf8"),
   readFile(new URL("sw.js", root), "utf8"),
   readFile(new URL("scripts/prepare-mobile.mjs", root), "utf8"),
   readFile(new URL("scripts/mobile-package-check.mjs", root), "utf8"),
   readFile(new URL("src/ui-sounds.js", root), "utf8"),
-  readFile(new URL("src/app.js", root), "utf8")
+  readFile(new URL("src/app.js", root), "utf8"),
+  readFile(new URL("src/id3-tags.js", root), "utf8")
 ]);
 assert.match(html, /88 perfiles discretos con ritmo ajustable/, "Settings copy should match the 80 implemented profiles");
 for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
@@ -112,7 +113,8 @@ assert.match(moduleSource, /accentIndex % 3 !== 0/, "Cyber accents must be spars
 assert.match(moduleSource, /if \(rhythm === "rock"\)/, "Rock rhythm needs a filtered fifth accent");
 assert.match(moduleSource, /resolveUiSoundRhythm\(rhythmPreference, currentMusicGenre, pack\)/);
 assert.match(moduleSource, /ritmo:track-context/);
-assert.match(appSource, /frameId === "TCON"/);
+assert.match(id3Source, /TCON: "genre"/, "ID3 parser must retain the genre text frame mapping");
+assert.match(id3Source, /function normalizeGenre\(value\)/, "Numeric ID3 genre codes must be normalized");
 assert.match(appSource, /genre: meta\.genre \|\| ""/);
 assert.match(appSource, /notifySoundTrackContext\(track\)/);
 assert.match(appSource, /radioTags: String\(track\?\.radioTags \|\| ""\)/);

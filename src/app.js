@@ -5,6 +5,7 @@ import { clearMediaSession, clearMediaSessionPositionState } from "./media-sessi
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
+import { parseId3Tags } from "./id3-tags.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
@@ -1728,44 +1729,14 @@ function nextTrack(direction = 1) {
 async function readMp3Tags(file, filename = file?.name || "") {
   const metadataName = String(filename || file?.name || "audio");
   const fallback = metadataForFile({ name: metadataName });
-  if (!/\.mp3$/i.test(metadataName) || file.size < 10) return fallback;
+  if (!/\.mp3$/i.test(metadataName) || !file || file.size < 10) return fallback;
   try {
+    // Only read the bounded ID3 prefix; never load the MP3 payload for metadata.
     const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer());
-    if (String.fromCharCode(bytes[0], bytes[1], bytes[2]) !== "ID3") return fallback;
-    const version = bytes[3];
-    const tagSize = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
-    let offset = 10;
-    const limit = Math.min(bytes.length, 10 + tagSize);
-    const parsed = { ...fallback, genre: "" };
-    function decodeText(data) {
-      if (!data.length) return "";
-      const encoding = data[0], payload = data.slice(1);
-      let decoder;
-      try { decoder = encoding === 0 ? new TextDecoder("windows-1252") : encoding === 1 ? new TextDecoder("utf-16") : encoding === 2 ? new TextDecoder("utf-16be") : new TextDecoder("utf-8"); }
-      catch { decoder = new TextDecoder(); }
-      return decoder.decode(payload).replace(/\u0000/g, "").trim();
-    }
-    while (offset + 10 <= limit) {
-      const frameId = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
-      if (!/^[A-Z0-9]{4}$/.test(frameId)) break;
-      const sizeBytes = bytes.slice(offset + 4, offset + 8);
-      const size = version === 4
-        ? ((sizeBytes[0] & 0x7f) << 21) | ((sizeBytes[1] & 0x7f) << 14) | ((sizeBytes[2] & 0x7f) << 7) | (sizeBytes[3] & 0x7f)
-        : ((sizeBytes[0] << 24) | (sizeBytes[1] << 16) | (sizeBytes[2] << 8) | sizeBytes[3]);
-      if (!size || size < 0 || offset + 10 + size > limit) break;
-      if (["TIT2", "TPE1", "TALB", "TCON"].includes(frameId)) {
-        const value = decodeText(bytes.slice(offset + 10, offset + 10 + size));
-        if (value) {
-          if (frameId === "TIT2") parsed.title = value;
-          if (frameId === "TPE1") parsed.artist = value;
-          if (frameId === "TALB") parsed.album = value;
-          if (frameId === "TCON") parsed.genre = normalizeId3Genre(value);
-        }
-      }
-      offset += 10 + size;
-    }
-    return parsed;
-  } catch { return fallback; }
+    return parseId3Tags(bytes, fallback);
+  } catch {
+    return fallback;
+  }
 }
 async function downloadStreamOffline(trackId) {
   const source = getTrack(trackId);
