@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { encodePcm16Wav } from "../src/audio-converter.js";
 
-function fakeBuffer(channels, samples, sampleRate = 44100) {
+function fakeBuffer(channelSamples, sampleRate = 44100) {
   return {
-    numberOfChannels: channels.length,
-    length: samples.length,
+    numberOfChannels: channelSamples.length,
+    length: channelSamples[0].length,
     sampleRate,
-    getChannelData(channel) { return Float32Array.from(samples, frame => frame[channel]); }
+    getChannelData(channel) { return Float32Array.from(channelSamples[channel]); }
   };
 }
-const mono = fakeBuffer([[ -1 ], [ 0 ], [ 1 ]], [[-1], [0], [1]]);
+const mono = fakeBuffer([[-1, 0, 1]]);
 const monoWav = encodePcm16Wav(mono, 1);
 assert.equal(monoWav.type, "audio/wav");
 const monoBytes = new DataView(await monoWav.arrayBuffer());
