@@ -4,8 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const androidRoot = path.join(root, "android");
-const config = JSON.parse(await readFile(path.join(root, "capacitor.config.json"), "utf8"));
+const androidRoot = path.resolve(process.env.RITMO_ANDROID_ROOT || path.join(root, "android"));
+const configPath = path.resolve(process.env.RITMO_CAPACITOR_CONFIG || path.join(root, "capacitor.config.json"));
+const config = JSON.parse(await readFile(configPath, "utf8"));
 assert.equal(config.appId, "com.rikosama473.ritmo", "El puente debe usar el package ID de Ritmo");
 const javaDirectory = path.join(androidRoot, "app", "src", "main", "java", ...config.appId.split("."));
 const targetJava = path.join(javaDirectory, "RitmoMusicLibraryPlugin.java");
