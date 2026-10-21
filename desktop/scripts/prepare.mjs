@@ -1,4 +1,4 @@
-import { cp, copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { cp, copyFile, mkdir, readdir, rm, stat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,14 +24,14 @@ for (const name of directories) {
   await cp(source, path.join(outputDir, name), { recursive: true });
 }
 
-const html = await import("node:fs/promises").then(fs => fs.readFile(path.join(outputDir, "index.html"), "utf8"));
+const html = await readFile(path.join(outputDir, "index.html"), "utf8");
 if (!html.includes('<script type="module" src="./src/app.js"></script>')) {
   throw new Error("La salida de PC debe cargar el módulo real de la aplicación.");
 }
 if (html.includes('<script src="./capacitor.js"></script>')) {
   throw new Error("La salida de PC no debe cargar el puente nativo de Android.");
 }
-const shell = await import("node:fs/promises").then(fs => fs.readFile(path.join(outputDir, "sw.js"), "utf8"));
+const shell = await readFile(path.join(outputDir, "sw.js"), "utf8");
 const block = shell.match(/const APP_SHELL = \[([\s\S]*?)\];/);
 if (!block) throw new Error("No se encontró APP_SHELL en el service worker para PC.");
 const entries = [...block[1].matchAll(/["']\.\/([^"']*)["']/g)].map(match => match[1]).filter(Boolean);
