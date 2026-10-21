@@ -4,7 +4,7 @@ import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
-import { findIdenticalBlobCandidate, importedFileFingerprint } from "./import-fingerprint.js";
+import { classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
@@ -2406,11 +2406,15 @@ async function browseAudioFolder() {
 }
 
 async function importFiles(fileList, options = {}) {
-  const files = [...fileList].filter(file =>
-    (typeof file?.type === "string" && file.type.startsWith("audio/")) ||
-    /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file?.name || "")
-  );
-  if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
+  const selection = classifyAudioImportFiles(fileList);
+  const files = selection.files;
+  const skippedEmptyFiles = selection.emptyFiles.length;
+  if (!files.length) {
+    toast(skippedEmptyFiles
+      ? "Se omitieron " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s); no se importó ninguno."
+      : "No encontré archivos de audio compatibles.");
+    return;
+  }
 
   const localTracks = state.tracks.filter(track => isLocal(track));
   const existing = new Set(localTracks.map(track => importedFileFingerprint(track)));
@@ -2464,6 +2468,7 @@ async function importFiles(fileList, options = {}) {
     if (skippedByIdentity) details.push(skippedByIdentity + " ya se reconocían por su ruta o identidad");
     if (skippedByContent) details.push(skippedByContent + " eran copias binarias idénticas");
     if (comparisonWarnings) details.push(comparisonWarnings + " comprobación(es) fallida(s); esos archivos no se descartaron");
+    if (skippedEmptyFiles) details.push(skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)");
     toast(details.length
       ? "No se importaron archivos nuevos: " + details.join(" · ") + "."
       : "Esos archivos ya están en tu biblioteca.");
@@ -2502,8 +2507,11 @@ async function importFiles(fileList, options = {}) {
     const comparisonNote = comparisonWarnings
       ? " · " + comparisonWarnings + " comprobación(es) no concluyentes; se conservaron"
       : "";
+    const emptyFilesNote = skippedEmptyFiles
+      ? " · " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)"
+      : "";
     toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " +
-      formatBytes(bytesSaved) + duplicateNote + comparisonNote + (failure ? " · importación parcial" : ""));
+      formatBytes(bytesSaved) + duplicateNote + comparisonNote + emptyFilesNote + (failure ? " · importación parcial" : ""));
     requestPersistentStorage().catch(() => {});
     if (!currentTrack()) showView("library");
   } else {

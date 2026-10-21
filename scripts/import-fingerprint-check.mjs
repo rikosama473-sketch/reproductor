@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { areBlobsByteIdentical, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -128,6 +128,26 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
     error => error?.name === "AbortError",
     "Explicit cancellation must propagate instead of being downgraded to a read warning"
   );
+}
+
+
+// Empty/unreadable audio files are separated before importing; unsupported
+// documents are not mislabeled as corrupt audio.
+{
+  const result = classifyAudioImportFiles([
+    { name: "track.mp3", type: "audio/mpeg", size: 1024 },
+    { name: "no-extension", type: "audio/ogg", size: 50 },
+    { name: "empty.mp3", type: "", size: 0 },
+    { name: "unknown-size.wav", type: "audio/wav", size: Number.NaN },
+    { name: "notes.txt", type: "text/plain", size: 400 },
+    { name: "cover.png", type: "image/png", size: 2048 }
+  ]);
+  assert.deepEqual(result.files.map(file => file.name), ["track.mp3", "no-extension"],
+    "Recognized audio files with nonzero known sizes should remain importable");
+  assert.deepEqual(result.emptyFiles.map(file => file.name), ["empty.mp3", "unknown-size.wav"],
+    "Empty or invalid-size audio entries should be rejected before persistence");
+  assert.equal(result.unsupportedCount, 2,
+    "Non-audio files should be counted as unsupported rather than corrupt audio");
 }
 
 console.log("Import fingerprint checks passed: folder paths, Android URIs and saved fallback identity.");

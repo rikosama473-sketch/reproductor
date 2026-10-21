@@ -98,3 +98,30 @@ export async function findIdenticalBlobCandidate(blob, candidates, options = {})
   }
   return { identical: false, comparisonFailed };
 }
+
+
+const SUPPORTED_AUDIO_EXTENSION = /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i;
+
+/**
+ * Separate supported audio selections from empty/unreadable audio files before
+ * metadata scans or persistence. FileList entries should be File objects.
+ */
+export function classifyAudioImportFiles(fileList) {
+  const files = [];
+  const emptyFiles = [];
+  let unsupportedCount = 0;
+  for (const file of Array.from(fileList || [])) {
+    const name = typeof file?.name === "string" ? file.name : "";
+    const type = typeof file?.type === "string" ? file.type : "";
+    if (!(type.startsWith("audio/") || SUPPORTED_AUDIO_EXTENSION.test(name))) {
+      unsupportedCount++;
+      continue;
+    }
+    if (!Number.isSafeInteger(file.size) || file.size <= 0) {
+      emptyFiles.push(file);
+      continue;
+    }
+    files.push(file);
+  }
+  return { files, emptyFiles, unsupportedCount };
+}
