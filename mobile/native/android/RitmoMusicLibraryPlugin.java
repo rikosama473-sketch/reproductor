@@ -1,6 +1,8 @@
 package com.rikosama473.ritmo;
 
 import android.Manifest;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ContentResolver;
@@ -8,12 +10,14 @@ import android.content.ContentUris;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.media.MediaMetadataRetriever;
 import android.os.Build;
 import android.provider.MediaStore;
 import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import android.provider.OpenableColumns;
 import android.webkit.MimeTypeMap;
+import android.util.Base64;
 
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSArray;
@@ -30,6 +34,7 @@ import com.getcapacitor.PluginMethod;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -48,6 +53,12 @@ import java.util.Set;
 )
 public class RitmoMusicLibraryPlugin extends Plugin {
     private static final int MAX_MEDIASTORE_RESULTS = 10000;
+    private static final int MAX_ARTWORK_RAW_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_ARTWORK_OUTPUT_BYTES = 512 * 1024;
+    private static final int MAX_ARTWORK_DIMENSION = 4096;
+    private static final long MAX_ARTWORK_PIXELS = 8_388_608L;
+    private static final int MAX_ARTWORK_DECODE_DIMENSION = 1024;
+    private static final long MAX_ARTWORK_DECODE_PIXELS = 1_048_576L;
     private static final long AUDIO_CACHE_ORPHAN_GRACE_MS = 60L * 60L * 1000L;
 
     private String audioPermissionAlias() {
@@ -443,6 +454,97 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             }
         }, "RitmoPruneAudioCache");
         worker.start();
+    }
+
+    @PluginMethod
+    public void getEmbeddedArtwork(PluginCall call) {
+        String rawUri = call.getString("uri");
+        String rawPath = call.getString("path");
+        final Uri sourceUri;
+        try {
+            if (rawUri != null && !rawUri.trim().isEmpty()) {
+                sourceUri = Uri.parse(rawUri.trim());
+            } else if (rawPath != null && !rawPath.trim().isEmpty()) {
+                sourceUri = Uri.fromFile(new File(rawPath.trim()));
+            } else {
+                call.reject("Android no recibió una URI o ruta para leer la portada.");
+                return;
+            }
+            if (sourceUri.getUserInfo() != null) {
+                call.reject("La URI de la portada no es válida.");
+                return;
+            }
+        } catch (Exception error) {
+            call.reject("No se pudo interpretar la URI de la portada.", error);
+            return;
+        }
+
+        Thread worker = new Thread(() -> {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+            try {
+                retriever.setDataSource(getContext(), sourceUri);
+                byte[] embedded = retriever.getEmbeddedPicture();
+                byte[] cover = normalizeEmbeddedArtwork(embedded);
+                JSObject result = new JSObject();
+                result.put("found", cover != null);
+                if (cover != null) {
+                    result.put("mimeType", "image/jpeg");
+                    result.put("base64", Base64.encodeToString(cover, Base64.NO_WRAP));
+                }
+                call.resolve(result);
+            } catch (Exception error) {
+                call.reject("No se pudo leer la portada incrustada del audio.", error);
+            } finally {
+                try { retriever.release(); } catch (Exception ignored) {}
+            }
+        }, "RitmoReadEmbeddedArtwork");
+        worker.start();
+    }
+
+    private static byte[] normalizeEmbeddedArtwork(byte[] encoded) {
+        if (encoded == null || encoded.length < 8 || encoded.length > MAX_ARTWORK_RAW_BYTES) return null;
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try {
+            BitmapFactory.decodeByteArray(encoded, 0, encoded.length, bounds);
+        } catch (RuntimeException error) {
+            return null;
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+            bounds.outWidth > MAX_ARTWORK_DIMENSION || bounds.outHeight > MAX_ARTWORK_DIMENSION ||
+            (long) bounds.outWidth * (long) bounds.outHeight > MAX_ARTWORK_PIXELS) return null;
+
+        int sampleSize = 1;
+        while ((bounds.outWidth + sampleSize - 1) / sampleSize > MAX_ARTWORK_DECODE_DIMENSION ||
+               (bounds.outHeight + sampleSize - 1) / sampleSize > MAX_ARTWORK_DECODE_DIMENSION ||
+               ((long) (bounds.outWidth + sampleSize - 1) / sampleSize) *
+                   ((long) (bounds.outHeight + sampleSize - 1) / sampleSize) > MAX_ARTWORK_DECODE_PIXELS) {
+            sampleSize *= 2;
+        }
+
+        BitmapFactory.Options decode = new BitmapFactory.Options();
+        decode.inSampleSize = sampleSize;
+        decode.inPreferredConfig = Bitmap.Config.RGB_565;
+        Bitmap bitmap;
+        try {
+            bitmap = BitmapFactory.decodeByteArray(encoded, 0, encoded.length, decode);
+        } catch (RuntimeException error) {
+            return null;
+        }
+        if (bitmap == null) return null;
+        try {
+            for (int quality = 85; quality >= 45; quality -= 10) {
+                ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(encoded.length, MAX_ARTWORK_OUTPUT_BYTES));
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)) return null;
+                byte[] result = output.toByteArray();
+                if (result.length <= MAX_ARTWORK_OUTPUT_BYTES) return result;
+            }
+            return null;
+        } catch (RuntimeException error) {
+            return null;
+        } finally {
+            bitmap.recycle();
+        }
     }
 
     @PluginMethod
