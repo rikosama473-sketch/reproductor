@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES } from "../src/ui-sounds.js";
 
-assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade"]);
+assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
   assert.ok(pack.label, key + " has a visible label");
   assert.ok(pack.description, key + " explains its sound");
@@ -65,12 +65,18 @@ for (const snippet of [
   '<option value="sakura">Sakura</option>', '<option value="shore">Ola mansa</option>',
   '<option value="holo">Holograma suave</option>', '<option value="softbit">8-bit aterciopelado</option>',
   '<option value="starglow">Brillo estelar</option>', '<option value="arcade">Arcade cálido</option>',
+  '<option value="harpsichord">Clavicémbalo mate</option>', '<option value="organ">Órgano vintage suave</option>',
+  '<option value="basspluck">Bajo redondo</option>', '<option value="taiko">Taiko amortiguado</option>',
+  '<option value="laser">Láser mate</option>', '<option value="terminal">Terminal silenciosa</option>',
+  '<option value="glitch">Glitch delicado</option>', '<option value="fmsoft">FM cristalino suave</option>',
+  '<option value="synthpop">Synth-pop cálido</option>', '<option value="neonpulse">Pulso neón</option>',
+  '<option value="dream">Sueño vaporoso</option>', '<option value="cassette">Casete analógico</option>',
   '<option value="auto">Automático por género</option>', '<option value="soft">Suave y espaciado</option>',
   '<option value="pop">Pop animado</option>', '<option value="cyber">Cyber / electrónico</option>'
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v55/);
+assert.match(sw, /ritmo-shell-v56/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
@@ -104,4 +110,4 @@ assert.match(moduleSource, /ritmo\.ui-sounds\.v2/);
 assert.match(moduleSource, /LEGACY_STORAGE_KEY = "ritmo\.ui-sounds\.v1"/);
 assert.match(moduleSource, /JSON\.parse\(legacy\), enabled: false/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-console.log("UI sound tests passed: 52 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
+console.log("UI sound tests passed: 64 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");

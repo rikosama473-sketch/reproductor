@@ -57,7 +57,19 @@ export const UI_SOUND_PACKS = Object.freeze({
   holo: Object.freeze({ label: "Holograma suave", description: "Deslizamiento electrónico discreto, sin pitido agudo." }),
   softbit: Object.freeze({ label: "8-bit aterciopelado", description: "Tono retro triangular, más redondo que una onda cuadrada." }),
   starglow: Object.freeze({ label: "Brillo estelar", description: "Dos destellos pequeños, cortos y con armónicos contenidos." }),
-  arcade: Object.freeze({ label: "Arcade cálido", description: "Confirmación retro grave y breve, sin ráfagas de tonos." })
+  arcade: Object.freeze({ label: "Arcade cálido", description: "Confirmación retro grave y breve, sin ráfagas de tonos." }),
+  harpsichord: Object.freeze({ label: "Clavicémbalo mate", description: "Cuerda pulsada barroca, breve y con agudos suavizados." }),
+  organ: Object.freeze({ label: "Órgano vintage suave", description: "Dos armónicos cálidos con ataque blando y sin cola larga." }),
+  basspluck: Object.freeze({ label: "Bajo redondo", description: "Nota grave de cuerda, amortiguada para no tapar voces." }),
+  taiko: Object.freeze({ label: "Taiko amortiguado", description: "Golpe grave sintetizado, sin impacto explosivo." }),
+  laser: Object.freeze({ label: "Láser mate", description: "Deslizamiento sci-fi corto, filtrado y de volumen contenido." }),
+  terminal: Object.freeze({ label: "Terminal silenciosa", description: "Clic digital seco, bajo y sin agudos incisivos." }),
+  glitch: Object.freeze({ label: "Glitch delicado", description: "Dos microcortes tonales, sin distorsión ni ráfagas." }),
+  fmsoft: Object.freeze({ label: "FM cristalino suave", description: "Campana digital redonda, sin frecuencia chillona." }),
+  synthpop: Object.freeze({ label: "Synth-pop cálido", description: "Pequeño intervalo de sintetizador, breve y redondeado." }),
+  neonpulse: Object.freeze({ label: "Pulso neón", description: "Impulso electrónico doble, bajo y de duración mínima." }),
+  dream: Object.freeze({ label: "Sueño vaporoso", description: "Dos notas suaves y breves, sin atmósfera continua." }),
+  cassette: Object.freeze({ label: "Casete analógico", description: "Textura de cinta filtrada, muy corta y casi táctil." })
 });
 
 export const UI_SOUND_RHYTHMS = Object.freeze({
@@ -67,7 +79,7 @@ export const UI_SOUND_RHYTHMS = Object.freeze({
   cyber: Object.freeze({ label: "Cyber / electrónico", description: "Usa dos micropulsos electrónicos de bajo nivel, solo al interactuar." })
 });
 
-const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog"]);
+const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse"]);
 
 function normalizedGenreText(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -506,6 +518,66 @@ function synthesize(context, pack, volume, documentRef, rhythmPreference = "auto
   }
   if (pack === "arcade") {
     addTone(context, masterGain, 246.94, { type: "triangle", endFrequency: 293.66, duration: 0.025, amplitude: 0.014, attack: 0.002, filterType: "lowpass", cutoff: 520 });
+    return;
+  }
+  if (pack === "harpsichord") {
+    const note = [293.66, 329.63, 369.99, 329.63][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.024, amplitude: 0.012, attack: 0.002, filterType: "lowpass", cutoff: 700 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.014, amplitude: 0.0018, attack: 0.002, filterType: "lowpass", cutoff: 840, delay: 0.004 });
+    return;
+  }
+  if (pack === "organ") {
+    addTone(context, masterGain, 196, { type: "sine", duration: 0.036, amplitude: 0.010, attack: 0.007, filterType: "lowpass", cutoff: 420 });
+    addTone(context, masterGain, 293.66, { type: "sine", duration: 0.028, amplitude: 0.003, attack: 0.007, filterType: "lowpass", cutoff: 510 });
+    return;
+  }
+  if (pack === "basspluck") {
+    const note = [110, 123.47, 130.81, 116.54][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.92, duration: 0.038, amplitude: 0.014, attack: 0.002, filterType: "lowpass", cutoff: 260 });
+    return;
+  }
+  if (pack === "taiko") {
+    addTone(context, masterGain, 116.54, { type: "triangle", endFrequency: 82.41, duration: 0.032, amplitude: 0.018, attack: 0.002, filterType: "lowpass", cutoff: 245 });
+    return;
+  }
+  if (pack === "laser") {
+    addTone(context, masterGain, 470, { type: "sine", endFrequency: 285, duration: 0.026, amplitude: 0.008, attack: 0.002, filterType: "lowpass", cutoff: 630 });
+    return;
+  }
+  if (pack === "terminal") {
+    addWoodClick(context, masterGain, { duration: 0.012, cutoff: 410, amplitude: 0.005 });
+    return;
+  }
+  if (pack === "glitch") {
+    addTone(context, masterGain, 310, { type: "sine", duration: 0.011, amplitude: 0.006, attack: 0.002, filterType: "lowpass", cutoff: 480 });
+    addTone(context, masterGain, 246.94, { type: "triangle", duration: 0.010, amplitude: 0.004, attack: 0.002, filterType: "lowpass", cutoff: 390, delay: 0.018 });
+    return;
+  }
+  if (pack === "fmsoft") {
+    const note = [246.94, 261.63, 293.66, 261.63][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.030, amplitude: 0.010, attack: 0.004, filterType: "lowpass", cutoff: 620 });
+    addTone(context, masterGain, note * 1.49, { type: "sine", duration: 0.018, amplitude: 0.002, attack: 0.004, filterType: "lowpass", cutoff: 690, delay: 0.003 });
+    return;
+  }
+  if (pack === "synthpop") {
+    const note = [329.63, 369.99, 392, 349.23][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.031, amplitude: 0.010, attack: 0.004, filterType: "lowpass", cutoff: 560 });
+    addTone(context, masterGain, note * 1.25, { type: "sine", duration: 0.024, amplitude: 0.0028, attack: 0.004, filterType: "lowpass", cutoff: 620, delay: 0.004 });
+    return;
+  }
+  if (pack === "neonpulse") {
+    addTone(context, masterGain, 392, { type: "sine", endFrequency: 440, duration: 0.016, amplitude: 0.007, attack: 0.002, filterType: "lowpass", cutoff: 640 });
+    addTone(context, masterGain, 293.66, { type: "sine", duration: 0.012, amplitude: 0.003, attack: 0.002, filterType: "lowpass", cutoff: 500, delay: 0.022 });
+    return;
+  }
+  if (pack === "dream") {
+    addTone(context, masterGain, 246.94, { type: "sine", endFrequency: 261.63, duration: 0.043, amplitude: 0.007, attack: 0.008, filterType: "lowpass", cutoff: 440 });
+    addTone(context, masterGain, 369.99, { type: "sine", duration: 0.022, amplitude: 0.0018, attack: 0.006, filterType: "lowpass", cutoff: 520, delay: 0.008 });
+    return;
+  }
+  if (pack === "cassette") {
+    addWoodClick(context, masterGain, { duration: 0.021, cutoff: 300, amplitude: 0.004 });
+    addTone(context, masterGain, 174.61, { type: "sine", endFrequency: 164.81, duration: 0.017, amplitude: 0.002, attack: 0.004, filterType: "lowpass", cutoff: 260, delay: 0.006 });
     return;
   }
   if (pack === "minimal") {

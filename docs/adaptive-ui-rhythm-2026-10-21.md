@@ -2,7 +2,7 @@
 **Fecha:** 21 de octubre de 2026
 
 ## Comportamiento
-Ritmo conserva la paleta de 52 timbres. La opción nueva **Ajustes → Sonidos de interfaz → Ritmo de respuesta** modifica el acento que acompaña a un clic:
+Ritmo conserva la paleta de 64 timbres. La cuarta tanda añade 12 timbres: Clavicémbalo mate, Órgano vintage suave, Bajo redondo, Taiko amortiguado, Láser mate, Terminal silenciosa, Glitch delicado, FM cristalino suave, Synth-pop cálido, Pulso neón, Sueño vaporoso y Casete analógico. La opción nueva **Ajustes → Sonidos de interfaz → Ritmo de respuesta** modifica el acento que acompaña a un clic:
 - **Automático por género:** reconoce categorías a partir de metadatos fiables de la pista. Pop activa un pequeño acento ascendente; géneros electrónicos conocidos activan dos micropulsos electrónicos.
 - **Suave y espaciado:** no añade acentos; permanece un único sonido de interfaz.
 - **Pop animado:** añade una sola nota ligera, breve y ascendente después del sonido base.
