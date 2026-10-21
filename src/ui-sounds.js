@@ -70,7 +70,7 @@ export const UI_SOUND_RHYTHMS = Object.freeze({
 const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog"]);
 
 function normalizedGenreText(value) {
-  return String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
 export function inferUiSoundRhythm(genre) {
