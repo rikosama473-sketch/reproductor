@@ -52,7 +52,7 @@ La ejecución posterior [39068069529](https://github.com/rikosama473-sketch/repr
 
 La primera APK solo utilizaba un `<input type="file">` HTML dentro del WebView. Además, `folder-picker` no estaba enlazado a ningún botón y no existía una consulta nativa a la biblioteca multimedia del dispositivo. Por eso no podía descubrir automáticamente los MP3 ya guardados.
 
-La solución incorpora `native/android/RitmoMusicLibraryPlugin.java` y lo registra en cada proyecto Android generado por `scripts/prepare-android-native.mjs`:
+La solución incorpora `mobile/native/android/RitmoMusicLibraryPlugin.java` y lo registra en cada proyecto Android generado por `scripts/prepare-android-native.mjs`:
 
 - **Buscar música del teléfono** solicita `READ_MEDIA_AUDIO` en Android 13+ y `READ_EXTERNAL_STORAGE` hasta Android 12; consulta `MediaStore.Audio.Media` y añade metadatos/URI de pistas indexadas.
 - **Importar archivos** abre `ACTION_OPEN_DOCUMENT`; el usuario puede navegar por carpetas y seleccionar varios archivos de audio. Después Ritmo importa sus bytes a IndexedDB para permitir escucha sin conexión.
@@ -126,3 +126,8 @@ Referencias de casos reales y soluciones publicadas por mantenedores:
 - AndroidX publicó la lista de cambios de Media3 1.11.1 con correcciones de reproducción y extractores: [notas oficiales](https://developer.android.com/jetpack/androidx/releases/media3).
 
 Ritmo aplica estas defensas en su propio plugin; no agrega una dependencia de selector de archivos adicional. La validación estática no reemplaza las pruebas con dispositivos y proveedores OEM reales.
+
+
+## Estructura de plataforma actual
+
+La configuración de Capacitor y el código Java específico de Android están aislados en `mobile/`; la salida Android se genera en `mobile/www/` y el proyecto nativo en `mobile/android/`. El empaquetador móvil usa un caché de Service Worker propio e incluye `capacitor.js` en el shell offline. La salida PC se prepara por separado en `desktop/dist/` y no depende del puente nativo.
