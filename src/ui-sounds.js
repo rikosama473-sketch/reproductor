@@ -3,7 +3,7 @@ const LEGACY_STORAGE_KEY = "ritmo.ui-sounds.v1";
 // Keep UI feedback secondary to music, dialogue, and voice-design previews.
 const MAX_OUTPUT_GAIN = 0.025;
 const MUSIC_DUCK_FACTOR = 0.04;
-const MIN_SOUND_INTERVAL_MS = 160;
+const MIN_SOUND_INTERVAL_MS = 150;
 
 export const UI_SOUND_PACKS = Object.freeze({
   piano: Object.freeze({ label: "Piano clásico", description: "Nota cálida, breve y amortiguada." }),
@@ -77,7 +77,15 @@ export const UI_SOUND_PACKS = Object.freeze({
   softkick: Object.freeze({ label: "Bombo acolchado", description: "Pulso grave y breve, sin explosión ni retumbo." }),
   marbles: Object.freeze({ label: "Canicas", description: "Dos pequeños tonos juguetones, suaves y separados." }),
   deepfm: Object.freeze({ label: "FM profunda", description: "Timbre digital grave y redondeado, sin pitido penetrante." }),
-  ripple: Object.freeze({ label: "Ondulación", description: "Barrido acuoso corto, con brillo limitado." })
+  ripple: Object.freeze({ label: "Ondulación", description: "Barrido acuoso corto, con brillo limitado." }),
+  vibraphone: Object.freeze({ label: "Vibráfono aterciopelado", description: "Nota redonda y breve, con un armónico suave." }),
+  shamisen: Object.freeze({ label: "Shamisen tenue", description: "Cuerda punteada sintética, seca y cálida." }),
+  reed: Object.freeze({ label: "Caña suave", description: "Tono orgánico bajo, sin brillo de silbido." }),
+  mutedbrass: Object.freeze({ label: "Metal apagado", description: "Pequeño tono de metales amortiguado, sin fanfarria." }),
+  framedrum: Object.freeze({ label: "Tambor de marco", description: "Pulso percusivo opaco, corto y sin retumbo." }),
+  pulsebass: Object.freeze({ label: "Bajo de circuito", description: "Pulso grave electrónico de caída rápida." }),
+  sweep: Object.freeze({ label: "Barrido suave", description: "Deslizamiento tonal descendente sin agudos incisivos." }),
+  circuit: Object.freeze({ label: "Circuito digital", description: "Dos micropulsos electrónicos de nivel muy bajo." })
 });
 
 export const UI_SOUND_RHYTHMS = Object.freeze({
@@ -87,7 +95,7 @@ export const UI_SOUND_RHYTHMS = Object.freeze({
   cyber: Object.freeze({ label: "Cyber / electrónico", description: "Usa dos micropulsos electrónicos de bajo nivel, solo al interactuar." })
 });
 
-const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "deepfm", "ripple"]);
+const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "deepfm", "ripple", "pulsebass", "sweep", "circuit"]);
 
 function normalizedGenreText(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -104,6 +112,15 @@ export function inferUiSoundRhythm(genre) {
 export function resolveUiSoundRhythm(preference, genre, pack = "piano") {
   if (preference && preference !== "auto" && Object.prototype.hasOwnProperty.call(UI_SOUND_RHYTHMS, preference)) return preference;
   return inferUiSoundRhythm(genre) || (CYBER_SOUND_PACKS.has(pack) ? "cyber" : "soft");
+}
+
+// Cap click density by mood: Pop feels more animated, Cyber a little quicker,
+// and soft ambience spaces events farther apart to avoid masking dialogue.
+export function getUiSoundMinIntervalMs(preference, genre, pack = "piano") {
+  const rhythm = resolveUiSoundRhythm(preference, genre, pack);
+  if (rhythm === "cyber") return MIN_SOUND_INTERVAL_MS;
+  if (rhythm === "pop") return 170;
+  return 240;
 }
 
 export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 15, rhythm: "auto" });
@@ -143,6 +160,7 @@ let noteIndex = 0;
 let lastAutomaticSoundAt = 0;
 let voicePreviewActive = false;
 let currentMusicGenre = "";
+let appPlaybackIsActive = false;
 let rhythmNoteIndex = 0;
 // Invalidates deferred AudioContext.resume() callbacks when settings or voice state changes.
 let soundRequestGeneration = 0;
@@ -228,7 +246,7 @@ function addWoodClick(context, output, options = {}) {
 
 function mediaIsPlayingOrEmbedded(documentRef) {
   const media = [...documentRef.querySelectorAll("audio, video")];
-  if (media.some(item => !item.paused && !item.ended)) return true;
+  if (appPlaybackIsActive || media.some(item => !item.paused && !item.ended)) return true;
   // Playback inside cross-origin embeds can't be inspected reliably, so be conservative.
   return Boolean(documentRef.querySelector(
     'iframe[src*="youtube.com/embed"], iframe[src*="youtube-nocookie.com/embed"], iframe[src*="open.spotify.com/embed"]'
@@ -628,6 +646,44 @@ function synthesize(context, pack, volume, documentRef, rhythmPreference = "auto
     addTone(context, masterGain, 330, { type: "sine", endFrequency: 261.63, duration: 0.026, amplitude: 0.004, attack: 0.004, filterType: "lowpass", cutoff: 430 });
     return;
   }
+  if (pack === "vibraphone") {
+    const note = [246.94, 261.63, 293.66, 261.63][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.031, amplitude: 0.006, attack: 0.004, filterType: "lowpass", cutoff: 670 });
+    addTone(context, masterGain, note * 1.49, { type: "sine", duration: 0.019, amplitude: 0.0015, attack: 0.004, filterType: "lowpass", cutoff: 790, delay: 0.003 });
+    return;
+  }
+  if (pack === "shamisen") {
+    const note = [196, 220, 246.94, 220][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.78, duration: 0.034, amplitude: 0.007, attack: 0.002, filterType: "lowpass", cutoff: 480 });
+    return;
+  }
+  if (pack === "reed") {
+    const note = [220, 246.94, 261.63, 246.94][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", endFrequency: note * 0.985, duration: 0.038, amplitude: 0.005, attack: 0.008, filterType: "lowpass", cutoff: 590 });
+    return;
+  }
+  if (pack === "mutedbrass") {
+    const note = [196, 220, 246.94, 220][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.029, amplitude: 0.005, attack: 0.006, filterType: "lowpass", cutoff: 390 });
+    return;
+  }
+  if (pack === "framedrum") {
+    addTone(context, masterGain, 130.81, { type: "sine", endFrequency: 91, duration: 0.028, amplitude: 0.006, attack: 0.002, filterType: "lowpass", cutoff: 210 });
+    return;
+  }
+  if (pack === "pulsebass") {
+    addTone(context, masterGain, 138.59, { type: "triangle", endFrequency: 110, duration: 0.025, amplitude: 0.006, attack: 0.002, filterType: "lowpass", cutoff: 250 });
+    return;
+  }
+  if (pack === "sweep") {
+    addTone(context, masterGain, 392, { type: "sine", endFrequency: 246.94, duration: 0.026, amplitude: 0.004, attack: 0.003, filterType: "lowpass", cutoff: 460 });
+    return;
+  }
+  if (pack === "circuit") {
+    addTone(context, masterGain, 261.63, { type: "sine", duration: 0.012, amplitude: 0.004, attack: 0.002, filterType: "lowpass", cutoff: 450 });
+    addTone(context, masterGain, 329.63, { type: "sine", duration: 0.010, amplitude: 0.0015, attack: 0.002, filterType: "lowpass", cutoff: 520, delay: 0.019 });
+    return;
+  }
   if (pack === "minimal") {
     addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.018, attack: 0.002, filterType: "lowpass", cutoff: 420 });
     return;
@@ -674,6 +730,20 @@ function initUiSounds(documentRef) {
         : "Sin género reconocible: se usa el modo suave. Podés elegir Pop o Cyber manualmente.";
     }
   };
+  globalThis.addEventListener?.("ritmo:playback-context", event => {
+    const wasPlaying = appPlaybackIsActive;
+    appPlaybackIsActive = event?.detail?.playing === true;
+    // If music starts while a UI note is still ringing, duck it immediately
+    // instead of waiting for the next click to recalculate master gain.
+    if (!wasPlaying && appPlaybackIsActive && audioContext && masterGain) {
+      const now = audioContext.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setTargetAtTime(
+        MAX_OUTPUT_GAIN * (preferences.volume / 100) * MUSIC_DUCK_FACTOR,
+        now, 0.003
+      );
+    }
+  });
   globalThis.addEventListener?.("ritmo:voice-preview-start", silenceUiEffectsForVoice);
   globalThis.addEventListener?.("ritmo:voice-preview-end", () => { voicePreviewActive = false; });
   globalThis.addEventListener?.("ritmo:track-context", event => {
@@ -724,7 +794,8 @@ function initUiSounds(documentRef) {
         target.getAttribute("aria-disabled") === "true" ||
         target.closest("[data-no-ui-sound], #voice-studio, .companion-settings-section, .character-companion, .eq-control, .settings-check, .settings-switch")) return;
     const now = Date.now();
-    if (now - lastAutomaticSoundAt < MIN_SOUND_INTERVAL_MS) return;
+    const minInterval = getUiSoundMinIntervalMs(preferences.rhythm, currentMusicGenre, preferences.pack);
+    if (now - lastAutomaticSoundAt < minInterval) return;
     lastAutomaticSoundAt = now;
     playUiSound(preferences, documentRef);
   }, true);

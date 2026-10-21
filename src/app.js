@@ -1289,6 +1289,19 @@ function updatePlayer() {
   const spotifyControlled = Boolean(spotifySession && spotifyControllerReady);
   const externalSession = Boolean(youtubeSession || spotifySession);
   const hasMedia = Boolean(track || youtubeSession || spotifyControlled);
+  // Let UI sounds know about every playback engine. Native Media3 playback
+  // has no active HTMLMediaElement, so DOM-only ducking misses it on Android.
+  const uiSoundPlaybackSource = state.nativePlayback.active ? "native"
+    : youtubeSession ? "youtube"
+      : spotifyControlled ? "spotify"
+        : track ? "local" : "none";
+  const uiSoundIsPlaying = state.nativePlayback.active ? Boolean(state.nativePlayback.isPlaying)
+    : youtubeSession ? youtubeMediaPlaybackState === "playing"
+      : spotifyControlled ? spotifyMediaPlaybackState === "playing"
+        : Boolean(track && !audio.paused && !audio.ended);
+  window.dispatchEvent(new CustomEvent("ritmo:playback-context", {
+    detail: { playing: uiSoundIsPlaying, source: uiSoundPlaybackSource }
+  }));
   syncCharacterCompanion(hasMedia && !playbackIsPaused());
   $("#player-title").textContent = track ? track.title : youtubeSession ? youtubeSession.title : spotifySession ? (spotifySession.title || spotifySession.label) : "Todavía no suena nada";
   $("#player-artist").textContent = track ? (track.artist || sourceLabel(track)) : youtubeSession ? "YouTube · Video online" : spotifySession ? "Spotify · Reproductor oficial" : "Elegí una canción de tu biblioteca";
