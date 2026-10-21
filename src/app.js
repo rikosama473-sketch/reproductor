@@ -4,7 +4,7 @@ import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
-import { importedFileFingerprint } from "./import-fingerprint.js";
+import { areBlobsByteIdentical, importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
@@ -2406,15 +2406,84 @@ async function browseAudioFolder() {
 }
 
 async function importFiles(fileList, options = {}) {
-  const files = [...fileList].filter(file => file.type.startsWith("audio/") || /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file.name));
+  const files = [...fileList].filter(file =>
+    (typeof file?.type === "string" && file.type.startsWith("audio/")) ||
+    /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file?.name || "")
+  );
   if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
-  const existing = new Set(state.tracks.filter(track => isLocal(track)).map(track => importedFileFingerprint(track)));
+
+  const localTracks = state.tracks.filter(track => isLocal(track));
+  const existing = new Set(localTracks.map(track => importedFileFingerprint(track)));
+  const candidatesBySize = new Map();
+  const registerCandidate = blob => {
+    if (!blob || typeof blob.slice !== "function" ||
+        !Number.isSafeInteger(Number(blob.size)) || Number(blob.size) <= 0) return;
+    const size = Number(blob.size);
+    const bucket = candidatesBySize.get(size) || [];
+    bucket.push(blob);
+    candidatesBySize.set(size, bucket);
+  };
+  // Browser-imported files keep a Blob, so they can be compared exactly in
+  // bounded chunks. Native Android records without accessible bytes stay URI-based.
+  for (const track of localTracks) registerCandidate(track.blob);
+
   const uniqueFiles = [];
+  let skippedByIdentity = 0;
+  let skippedByContent = 0;
+  let comparisonWarnings = 0;
+  let comparisonStatusShown = false;
   for (const file of files) {
     const fingerprint = importedFileFingerprint(file, options);
-    if (!existing.has(fingerprint)) { existing.add(fingerprint); uniqueFiles.push(file); }
+    if (existing.has(fingerprint)) {
+      skippedByIdentity++;
+      continue;
+    }
+
+    const fileSize = Number(file.size);
+    const candidates = Number.isSafeInteger(fileSize) && fileSize > 0
+      ? (candidatesBySize.get(fileSize) || [])
+      : [];
+    let identicalContent = false;
+    let comparisonFailed = false;
+    if (candidates.length && !comparisonStatusShown) {
+      toast("Comprobando copias idénticas por contenido…");
+      comparisonStatusShown = true;
+    }
+    for (const candidate of candidates) {
+      try {
+        if (await areBlobsByteIdentical(file, candidate)) {
+          identicalContent = true;
+          break;
+        }
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        // If a provider refuses to read a candidate, keep the new item rather
+        // than risk throwing away audio whose identity could not be verified.
+        comparisonFailed = true;
+      }
+    }
+    if (comparisonFailed) comparisonWarnings++;
+    if (identicalContent) {
+      skippedByContent++;
+      existing.add(fingerprint);
+      continue;
+    }
+    existing.add(fingerprint);
+    uniqueFiles.push(file);
+    registerCandidate(file);
   }
-  if (!uniqueFiles.length) { toast("Esos archivos ya están en tu biblioteca."); return; }
+
+  if (!uniqueFiles.length) {
+    const details = [];
+    if (skippedByIdentity) details.push(skippedByIdentity + " ya se reconocían por su ruta o identidad");
+    if (skippedByContent) details.push(skippedByContent + " eran copias binarias idénticas");
+    if (comparisonWarnings) details.push(comparisonWarnings + " comprobación(es) fallida(s); esos archivos no se descartaron");
+    toast(details.length
+      ? "No se importaron archivos nuevos: " + details.join(" · ") + "."
+      : "Esos archivos ya están en tu biblioteca.");
+    return;
+  }
+
   let saved = 0, bytesSaved = 0, failure = null;
   const BATCH_SIZE = 20;
   for (let offset = 0; offset < uniqueFiles.length; offset += BATCH_SIZE) {
@@ -2441,11 +2510,20 @@ async function importFiles(fileList, options = {}) {
   try { state.tracks = await getAllTracks(); } catch {}
   render();
   if (saved) {
-    toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " + formatBytes(bytesSaved) + (failure ? " · importación parcial" : ""));
+    const duplicateNote = skippedByContent
+      ? " · " + skippedByContent + " copia(s) idéntica(s) omitida(s)"
+      : "";
+    const comparisonNote = comparisonWarnings
+      ? " · " + comparisonWarnings + " comprobación(es) no concluyentes; se conservaron"
+      : "";
+    toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " +
+      formatBytes(bytesSaved) + duplicateNote + comparisonNote + (failure ? " · importación parcial" : ""));
     requestPersistentStorage().catch(() => {});
     if (!currentTrack()) showView("library");
   } else {
-    toast(failure?.name === "QuotaExceededError" ? "No hay espacio suficiente en el navegador. Importá menos archivos por vez o liberá almacenamiento." : (failure?.message || "No se pudo importar la música."));
+    toast(failure?.name === "QuotaExceededError"
+      ? "No hay espacio suficiente en el navegador. Importá menos archivos por vez o liberá almacenamiento."
+      : (failure?.message || "No se pudo importar la música."));
   }
 }
 async function removeCurrent() {

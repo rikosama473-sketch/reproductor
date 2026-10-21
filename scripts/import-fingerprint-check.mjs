@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { importedFileFingerprint } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -53,4 +53,54 @@ assert.equal(
 const uriTrackA = { nativeUri: "content://media/audio/100", sourcePath: "same.mp3", name: "same.mp3", size: 900, lastModified: modified };
 const uriTrackB = { nativeUri: "content://media/audio/101", sourcePath: "same.mp3", name: "same.mp3", size: 900, lastModified: modified };
 assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriTrackB), "Native URI identities must stay distinct");
+
+// Exact duplicate detection compares every byte in bounded chunks, rather than
+// trusting equal filenames, sizes, modification times, or only a sampled prefix.
+{
+  const source = new Uint8Array(700 * 1024 + 37);
+  for (let index = 0; index < source.length; index++) source[index] = (index * 31 + 7) & 0xff;
+  const original = new Blob([source]);
+  const renamedCopy = new Blob([source.slice()]);
+  assert.equal(await areBlobsByteIdentical(original, renamedCopy, { chunkSize: 64 * 1024 }), true,
+    "Different names do not affect a byte-identical file comparison");
+
+  const changedTail = source.slice();
+  changedTail[changedTail.length - 1] ^= 0xff;
+  assert.equal(await areBlobsByteIdentical(original, new Blob([changedTail]), { chunkSize: 64 * 1024 }), false,
+    "A difference in the final chunk must not be missed");
+  assert.equal(await areBlobsByteIdentical(original, new Blob([source.slice(0, -1)])), false,
+    "Different byte lengths cannot be identical");
+  assert.equal(await areBlobsByteIdentical(new Blob([]), new Blob([])), false,
+    "Empty files are not treated as useful duplicate audio candidates");
+
+  let chunksRead = 0;
+  const boundedReader = {
+    size: source.length,
+    slice(start, end) {
+      assert.ok(end - start <= MAX_BLOB_COMPARE_CHUNK_BYTES,
+        "The comparator must never request a chunk larger than its memory bound");
+      chunksRead++;
+      return new Blob([source.slice(start, end)]);
+    }
+  };
+  assert.equal(await areBlobsByteIdentical(boundedReader, original, { chunkSize: 64 * 1024 }), true);
+  assert.equal(chunksRead, Math.ceil(source.length / (64 * 1024)),
+    "Only one bounded slice per chunk should be read from the instrumented Blob");
+
+  const controller = new AbortController();
+  const abortingBlob = {
+    size: source.length,
+    slice(start, end) {
+      const chunk = new Blob([source.slice(start, end)]);
+      if (start === 0) controller.abort();
+      return chunk;
+    }
+  };
+  await assert.rejects(
+    areBlobsByteIdentical(abortingBlob, original, { chunkSize: 64 * 1024, signal: controller.signal }),
+    error => error?.name === "AbortError",
+    "Cancellation during a chunk read must stop the comparison before the next chunk"
+  );
+}
+
 console.log("Import fingerprint checks passed: folder paths, Android URIs and saved fallback identity.");
