@@ -70,7 +70,7 @@ for (const snippet of [
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v54/);
+assert.match(sw, /ritmo-shell-v55/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
@@ -84,6 +84,9 @@ assert.match(appSource, /frameId === "TCON"/);
 assert.match(appSource, /genre: meta\.genre \|\| ""/);
 assert.match(appSource, /notifySoundTrackContext\(track\)/);
 assert.match(appSource, /radioTags: String\(track\?\.radioTags \|\| ""\)/);
+assert.match(appSource, /function backfillTrackGenre\(track\)/, "Existing library tracks can acquire genre tags lazily");
+assert.match(appSource, /readMp3Tags\(track\.blob, track\.name\)/, "Existing local MP3 metadata is read without re-importing");
+assert.match(appSource, /async function readMp3Tags\(file, filename = file\?\.name \|\| ""\)/, "ID3 parsing accepts the stored track filename for blob-backed files");
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
