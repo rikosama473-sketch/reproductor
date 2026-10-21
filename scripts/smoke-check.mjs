@@ -16,6 +16,11 @@ const appIcon = fs.readFileSync(new URL("../assets/icon.svg", import.meta.url), 
 const deployWorkflow = fs.readFileSync(new URL("../.github/workflows/deploy-pages.yml", import.meta.url), "utf8");
 const validateWorkflow = fs.readFileSync(new URL("../.github/workflows/validate.yml", import.meta.url), "utf8");
 
+// A rerun of a GitHub Pages workflow preserves artifacts from earlier attempts.
+// Upload and deploy the attempt-specific artifact to avoid duplicate-name failures.
+assert.match(deployWorkflow, /name: github-pages-\$\{\{ github\.run_attempt \}\}/, "Pages artifact names must be unique for each workflow attempt");
+assert.match(deployWorkflow, /artifact_name: github-pages-\$\{\{ github\.run_attempt \}\}/, "Pages deployment must select the current attempt's artifact");
+
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
 const usedIds = new Set([...app.matchAll(/\$\("#([a-zA-Z0-9_-]+)"\)/g)].map(match => match[1]));
 const missingIds = [...usedIds].filter(id => !ids.has(id));
