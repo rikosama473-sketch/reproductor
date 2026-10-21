@@ -35,6 +35,8 @@ const syntaxChecks = [
   "scripts/import-fingerprint-check.mjs",
   "scripts/id3-tags-check.mjs",
   "scripts/audio-converter-check.mjs",
+  "scripts/audio-converter-ui-check.mjs",
+  "scripts/audio-converter-ui-check.mjs",
   "scripts/async-generation-gate-check.mjs",
   "scripts/youtube-player-errors-check.mjs",
   "scripts/online-services-check.mjs",
