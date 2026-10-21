@@ -85,14 +85,23 @@ export const UI_SOUND_PACKS = Object.freeze({
   framedrum: Object.freeze({ label: "Tambor de marco", description: "Pulso percusivo opaco, corto y sin retumbo." }),
   pulsebass: Object.freeze({ label: "Bajo de circuito", description: "Pulso grave electrónico de caída rápida." }),
   sweep: Object.freeze({ label: "Barrido suave", description: "Deslizamiento tonal descendente sin agudos incisivos." }),
-  circuit: Object.freeze({ label: "Circuito digital", description: "Dos micropulsos electrónicos de nivel muy bajo." })
+  circuit: Object.freeze({ label: "Circuito digital", description: "Dos micropulsos electrónicos de nivel muy bajo." }),
+  sax: Object.freeze({ label: "Saxo aterciopelado", description: "Tono cálido de caña, filtrado para evitar agudos estridentes." }),
+  cello: Object.freeze({ label: "Chelo cálido", description: "Cuerda grave breve, con un armónico discreto y caída rápida." }),
+  clavinet: Object.freeze({ label: "Clavinet suave", description: "Nota percusiva de teclado eléctrico, seca y redondeada." }),
+  glockenspiel: Object.freeze({ label: "Metalófono mate", description: "Destello metálico de registro medio, con brillo y duración limitados." }),
+  conga: Object.freeze({ label: "Conga acolchada", description: "Golpecito percusivo grave, sin ataque explosivo." }),
+  synthbass: Object.freeze({ label: "Subgrave sintético", description: "Pulso muy corto y bajo, con graves controlados." }),
+  softpad: Object.freeze({ label: "Pad de seda", description: "Acorde sintético muy breve, suave y sin fondo continuo." }),
+  tubular: Object.freeze({ label: "Campana tubular tenue", description: "Resonancia tonal corta, apagada y de volumen contenido." })
 });
 
 export const UI_SOUND_RHYTHMS = Object.freeze({
   auto: Object.freeze({ label: "Automático por género", description: "Usa etiquetas fiables de la pista; si faltan, mantiene un pulso discreto." }),
   soft: Object.freeze({ label: "Suave y espaciado", description: "Sin notas adicionales: un solo efecto breve por acción." }),
   pop: Object.freeze({ label: "Pop animado", description: "Añade un pequeño acento ascendente y corto a algunas respuestas de interfaz." }),
-  cyber: Object.freeze({ label: "Cyber / electrónico", description: "Usa dos micropulsos electrónicos de bajo nivel, solo al interactuar." })
+  rock: Object.freeze({ label: "Rock / punk suave", description: "Acento breve de quinta, filtrado y muy bajo; no crea una base rítmica." }),
+  cyber: Object.freeze({ label: "Cyber / electrónico", description: "Añade micropulsos electrónicos breves en algunas interacciones." })
 });
 
 const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "deepfm", "ripple", "pulsebass", "sweep", "circuit"]);
@@ -106,6 +115,7 @@ export function inferUiSoundRhythm(genre) {
   if (!text) return null;
   if (/\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum.?and.?bass|dnb|tech.?house|house|breakbeat)\b/.test(text)) return "cyber";
   if (/\b(pop|k-pop|j-pop|dance.?pop|pop.?rock|teen.?pop|electropop|popular)\b/.test(text)) return "pop";
+  if (/\b(rock|punk|metal|grunge|hardcore|emo|alternative)\b/.test(text)) return "rock";
   return null;
 }
 
@@ -120,6 +130,7 @@ export function getUiSoundMinIntervalMs(preference, genre, pack = "piano") {
   const rhythm = resolveUiSoundRhythm(preference, genre, pack);
   if (rhythm === "cyber") return MIN_SOUND_INTERVAL_MS;
   if (rhythm === "pop") return 170;
+  if (rhythm === "rock") return 210;
   return 240;
 }
 
@@ -162,6 +173,7 @@ let voicePreviewActive = false;
 let currentMusicGenre = "";
 let appPlaybackIsActive = false;
 let rhythmNoteIndex = 0;
+let rhythmAccentIndex = 0;
 // Invalidates deferred AudioContext.resume() callbacks when settings or voice state changes.
 let soundRequestGeneration = 0;
 const pianoNotes = [392, 440, 493.88, 587.33, 523.25, 440, 493.88, 659.25];
@@ -267,17 +279,29 @@ function silenceUiEffectsForVoice() {
 }
 
 function addRhythmAccent(context, output, rhythm) {
+  if (!["pop", "rock", "cyber"].includes(rhythm)) return;
+  // A denser mood must not mean a second sound on every click.
+  const accentIndex = rhythmAccentIndex++;
   if (rhythm === "pop") {
+    if (accentIndex % 2 !== 0) return;
     const notes = [493.88, 587.33, 523.25, 659.25];
     const note = notes[rhythmNoteIndex++ % notes.length];
-    addTone(context, output, note, { type: "sine", duration: 0.016, amplitude: 0.010, attack: 0.002, filterType: "lowpass", cutoff: 920, delay: 0.014 });
+    addTone(context, output, note, { type: "sine", duration: 0.016, amplitude: 0.008, attack: 0.002, filterType: "lowpass", cutoff: 850, delay: 0.014 });
+    return;
+  }
+  if (rhythm === "rock") {
+    if (accentIndex % 2 !== 0) return;
+    const root = [146.83, 164.81, 174.61, 196][rhythmNoteIndex++ % 4];
+    addTone(context, output, root, { type: "triangle", duration: 0.018, amplitude: 0.006, attack: 0.002, filterType: "lowpass", cutoff: 520, delay: 0.012 });
+    addTone(context, output, root * 1.5, { type: "sine", duration: 0.014, amplitude: 0.002, attack: 0.002, filterType: "lowpass", cutoff: 560, delay: 0.014 });
     return;
   }
   if (rhythm === "cyber") {
+    if (accentIndex % 3 !== 0) return;
     const notes = [392, 440, 349.23, 493.88];
     const note = notes[rhythmNoteIndex++ % notes.length];
-    addTone(context, output, note, { type: "sine", endFrequency: note * 0.96, duration: 0.014, amplitude: 0.007, attack: 0.002, filterType: "lowpass", cutoff: 690, delay: 0.012 });
-    addTone(context, output, note * 1.25, { type: "sine", duration: 0.011, amplitude: 0.0025, attack: 0.002, filterType: "lowpass", cutoff: 760, delay: 0.031 });
+    addTone(context, output, note, { type: "sine", endFrequency: note * 0.96, duration: 0.014, amplitude: 0.0055, attack: 0.002, filterType: "lowpass", cutoff: 650, delay: 0.012 });
+    addTone(context, output, note * 1.25, { type: "sine", duration: 0.011, amplitude: 0.0018, attack: 0.002, filterType: "lowpass", cutoff: 720, delay: 0.031 });
   }
 }
 
@@ -688,6 +712,49 @@ function synthesize(context, pack, volume, documentRef, rhythmPreference = "auto
     addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.018, attack: 0.002, filterType: "lowpass", cutoff: 420 });
     return;
   }
+  if (pack === "sax") {
+    const note = [196, 220, 246.94, 220][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sawtooth", duration: 0.042, amplitude: 0.022, attack: 0.006, filterType: "lowpass", cutoff: 560, q: 0.45 });
+    return;
+  }
+  if (pack === "cello") {
+    const note = [164.81, 196, 220, 196][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.96, duration: 0.052, amplitude: 0.024, attack: 0.008, filterType: "lowpass", cutoff: 520 });
+    addTone(context, masterGain, note * 1.5, { type: "sine", duration: 0.029, amplitude: 0.005, attack: 0.004, filterType: "lowpass", cutoff: 700 });
+    return;
+  }
+  if (pack === "clavinet") {
+    const note = [196, 220, 246.94, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.76, duration: 0.032, amplitude: 0.024, attack: 0.002, filterType: "lowpass", cutoff: 620 });
+    return;
+  }
+  if (pack === "glockenspiel") {
+    const note = [392, 440, 493.88, 523.25][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.034, amplitude: 0.015, attack: 0.003, filterType: "lowpass", cutoff: 1050 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.019, amplitude: 0.0035, attack: 0.002, filterType: "lowpass", cutoff: 1450 });
+    return;
+  }
+  if (pack === "conga") {
+    addWoodClick(context, masterGain, { duration: 0.029, cutoff: 260, amplitude: 0.012 });
+    return;
+  }
+  if (pack === "synthbass") {
+    const note = [92.5, 82.41, 98, 87.31][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", endFrequency: note * 0.76, duration: 0.038, amplitude: 0.022, attack: 0.002, filterType: "lowpass", cutoff: 175 });
+    return;
+  }
+  if (pack === "softpad") {
+    const note = [220, 246.94, 261.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.038, amplitude: 0.012, attack: 0.009, filterType: "lowpass", cutoff: 430 });
+    addTone(context, masterGain, note * 1.25, { type: "sine", duration: 0.028, amplitude: 0.004, attack: 0.009, filterType: "lowpass", cutoff: 490 });
+    return;
+  }
+  if (pack === "tubular") {
+    const note = [220, 246.94, 261.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", duration: 0.043, amplitude: 0.017, attack: 0.004, filterType: "lowpass", cutoff: 680 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.024, amplitude: 0.0035, attack: 0.004, filterType: "lowpass", cutoff: 1000 });
+    return;
+  }
 }
 
 function playUiSound(preferences, documentRef) {
@@ -727,7 +794,7 @@ function initUiSounds(documentRef) {
       const fallback = resolveUiSoundRhythm("auto", "", preferences.pack);
       rhythmStatus.textContent = fallback === "cyber"
         ? "Sin género reconocible: se usa Cyber por el estilo de efecto elegido."
-        : "Sin género reconocible: se usa el modo suave. Podés elegir Pop o Cyber manualmente.";
+        : "Sin género reconocible: se usa el modo suave. Podés elegir Rock, Pop o Cyber manualmente.";
     }
   };
   globalThis.addEventListener?.("ritmo:playback-context", event => {
