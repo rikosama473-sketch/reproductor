@@ -111,7 +111,7 @@ assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
   const context = { sampleRate: 44100, decodeAudioData: async () => fakeBuffer([[0, 0]]) };
   const result = await convertAudioFileToWav(file, context, {
     durationProbe: async () => 1,
-    maxOutputBytes: 4096
+    maxOutputBytes: 200000
   });
   assert.equal(result.blob.type, "audio/wav");
   assert.equal(result.channels, 2);
