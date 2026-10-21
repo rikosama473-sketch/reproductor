@@ -87,6 +87,16 @@ const coverV24 = parseId3Tags(tag(4, [apic("image/jpeg", 3, jpeg, 4)]), fallback
 assert.equal(coverV24.artworkMimeType, "image/jpeg");
 assert.deepEqual([...coverV24.artwork], [...jpeg]);
 
+const utf16Description = Uint8Array.from([
+  1, ...new TextEncoder().encode("image/png"), 0, 3,
+  0xff,0xfe, 0x43,0, 0x6f,0, 0x76,0, 0x65,0, 0x72,0, 0,0,
+  ...png
+]);
+const coverUtf16Description = parseId3Tags(tag(3, [rawFrame("APIC", utf16Description, 3)]), fallback);
+assert.equal(coverUtf16Description.artworkMimeType, "image/png", "UTF-16 descriptions must not misalign the APIC binary payload");
+assert.deepEqual([...coverUtf16Description.artwork], [...png]);
+
+
 const unsynchronisedJpeg = Uint8Array.from([0xff,0xd8,0xff,0x00,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46]);
 const coverUnsynchronised = parseId3Tags(tag(4, [apic("image/jpeg", 3, unsynchronisedJpeg, 4, "", 0x02)], 0), fallback);
 assert.equal(coverUnsynchronised.artworkMimeType, "image/jpeg");
