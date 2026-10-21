@@ -5,7 +5,7 @@ import { clearMediaSession, clearMediaSessionPositionState } from "./media-sessi
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
-import { parseId3Tags, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
+import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
@@ -145,6 +145,7 @@ function getTrack(trackId) { return state.tracks.find(track => track.id === trac
 function currentTrack() { return getTrack(state.currentId); }
 const trackGenreReadsInProgress = new Set();
 const artworkObjectUrls = new Map();
+const nativeArtworkReadsInProgress = new Set();
 function notifySoundTrackContext(track) {
   window.dispatchEvent(new CustomEvent("ritmo:track-context", {
     detail: { genre: String(track?.genre || ""), radioTags: String(track?.radioTags || "") }
@@ -184,6 +185,53 @@ function backfillTrackGenre(track) {
     });
   }).catch(() => {}).finally(() => trackGenreReadsInProgress.delete(track.id));
 }
+function decodeNativeArtworkBase64(value, mimeType) {
+  const base64 = String(value || "");
+  const maxEncodedLength = Math.ceil(MAX_EMBEDDED_ARTWORK_BYTES / 3) * 4;
+  if (!base64 || base64.length > maxEncodedLength || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 !== 0) return null;
+  try {
+    const binary = atob(base64);
+    if (binary.length > MAX_EMBEDDED_ARTWORK_BYTES) return null;
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    return validateEmbeddedArtwork(bytes, mimeType);
+  } catch {
+    return null;
+  }
+}
+function backfillNativeTrackArtwork(track) {
+  if (!track || track.artworkBlob instanceof Blob || track.nativeArtworkScanned === true ||
+      (!track.nativeUri && !track.nativePath) || nativeArtworkReadsInProgress.has(track.id)) return;
+  const plugin = nativeMusicPlugin();
+  if (!plugin?.getEmbeddedArtwork) return;
+  nativeArtworkReadsInProgress.add(track.id);
+  void plugin.getEmbeddedArtwork({ uri: String(track.nativeUri || ""), path: String(track.nativePath || "") }).then(async result => {
+    const current = getTrack(track.id);
+    if (!current || current.artworkBlob instanceof Blob || current.nativeArtworkScanned === true) return;
+    const bytes = result?.found === true
+      ? decodeNativeArtworkBase64(result.base64, result.mimeType)
+      : null;
+    if (bytes) {
+      const mimeType = String(result.mimeType).toLowerCase();
+      current.artworkBlob = new Blob([bytes], { type: mimeType });
+      current.artworkInvalid = false;
+    }
+    current.nativeArtworkScanned = true;
+    await saveTrack(current);
+    if (!getTrack(current.id)) return;
+    render();
+    if (state.currentId === current.id) {
+      state.mediaSessionArtworkUrl = "";
+      state.mediaSessionTrackId = null;
+      updateMediaSession();
+    }
+  }).catch(error => {
+    // File permissions can expire for document providers. Leave the track
+    // retryable on the next play rather than persisting a false "no cover".
+    console.debug("No se pudo leer la portada nativa de " + track.name + ".", error);
+  }).finally(() => nativeArtworkReadsInProgress.delete(track.id));
+}
+
 function isLocal(track) {
   return track?.kind === "file" && (
     track.blob instanceof Blob ||
@@ -211,7 +259,8 @@ function nativeMusicPlugin() {
       pickAudioFolder: invoke("pickAudioFolder"),
       listAudioFromTree: invoke("listAudioFromTree"),
       resolveAudioPath: invoke("resolveAudioPath"),
-      pruneAudioCache: invoke("pruneAudioCache")
+      pruneAudioCache: invoke("pruneAudioCache"),
+      getEmbeddedArtwork: invoke("getEmbeddedArtwork")
     };
   }
   return state.nativeMusicPlugin;
@@ -1873,6 +1922,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   state.currentId = track.id;
   notifySoundTrackContext(track);
   backfillTrackGenre(track);
+  backfillNativeTrackArtwork(track);
   try {
     if (useNativePlayer) {
       // Pass MediaStore/SAF URI directly to Media3 instead of copying audio into app cache.
