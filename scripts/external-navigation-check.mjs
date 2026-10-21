@@ -26,7 +26,7 @@ for (const value of rejected) assert.equal(normalizeExternalMediaUrl(value), nul
 assert.equal(normalizeExternalMediaUrl("x".repeat(2049)), null);
 
 const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
-const native = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
+const native = await readFile(new URL("../mobile/native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
 const mobilePackage = await readFile(new URL("../scripts/prepare-android-native.mjs", import.meta.url), "utf8");
 const serviceWorker = await readFile(new URL("../sw.js", import.meta.url), "utf8");
 
