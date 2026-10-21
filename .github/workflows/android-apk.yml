@@ -37,43 +37,34 @@ jobs:
       - name: Install required Android platform and build tools
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install pinned Capacitor dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install pinned Capacitor dependencies for mobile
+        run: npm install --prefix mobile --no-audit --no-fund
 
-      - name: Run the shared validation and regression suite
+      - name: Run shared validation and both platform package checks
         run: npm run validate
 
-      - name: Prepare web assets
-        run: npm run prepare:web
+      - name: Create isolated Android project and install native playback
+        run: npm --prefix mobile run android:init
 
-      - name: Generate native Android project
-        run: npx cap add android
-
-      - name: Install native audio library bridge and Android permissions
-        run: node scripts/prepare-android-native.mjs
-
-      - name: Synchronize Capacitor project
-        run: npx cap sync android
+      - name: Verify repeatable Capacitor sync from mobile folder
+        run: npm --prefix mobile run android:sync
 
       - name: Set unique app version for this build
         env:
           RITMO_VERSION_CODE: ${{ github.run_number }}
           RITMO_VERSION_NAME: 1.0.${{ github.run_number }}
-        run: node scripts/configure-android.mjs
+        run: npm --prefix mobile run android:configure
 
       - name: Build debug APK
         run: |
-          cd android
+          cd mobile/android
           ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Verify APK signature and create checksum
-        env:
-          RITMO_VERSION_CODE: ${{ github.run_number }}
-          RITMO_VERSION_NAME: 1.0.${{ github.run_number }}
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Ritmo-android-debug.apk
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk dist/Ritmo-android-debug.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose dist/Ritmo-android-debug.apk
           sha256sum dist/Ritmo-android-debug.apk > dist/Ritmo-android-debug.apk.sha256
           node --input-type=module <<'NODE'
@@ -83,10 +74,11 @@ jobs:
             applicationId: "com.rikosama473.ritmo",
             commit: process.env.GITHUB_SHA,
             workflowRun: process.env.GITHUB_RUN_NUMBER,
-            versionCode: Number(process.env.RITMO_VERSION_CODE),
-            versionName: process.env.RITMO_VERSION_NAME,
+            versionCode: Number(process.env.GITHUB_RUN_NUMBER),
+            versionName: "1.0." + process.env.GITHUB_RUN_NUMBER,
             buildType: "debug",
-            signing: "Android debug signing; not a Play Store release key"
+            signing: "Android debug signing; not a Play Store release key",
+            projectDirectory: "mobile/"
           };
           await writeFile("dist/build-info.json", JSON.stringify(metadata, null, 2) + "\n");
           NODE
