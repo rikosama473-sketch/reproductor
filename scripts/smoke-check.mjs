@@ -93,6 +93,10 @@ assert.match(app, /if \(item\.persisted === true\)[\s\S]*nativeUri: uri,/, "Pers
 assert.match(app, /function renderFormatCapabilities/, "The app should report device audio format support");
 assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
 assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
+assert.match(app, /import \{ parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES \}/, "Browser and native cover extraction must share the safe raster-image validator");
+assert.match(app, /function decodeNativeArtworkBase64\(value, mimeType\)/, "Native cover bytes must be decoded under the same size limit");
+assert.match(app, /validateEmbeddedArtwork\(bytes, mimeType\)/, "Native cover bytes must not bypass signature and dimension validation");
+
 assert.match(app, /MAX_EMBEDDED_ARTWORK_BYTES/, "Embedded artwork reads must have a strict memory limit");
 const id3ArtworkSource = fs.readFileSync(new URL("../src/id3-tags.js", import.meta.url), "utf8");
 assert.match(id3ArtworkSource, /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
