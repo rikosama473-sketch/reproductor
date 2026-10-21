@@ -23,6 +23,14 @@ export const UI_SOUND_PACKS = Object.freeze({
   bamboo: Object.freeze({ label: "Bambú", description: "Toque hueco de madera, breve y cálido." }),
   vinyl: Object.freeze({ label: "Vinilo suave", description: "Pequeña textura analógica con graves discretos." }),
   chord: Object.freeze({ label: "Acorde sereno", description: "Dos notas tenues para confirmar una acción." }),
+  koto: Object.freeze({ label: "Koto tenue", description: "Cuerda sintética pulsada, cálida y sin resonancia larga." }),
+  shakuhachi: Object.freeze({ label: "Flauta de bambú suave", description: "Tono soplado sintético, redondo y sin agudos penetrantes." }),
+  kalimba: Object.freeze({ label: "Kalimba suave", description: "Pequeña nota de lámina con un final amortiguado." }),
+  breeze: Object.freeze({ label: "Brisa", description: "Soplo filtrado muy bajo, corto y sin silbidos." }),
+  paper: Object.freeze({ label: "Toque de papel", description: "Golpe seco y apagado, casi táctil." }),
+  sonar: Object.freeze({ label: "Sonar discreto", description: "Pulso electrónico descendente y breve." }),
+  night: Object.freeze({ label: "Noche tranquila", description: "Par de tonos graves muy suaves para una interfaz serena." }),
+  double: Object.freeze({ label: "Señal doble", description: "Dos tonos simultáneos muy breves, limitados en volumen." }),
   retro: Object.freeze({ label: "Retro 8-bit", description: "Tono de videojuego clásico, muy corto." }),
   warm: Object.freeze({ label: "Sintetizador cálido", description: "Pulso redondo, sin agudos agresivos." }),
   drum: Object.freeze({ label: "Percusión amortiguada", description: "Toque grave, corto y suave, parecido a un botón acolchado." }),
@@ -271,6 +279,44 @@ function synthesize(context, pack, volume, documentRef) {
     const note = [293.66, 329.63, 349.23, 392][noteIndex++ % 4];
     addTone(context, masterGain, note, { type: "triangle", duration: 0.045, amplitude: 0.023, attack: 0.003, filterType: "lowpass", cutoff: 720 });
     addTone(context, masterGain, note * 1.5, { type: "sine", duration: 0.03, amplitude: 0.009, attack: 0.003, filterType: "lowpass", cutoff: 980 });
+    return;
+  }
+  if (pack === "koto") {
+    const note = [293.66, 329.63, 392, 440][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.84, duration: 0.041, amplitude: 0.03, attack: 0.002, filterType: "lowpass", cutoff: 720 });
+    return;
+  }
+  if (pack === "shakuhachi") {
+    const note = [261.63, 293.66, 329.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", endFrequency: note * 0.98, duration: 0.046, amplitude: 0.018, attack: 0.008, filterType: "lowpass", cutoff: 650 });
+    return;
+  }
+  if (pack === "kalimba") {
+    const note = [523.25, 587.33, 659.25, 587.33][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", duration: 0.043, amplitude: 0.03, attack: 0.003, filterType: "lowpass", cutoff: 1050 });
+    addTone(context, masterGain, note * 2, { type: "sine", duration: 0.022, amplitude: 0.006, attack: 0.002, filterType: "lowpass", cutoff: 1350 });
+    return;
+  }
+  if (pack === "breeze") {
+    addWoodClick(context, masterGain, { duration: 0.047, cutoff: 430, amplitude: 0.014 });
+    return;
+  }
+  if (pack === "paper") {
+    addWoodClick(context, masterGain, { duration: 0.023, cutoff: 590, amplitude: 0.014 });
+    return;
+  }
+  if (pack === "sonar") {
+    addTone(context, masterGain, 440, { type: "sine", endFrequency: 330, duration: 0.045, amplitude: 0.021, attack: 0.003, filterType: "lowpass", cutoff: 740 });
+    return;
+  }
+  if (pack === "night") {
+    addTone(context, masterGain, 261.63, { type: "sine", duration: 0.047, amplitude: 0.014, attack: 0.006, filterType: "lowpass", cutoff: 520 });
+    addTone(context, masterGain, 392, { type: "sine", duration: 0.028, amplitude: 0.0045, attack: 0.005, filterType: "lowpass", cutoff: 620 });
+    return;
+  }
+  if (pack === "double") {
+    addTone(context, masterGain, 329.63, { type: "sine", duration: 0.026, amplitude: 0.014, attack: 0.002, filterType: "lowpass", cutoff: 700 });
+    addTone(context, masterGain, 392, { type: "sine", duration: 0.022, amplitude: 0.008, attack: 0.002, filterType: "lowpass", cutoff: 900 });
     return;
   }
   if (pack === "retro") {
