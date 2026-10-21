@@ -14,6 +14,31 @@ function safeChannels(value) {
 }
 
 /**
+ * Reserve a Windows-safe WAV download name. The caller owns the Set for one
+ * conversion batch; its keys are normalized, case-insensitive filenames.
+ */
+export function claimUniqueWavFilename(name, usedNames = new Set()) {
+  if (!(usedNames instanceof Set)) throw new TypeError("La lista de nombres reservados no es válida.");
+  const rawBase = String(name || "audio")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+    .replace(/[. ]+$/g, "")
+    .trim()
+    .slice(0, 100);
+  let base = rawBase || "audio";
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(base)) base = "_" + base;
+  const key = value => value.normalize("NFC").toLowerCase();
+  let filename = base + ".wav";
+  let suffix = 2;
+  while (usedNames.has(key(filename))) {
+    const marker = " (" + suffix++ + ")";
+    filename = base.slice(0, Math.max(1, 100 - marker.length)) + marker + ".wav";
+  }
+  usedNames.add(key(filename));
+  return filename;
+}
+
+/**
  * Read local-file duration from media metadata before allocating a decoded
  * AudioBuffer. The conversion path fails closed when the browser cannot report
  * a finite duration, rather than risking a large decode on an uncertain file.
