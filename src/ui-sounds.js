@@ -60,7 +60,7 @@ export const UI_SOUND_PACKS = Object.freeze({
   arcade: Object.freeze({ label: "Arcade cálido", description: "Confirmación retro grave y breve, sin ráfagas de tonos." })
 });
 
-export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 20 });
+export const DEFAULT_UI_SOUND_PREFERENCES = Object.freeze({ enabled: false, pack: "piano", volume: 15 });
 
 export function normalizeUiSoundPreferences(value) {
   const source = value && typeof value === "object" ? value : {};
