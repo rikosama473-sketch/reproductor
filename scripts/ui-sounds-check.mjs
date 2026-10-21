@@ -38,7 +38,7 @@ const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.
   readFile(new URL("src/ui-sounds.js", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8")
 ]);
-assert.match(html, /80 perfiles discretos con ritmo ajustable/, "Settings copy should match the 64 implemented profiles");
+assert.match(html, /80 perfiles discretos con ritmo ajustable/, "Settings copy should match the 80 implemented profiles");
 for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
   assert.match(html, new RegExp('id="' + selector + '"'));
 }
