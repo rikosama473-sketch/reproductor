@@ -226,3 +226,13 @@ __marimo__/
 /.gradle/
 *.jks
 /keystore.properties
+
+# Independent platform packaging outputs
+/mobile/node_modules/
+/mobile/www/
+/mobile/android/
+/mobile/.gradle/
+/mobile/keystore.properties
+/mobile/*.jks
+/desktop/node_modules/
+/desktop/dist/
