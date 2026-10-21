@@ -146,24 +146,37 @@ export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
   view.setUint32(40, dataBytes, true);
 
   const sourceChannels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) => audioBuffer.getChannelData(index));
+  const sourceChannelCount = sourceChannels.length;
+  const surroundGain = Math.SQRT1_2;
   let offset = 44;
   for (let frame = 0; frame < frames; frame++) {
     for (let channel = 0; channel < channels; channel++) {
       let sample;
-      if (sourceChannels.length === 1) sample = sourceChannels[0][frame];
-      else if (channels === 1) {
-        let sum = 0;
-        for (const source of sourceChannels) sum += source[frame];
-        sample = sum / sourceChannels.length;
-      } else if (sourceChannels.length === 2) sample = sourceChannels[channel][frame];
-      else {
-        // Fold multichannel input down to stereo without allocating another full buffer.
-        let sum = 0, count = 0;
-        for (let source = channel; source < sourceChannels.length; source += 2) {
-          sum += sourceChannels[source][frame];
-          count++;
-        }
-        sample = count ? sum / count : 0;
+      if (sourceChannelCount === 1) {
+        // Duplicate mono for stereo output; mono remains unchanged.
+        sample = sourceChannels[0][frame];
+      } else if (sourceChannelCount === 2) {
+        sample = channels === 1
+          ? 0.5 * (sourceChannels[0][frame] + sourceChannels[1][frame])
+          : sourceChannels[channel][frame];
+      } else if (sourceChannelCount === 4) {
+        // Standard Web Audio quad order: L, R, surround-L, surround-R.
+        sample = channels === 1
+          ? 0.25 * (sourceChannels[0][frame] + sourceChannels[1][frame] +
+            sourceChannels[2][frame] + sourceChannels[3][frame])
+          : 0.5 * (sourceChannels[channel][frame] + sourceChannels[channel + 2][frame]);
+      } else if (sourceChannelCount === 6) {
+        // Standard Web Audio 5.1 order: L, R, C, LFE, surround-L, surround-R.
+        // LFE is omitted when down-mixing to mono/stereo, as defined by Web Audio.
+        sample = channels === 1
+          ? surroundGain * (sourceChannels[0][frame] + sourceChannels[1][frame]) +
+            sourceChannels[2][frame] + 0.5 * (sourceChannels[4][frame] + sourceChannels[5][frame])
+          : sourceChannels[channel][frame] + surroundGain *
+            (sourceChannels[2][frame] + sourceChannels[channel === 0 ? 4 : 5][frame]);
+      } else {
+        // Unknown layouts are not assumed to be surround speakers: preserve
+        // only the matching output channel(s), rather than misrouting center/LFE.
+        sample = sourceChannelCount > channel ? sourceChannels[channel][frame] : 0;
       }
       if (!Number.isFinite(sample)) sample = 0;
       sample = Math.max(-1, Math.min(1, sample));
