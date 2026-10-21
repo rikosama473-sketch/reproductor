@@ -26,10 +26,19 @@ function decodeText(frame) {
     else return "";
     // Text frames may contain multiple values separated by NUL. Keep a readable
     // single-line value for the library instead of exposing control characters.
-    return decoder.decode(payload).replace(/\u0000/g, " / ").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").replace(/\s*\/\s*/g, " / ").trim().replace(/(?:\s\/\s)+$/g, "");
+    return decoder.decode(payload).replace(/\u0000+/g, " / ").replace(/[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").replace(/(?:\s\/\s)+$/g, "").trim();
   } catch {
     return "";
   }
+}
+function normalizeGenre(value) {
+  const raw = String(value || "").trim();
+  const numeric = raw.match(/^\(?(\d{1,3})\)?$/);
+  if (numeric) {
+    const knownGenres = { 3: "Dance", 4: "Disco", 13: "Pop", 17: "Rock", 18: "Techno", 19: "Industrial", 20: "Alternative", 25: "Euro-Techno", 26: "Ambient", 31: "Trance", 38: "Electronic", 52: "Electronic", 80: "Folk" };
+    return knownGenres[Number(numeric[1])] || "";
+  }
+  return raw.replace(/^\(\d+\)\s*/, "").trim();
 }
 function removeUnsynchronisation(bytes) {
   const result = new Uint8Array(bytes.length);
@@ -98,7 +107,7 @@ export function parseId3Tags(input, fallback = {}) {
       let payload = bytes.subarray(offset + headerSize, offset + headerSize + frameSize);
       if ((flags & 0x80) || (version === 4 && (bytes[offset + 9] & 0x02))) payload = removeUnsynchronisation(payload);
       const value = decodeText(payload);
-      if (value) result[mappedField] = value;
+      if (value) result[mappedField] = mappedField === "genre" ? normalizeGenre(value) : value;
     }
     offset += headerSize + frameSize;
   }
