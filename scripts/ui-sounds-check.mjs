@@ -60,7 +60,7 @@ assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
 assert.match(moduleSource, /MAX_OUTPUT_GAIN \* \(volume \/ 100\) \* \(activeMusic \? MUSIC_DUCK_FACTOR : 1\)/, "Effects must be automatically attenuated while media plays");
-assert.match(moduleSource, /if \(volume <= 0 \|\| voiceOutputIsActive\(\)\) return/, "Effects must stay silent while a voice preview or system speech is active");
+assert.match(moduleSource, /if \(preferences\.volume <= 0 \|\| voiceOutputIsActive\(\)\) return/, "Effects must stay silent while a voice preview or system speech is active");
 assert.match(moduleSource, /#voice-studio, \.companion-settings-section, \.character-companion/, "Voice and character design controls must remain silent");
 
 assert.match(moduleSource, /globalThis\.speechSynthesis\?\.speaking/);
