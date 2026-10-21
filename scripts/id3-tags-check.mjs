@@ -4,7 +4,7 @@ import { parseId3Tags } from "../src/id3-tags.js";
 const fallback = { title: "Filename title", artist: "Unknown artist", album: "", genre: "" };
 const synchsafe = value => [(value >> 21) & 0x7f, (value >> 14) & 0x7f, (value >> 7) & 0x7f, value & 0x7f];
 const frame = (id, text, version = 3) => {
-  const payload = Uint8Array.from([3, ...new TextEncoder().encode(text)]);
+  const payload = Uint8Array.from([version === 2 ? 0 : 3, ...new TextEncoder().encode(text)]);
   const size = version === 2
     ? [(payload.length >> 16) & 255, (payload.length >> 8) & 255, payload.length & 255]
     : version === 4 ? synchsafe(payload.length) : [(payload.length >>> 24) & 255, (payload.length >>> 16) & 255, (payload.length >>> 8) & 255, payload.length & 255];
