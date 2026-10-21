@@ -6,8 +6,6 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags } from "./id3-tags.js";
-import { parseId3Tags } from "./id3-tags.js";
-import { parseId3Tags } from "./id3-tags.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
