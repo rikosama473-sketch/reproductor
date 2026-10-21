@@ -6,7 +6,7 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
 import { parseId3Tags } from "./id3-tags.js";
-import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES } from "./audio-converter.js";
+import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
@@ -87,6 +87,7 @@ let converterCancelRequested = false;
 let converterAudioContext = null;
 let converterOutputUrls = [];
 let converterOutputBytes = 0;
+let converterOutputFilenames = new Set();
 
 
 function escapeHTML(value) {
@@ -1517,10 +1518,7 @@ function clearConverterOutputUrls() {
   for (const url of converterOutputUrls) URL.revokeObjectURL(url);
   converterOutputUrls = [];
   converterOutputBytes = 0;
-}
-function safeWavFilename(name) {
-  const base = String(name || "audio").replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/[. ]+$/g, "").trim().slice(0, 100);
-  return (base || "audio") + ".wav";
+  converterOutputFilenames = new Set();
 }
 function renderConverterSelection(preserveStatus = false) {
   const list = $("#converter-file-list");
@@ -1585,7 +1583,7 @@ function appendConverterResult(fileName, detail, blob = null, tone = "success") 
     converterOutputUrls.push(url);
     const link = document.createElement("a");
     link.href = url;
-    link.download = safeWavFilename(fileName);
+    link.download = claimUniqueWavFilename(fileName, converterOutputFilenames);
     link.textContent = "Descargar WAV";
     link.setAttribute("aria-label", "Descargar WAV convertido de " + fileName);
     item.append(link);
