@@ -245,7 +245,7 @@ assert.match(app, /setOutputVolume\(audioPrefs\.volume\)/, "Startup should apply
 assert.match(app, /function releaseUnusedObjectURLs/, "The player should release object URLs for tracks that are no longer active");
 assert.match(app, /releaseUnusedObjectURLs\(isLocal\(track\) \? track\.id : null\)/, "Track changes should retain a blob URL only for the active local track");
 assert.match(importFingerprint, /export function importedFileFingerprint/, "Import deduplication should expose a reusable path-aware fingerprint module");
-assert.match(app, /import \{ importedFileFingerprint \} from "\.\/import-fingerprint\.js"/, "The app should use the shared import fingerprint module");
+assert.match(app, /import \{[^}]*\bimportedFileFingerprint\b[^}]*\} from "\.\/import-fingerprint\.js"/, "The app should use the shared import fingerprint module");
 assert.match(app, /function nativeEqualizerPayload\(\)/, "Native playback must share saved equalizer settings with Media3");
 assert.match(app, /setEqualizer: invoke\("setEqualizer"\)/, "The UI must update the Android EQ without switching engines");
 assert.match(importFingerprint, /source\.webkitRelativePath \|\| source\.sourcePath/, "Folder imports should distinguish identical filenames in different folders");
