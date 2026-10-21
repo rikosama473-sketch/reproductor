@@ -102,6 +102,11 @@ console.log("History, playlists, mobile controls, and offline format checks pass
 assert.match(html, /id="settings-dialog"/, "Settings dialog should exist");
 assert.match(html, /id="eq-enabled"/, "Audio settings must expose equalizer enable control");
 assert.match(html, /id="eq-preset"/, "Audio settings must expose selectable equalizer presets");
+for (const preset of ["clean", "piano", "classical", "orchestral", "cinematic", "electronic", "cyberpunk", "synthwave", "ambient", "game-anime", "experimental"]) {
+  assert.match(html, new RegExp('option value="' + preset + '"'), "Settings UI must expose the " + preset + " sound profile");
+}
+assert.match(app, /presetName === "clean"/, "Clean mode must bypass EQ and limiter instead of merely setting gains to zero");
+
 assert.match(eqPresets, /acoustic:[\s\S]*pop:[\s\S]*rock:[\s\S]*classical:[\s\S]*jazz:/, "Equalizer must provide genre presets");
 assert.match(app, /getEqualizerPreset\(presetName\)/, "Preset selection must apply a real equalizer profile");
 assert.match(app, /audioPrefs\.eqPreset = "custom"/, "Manual slider changes must identify the setting as custom");
