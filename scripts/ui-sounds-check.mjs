@@ -60,7 +60,7 @@ assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
 assert.match(moduleSource, /MAX_OUTPUT_GAIN = 0\.025/);
-assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.06/);
+assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.04/);
 assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 160/);
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
