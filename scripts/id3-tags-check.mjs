@@ -29,8 +29,19 @@ const rawFrame = (id, payload, version = 3, frameFlags = 0) => {
     ...payload
   ]);
 };
-const png = Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x01,0x02,0x03]);
-const jpeg = Uint8Array.from([0xff,0xd8,0xff,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46]);
+const pngHeader = (width, height) => Uint8Array.from([
+  0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a, 0,0,0,13,
+  0x49,0x48,0x44,0x52,
+  (width >>> 24) & 255,(width >>> 16) & 255,(width >>> 8) & 255,width & 255,
+  (height >>> 24) & 255,(height >>> 16) & 255,(height >>> 8) & 255,height & 255,
+  8,6,0,0,0
+]);
+const png = pngHeader(1, 1);
+const jpegWithDimensions = (width, height) => Uint8Array.from([
+  0xff,0xd8,0xff,0xc0,0,11,8,(height >>> 8) & 255,height & 255,
+  (width >>> 8) & 255,width & 255,1,1,0x11,0,0xff,0xd9
+]);
+const jpeg = jpegWithDimensions(1, 1);
 const apic = (mime, pictureType, data, version = 3, description = "", frameFlags = 0) => {
   const encoding = 0;
   return rawFrame(version === 2 ? "PIC" : "APIC", Uint8Array.from([
@@ -97,10 +108,11 @@ assert.equal(coverUtf16Description.artworkMimeType, "image/png", "UTF-16 descrip
 assert.deepEqual([...coverUtf16Description.artwork], [...png]);
 
 
-const unsynchronisedJpeg = Uint8Array.from([0xff,0xd8,0xff,0x00,0xe0,0x00,0x10,0x4a,0x46,0x49,0x46]);
+const unsynchronisedJpeg = Uint8Array.from([0xff,0xd8,0xff,0x00,0xe0,0x00,0x04,0x4a,0x46, ...jpeg.slice(2)]);
+const jpegWithApp0 = Uint8Array.from([0xff,0xd8,0xff,0xe0,0x00,0x04,0x4a,0x46, ...jpeg.slice(2)]);
 const coverUnsynchronised = parseId3Tags(tag(4, [apic("image/jpeg", 3, unsynchronisedJpeg, 4, "", 0x02)], 0), fallback);
 assert.equal(coverUnsynchronised.artworkMimeType, "image/jpeg");
-assert.deepEqual([...coverUnsynchronised.artwork], [...jpeg], "Remove ID3v2.4 picture-frame unsynchronisation safely");
+assert.deepEqual([...coverUnsynchronised.artwork], [...jpegWithApp0], "Remove ID3v2.4 picture-frame unsynchronisation safely");
 
 const externalPicture = rawFrame("APIC", Uint8Array.from([
   0, ...new TextEncoder().encode("-->"), 0, 3, 0,
@@ -116,5 +128,11 @@ assert.equal(parseId3Tags(tag(3, [mismatchedPicture]), fallback).artwork, undefi
 const giantPicture = Uint8Array.from([0xff,0xd8,0xff, ...new Uint8Array(MAX_EMBEDDED_ARTWORK_BYTES)]);
 assert.equal(parseId3Tags(tag(3, [apic("image/jpeg", 3, giantPicture)]), fallback).artwork, undefined,
   "Reject embedded artwork above the bounded per-image size");
+
+assert.equal(parseId3Tags(tag(3, [apic("image/png", 3, pngHeader(5000, 1))]), fallback).artwork, undefined,
+  "Reject images exceeding the per-dimension safety limit before UI decode");
+assert.equal(parseId3Tags(tag(3, [apic("image/jpeg", 3, jpegWithDimensions(4097, 1))]), fallback).artwork, undefined,
+  "Reject JPEG dimensions above the mobile-safe limit");
+
 
 console.log("ID3 parser tests passed: v2.2/v2.3/v2.4 text frames, JPEG/PNG artwork, front-cover preference, unsynchronisation, bad signatures, external links and size limits.");
