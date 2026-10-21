@@ -5,7 +5,7 @@ import { clearMediaSession, clearMediaSessionPositionState } from "./media-sessi
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
 import { importedFileFingerprint } from "./import-fingerprint.js";
-import { parseId3Tags } from "./id3-tags.js";
+import { parseId3Tags, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
@@ -76,7 +76,7 @@ function loadAudioPreferences() {
 const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
-const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, nativeMusicPlugin: null, nativePlayerPlugin: null,
+const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, mediaSessionArtworkUrl: "", nativeMusicPlugin: null, nativePlayerPlugin: null,
   nativePlayback: { active: false, isPlaying: false, currentTime: 0, duration: 0, playbackState: "idle", trackId: null, endedHandled: false } };
  
 const LIBRARY_VIEW_KEY = "ritmo.library-view.v1";
@@ -144,21 +144,43 @@ function normalizeId3Genre(value) {
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
 const trackGenreReadsInProgress = new Set();
+const artworkObjectUrls = new Map();
 function notifySoundTrackContext(track) {
   window.dispatchEvent(new CustomEvent("ritmo:track-context", {
     detail: { genre: String(track?.genre || ""), radioTags: String(track?.radioTags || "") }
   }));
 }
 function backfillTrackGenre(track) {
-  if (!track || track.genre || !(track.blob instanceof Blob) || !/\.mp3$/i.test(track.name || "") || trackGenreReadsInProgress.has(track.id)) return;
+  if (!track || track.metadataScanned === true || !(track.blob instanceof Blob) ||
+      !/\.mp3$/i.test(track.name || "") || trackGenreReadsInProgress.has(track.id)) return;
   trackGenreReadsInProgress.add(track.id);
   void readMp3Tags(track.blob, track.name).then(metadata => {
-    if (!metadata.genre) return;
     const current = getTrack(track.id);
-    if (!current || current.genre) return;
-    current.genre = metadata.genre;
+    if (!current) return;
+    let changed = false;
+    if (!current.genre && metadata.genre) {
+      current.genre = metadata.genre;
+      changed = true;
+    }
+    if (!current.artworkBlob && metadata.artwork instanceof Uint8Array &&
+        (metadata.artworkMimeType === "image/jpeg" || metadata.artworkMimeType === "image/png") &&
+        metadata.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES) {
+      current.artworkBlob = new Blob([metadata.artwork], { type: metadata.artworkMimeType });
+      changed = true;
+    }
+    if (current.metadataScanned !== true) {
+      current.metadataScanned = true;
+      changed = true;
+    }
+    if (!changed) return;
     return saveTrack(current).then(() => {
-      if (state.currentId === current.id) notifySoundTrackContext(current);
+      if (state.currentId === current.id) {
+        notifySoundTrackContext(current);
+        // The same track may already have published a fallback icon to the OS.
+        state.mediaSessionTrackId = null;
+      }
+      render();
+      if (state.currentId === current.id) updateMediaSession();
     });
   }).catch(() => {}).finally(() => trackGenreReadsInProgress.delete(track.id));
 }
@@ -424,11 +446,55 @@ function coverClass(track) {
   for (const char of (track?.title || "ritmo")) hash = (hash * 31 + char.charCodeAt(0)) | 0;
   return palettes[Math.abs(hash) % palettes.length];
 }
+function trackArtworkUrl(track) {
+  const blob = track?.artworkBlob;
+  if (!(blob instanceof Blob) || blob.size < 8 || blob.size > MAX_EMBEDDED_ARTWORK_BYTES ||
+      !["image/jpeg", "image/png"].includes(String(blob.type || "").toLowerCase())) return "";
+  const cached = artworkObjectUrls.get(track.id);
+  if (cached?.blob === blob) return cached.url;
+  if (cached) {
+    try { URL.revokeObjectURL(cached.url); } catch {}
+    artworkObjectUrls.delete(track.id);
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    artworkObjectUrls.set(track.id, { blob, url });
+    return url;
+  } catch {
+    return "";
+  }
+}
+function releaseUnusedArtworkObjectUrls() {
+  for (const [trackId, entry] of artworkObjectUrls) {
+    const track = getTrack(trackId);
+    if (track?.artworkBlob === entry.blob) continue;
+    try { URL.revokeObjectURL(entry.url); } catch {}
+    artworkObjectUrls.delete(trackId);
+  }
+}
+function releaseAllArtworkObjectUrls() {
+  for (const entry of artworkObjectUrls.values()) {
+    try { URL.revokeObjectURL(entry.url); } catch {}
+  }
+  artworkObjectUrls.clear();
+}
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) releaseAllArtworkObjectUrls();
+});
+function artworkImageHTML(track, className = "album-artwork") {
+  const url = trackArtworkUrl(track);
+  return url ? '<img class="' + className + '" src="' + escapeHTML(url) + '" alt="" loading="lazy" decoding="async">' : "";
+}
 function coverHTML(track, extra = "") {
-  return '<div class="track-mini-cover ' + coverClass(track) + " " + extra + '">♫</div>';
+  const artwork = artworkImageHTML(track);
+  return '<div class="track-mini-cover ' + coverClass(track) + (artwork ? " has-artwork" : "") + " " + extra + '">' +
+    (artwork || "♫") + '</div>';
 }
 function coverCardHTML(track) {
-  return '<div class="cover-art ' + coverClass(track) + '"><span>♫</span><button class="card-play" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">▶</button></div>';
+  const artwork = artworkImageHTML(track);
+  return '<div class="cover-art ' + coverClass(track) + (artwork ? " has-artwork" : "") + '">' +
+    (artwork || "<span>♫</span>") +
+    '<button class="card-play" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">▶</button></div>';
 }
 function syncLibraryViewControls() {
   const listView = $("#library-list-view");
@@ -453,13 +519,17 @@ function renderLibraryGrid(list) {
   root.innerHTML = list.map((track, index) => {
     const active = track.id === state.currentId;
     const favoriteClass = track.favorite ? " is-favorite" : "";
+    const artwork = artworkImageHTML(track);
+    const hasArtwork = artwork ? " has-artwork" : "";
     const source = isLocal(track) ? "EN ESTE DISPOSITIVO" : "STREAMING ONLINE";
     const download = track.kind !== "url" ? "" : track.sourceProvider === "Internet Archive"
       ? '<a class="row-icon archive-track-download" href="' + escapeHTML(track.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original" aria-label="Abrir archivo original">⇩</a>'
       : '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión si está permitido" aria-label="Guardar audio online sin conexión">⇩</button>';
     return '<article class="library-album-card' + (active ? " library-album-active" : "") + '" data-library-card="' + escapeHTML(track.id) + '">' +
-      '<button class="library-album-art ' + coverClass(track) + '" type="button" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">' +
-      '<span class="library-art-stamp">' + String(index + 1).padStart(2, "0") + '</span><span class="library-art-glyph">♫</span><span class="library-art-caption">' + escapeHTML(track.album || "RITMO MIX") + '</span><span class="library-art-play">▶</span></button>' +
+      '<button class="library-album-art ' + coverClass(track) + hasArtwork + '" type="button" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">' +
+      artwork + '<span class="library-art-stamp">' + String(index + 1).padStart(2, "0") + '</span>' +
+      (hasArtwork ? "" : '<span class="library-art-glyph">♫</span>') +
+      '<span class="library-art-caption">' + escapeHTML(track.album || "RITMO MIX") + '</span><span class="library-art-play">▶</span></button>' +
       '<div class="library-album-meta"><div class="library-album-title-row"><div class="library-album-title"><strong title="' + escapeHTML(track.title) + '">' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div><span class="library-album-status' + (active ? " is-live" : "") + '" title="' + (active ? "Pista seleccionada" : source) + '">' + (active ? "♫" : (isLocal(track) ? "●" : "↗")) + '</span></div>' +
       '<div class="library-album-actions"><span class="library-album-source">' + source + '</span><div class="library-album-buttons"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" type="button" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + download +
       '<button class="row-icon' + favoriteClass + '" data-favorite="' + escapeHTML(track.id) + '" type="button" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '" title="Favorito">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" type="button" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div></div></article>';
@@ -1113,15 +1183,19 @@ function updateMediaSession() {
   const spotifySession = !track && spotifyCurrentEmbed && spotifyControllerReady ? spotifyCurrentEmbed : null;
   if (!track && !youtubeSession && !spotifySession) { clearMediaSession(navigator.mediaSession, state); return; }
   const sessionKey = youtubeSession ? "youtube:" + youtubeSession.sessionId : spotifySession ? "spotify:" + spotifySession.uri : track.id;
-  if (state.mediaSessionTrackId !== sessionKey && "MediaMetadata" in window) {
+  const artworkUrl = trackArtworkUrl(track);
+  if ((state.mediaSessionTrackId !== sessionKey || state.mediaSessionArtworkUrl !== artworkUrl) && "MediaMetadata" in window) {
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: youtubeSession ? (youtubeSession.title || "Video de YouTube") : spotifySession ? (spotifySession.title || spotifySession.label) : (track.title || "Audio sin título"),
         artist: youtubeSession ? "YouTube" : spotifySession ? "Spotify · Reproductor oficial" : (track.artist || "Artista desconocido"),
         album: youtubeSession ? "Ritmo · YouTube" : spotifySession ? "Spotify Embed" : (track.album || "Ritmo"),
-        artwork: [{ src: new URL("./assets/icon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
+        artwork: artworkUrl && track?.artworkBlob
+          ? [{ src: artworkUrl, type: track.artworkBlob.type }]
+          : [{ src: new URL("./assets/icon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
       });
       state.mediaSessionTrackId = sessionKey;
+      state.mediaSessionArtworkUrl = artworkUrl;
     } catch {}
   }
   if (youtubeSession) {
@@ -1170,6 +1244,7 @@ function setupMediaSession() {
   for (const [action, handler] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(action, handler); } catch {} }
 }
 function render() {
+  releaseUnusedArtworkObjectUrls();
   const all = state.tracks;
   $("#library-count").textContent = String(all.length);
   $("#stat-total").innerHTML = all.length + ' <small>canciones</small>';
@@ -1348,7 +1423,10 @@ function updatePlayer() {
   $("#next-button").disabled = externalSession || !state.tracks.length;
   $("#seek-bar").disabled = !hasMedia || (spotifySession && spotifySession.type !== "episode");
   $("#player-favorite").disabled = !track;
-  $("#player-cover").className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "");
+  const playerArtwork = trackArtworkUrl(track);
+  const playerCover = $("#player-cover");
+  playerCover.className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "") + (playerArtwork ? " has-artwork" : "");
+  playerCover.innerHTML = playerArtwork ? '<img class="album-artwork" src="' + escapeHTML(playerArtwork) + '" alt="" decoding="async">' : "<span>♫</span>";
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
   $("#player-favorite").classList.toggle("is-favorite", Boolean(track?.favorite));
   $("#player-favorite").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Marcar favorito");
@@ -2278,6 +2356,10 @@ async function importFiles(fileList, options = {}) {
       const tracks = await Promise.all(batch.map(async file => {
         const meta = await readMp3Tags(file);
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "", genre: meta.genre || "",
+          ...(meta.artwork instanceof Uint8Array && (meta.artworkMimeType === "image/jpeg" || meta.artworkMimeType === "image/png") &&
+              meta.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES
+            ? { artworkBlob: new Blob([meta.artwork], { type: meta.artworkMimeType }) } : {}),
+          metadataScanned: /\.mp3$/i.test(file.name),
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
