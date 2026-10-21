@@ -186,12 +186,45 @@ export async function deleteTrackAndPrunePlaylists(trackId) {
 }
 
 export async function getHistory(limit = 100) {
-  const records = await getAllFromStore(HISTORY, "playedAt", true);
-  // Zero is a meaningful limit (return no entries), not a request for the default.
-  // Logical OR would replace 0 with 100 because zero is a falsy JavaScript value.
+  // Normalize the limit before opening IndexedDB. In particular, zero should
+  // not trigger a full history scan merely to return an empty array.
   const numericLimit = limit == null ? 100 : Number(limit);
-  const resolvedLimit = Number.isFinite(numericLimit) ? Math.trunc(numericLimit) : 100;
-  return records.slice(0, Math.max(0, Math.min(resolvedLimit, 5000)));
+  const resolvedLimit = Math.max(0, Math.min(
+    Number.isFinite(numericLimit) ? Math.trunc(numericLimit) : 100,
+    5000
+  ));
+  if (resolvedLimit === 0) return [];
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    let tx;
+    const records = [];
+    try {
+      tx = db.transaction(HISTORY, "readonly");
+      const index = tx.objectStore(HISTORY).index("playedAt");
+      // Traverse newest-first and stop as soon as the requested window is full.
+      // Avoid getAll()+sort(), whose cost grows with the entire history size.
+      const request = index.openCursor(null, "prev");
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve(records);
+          return;
+        }
+        records.push(cursor.value);
+        if (records.length >= resolvedLimit) {
+          resolve(records);
+          return;
+        }
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error || new Error("No se pudo leer el historial."));
+      tx.onerror = () => reject(tx.error || new Error("No se pudo leer el historial."));
+      tx.onabort = () => reject(tx.error || new Error("Se canceló la lectura del historial."));
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 export async function addHistoryEntry(entry) { return storeTransaction(HISTORY, "readwrite", store => store.put(entry)); }
 export async function clearHistory() { return storeTransaction(HISTORY, "readwrite", store => store.clear()); }
