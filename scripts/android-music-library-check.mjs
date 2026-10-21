@@ -90,7 +90,8 @@ assert.match(prep, /const pluginClasses = \["RitmoMusicLibraryPlugin", "RitmoPla
 assert.match(prep, /registerPlugin\(" \+ name \+ "\.class\);/, "El build debe registrar dinámicamente ambos plugins Android");
 assert.match(prep, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/, "El empaquetado debe declarar el servicio multimedia");
 assert.match(prep, /media3-exoplayer:1\.11\.1/, "El empaquetado debe fijar una versión revisada de Media3");
-assert.match(workflow, /prepare-android-native\.mjs/, "CI debe preparar los plugins antes de compilar");
+assert.match(workflow, /npm --prefix mobile run android:init/, "CI debe construir desde la carpeta móvil aislada");
+assert.match(prep, /mobile", "native", "android"/, "La preparación debe tomar el código nativo de mobile/native/android");
 console.log("Android music discovery and Media3 playback checks passed.");
 
 assert.match(app, /createAsyncGenerationGate/, "Native poll coordination must use a generation-safe gate");
