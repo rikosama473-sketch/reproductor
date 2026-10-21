@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { UI_SOUND_PACKS, UI_SOUND_RHYTHMS, inferUiSoundRhythm, resolveUiSoundRhythm, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES } from "../src/ui-sounds.js";
 
-assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette"]);
+assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade", "harpsichord", "organ", "basspluck", "taiko", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "dream", "cassette", "pizzicato", "ocarina", "woodblock", "nylon", "softkick", "marbles", "deepfm", "ripple"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
   assert.ok(pack.label, key + " has a visible label");
   assert.ok(pack.description, key + " explains its sound");
@@ -35,7 +35,7 @@ const [html, sw, prepare, mobileCheck, moduleSource, appSource] = await Promise.
   readFile(new URL("src/ui-sounds.js", root), "utf8"),
   readFile(new URL("src/app.js", root), "utf8")
 ]);
-assert.match(html, /64 perfiles discretos con ritmo ajustable/, "Settings copy should match the 64 implemented profiles");
+assert.match(html, /72 perfiles discretos con ritmo ajustable/, "Settings copy should match the 64 implemented profiles");
 for (const selector of ["ui-sounds-enabled", "ui-sounds-pack", "ui-sounds-rhythm", "ui-sounds-rhythm-status", "ui-sounds-volume", "ui-sounds-preview"]) {
   assert.match(html, new RegExp('id="' + selector + '"'));
 }
@@ -72,12 +72,16 @@ for (const snippet of [
   '<option value="glitch">Glitch delicado</option>', '<option value="fmsoft">FM cristalino suave</option>',
   '<option value="synthpop">Synth-pop cálido</option>', '<option value="neonpulse">Pulso neón</option>',
   '<option value="dream">Sueño vaporoso</option>', '<option value="cassette">Casete analógico</option>',
+  '<option value="pizzicato">Cuerda pizzicato</option>', '<option value="ocarina">Ocarina tenue</option>',
+  '<option value="woodblock">Bloque de madera</option>', '<option value="nylon">Guitarra de nylon</option>',
+  '<option value="softkick">Bombo acolchado</option>', '<option value="marbles">Canicas</option>',
+  '<option value="deepfm">FM profunda</option>', '<option value="ripple">Ondulación</option>',
   '<option value="auto">Automático por género</option>', '<option value="soft">Suave y espaciado</option>',
   '<option value="pop">Pop animado</option>', '<option value="cyber">Cyber / electrónico</option>'
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
 assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v57/);
+assert.match(sw, /ritmo-shell-v58/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
@@ -94,6 +98,13 @@ assert.match(appSource, /radioTags: String\(track\?\.radioTags \|\| ""\)/);
 assert.match(appSource, /function backfillTrackGenre\(track\)/, "Existing library tracks can acquire genre tags lazily");
 assert.match(appSource, /readMp3Tags\(track\.blob, track\.name\)/, "Existing local MP3 metadata is read without re-importing");
 assert.match(appSource, /async function readMp3Tags\(file, filename = file\?\.name \|\| ""\)/, "ID3 parsing accepts the stored track filename for blob-backed files");
+assert.match(moduleSource, /let soundRequestGeneration = 0/);
+assert.match(moduleSource, /requestGeneration !== soundRequestGeneration/, "A resumed AudioContext must discard stale sound requests");
+assert.match(moduleSource, /soundRequestGeneration \+= 1;\s*voicePreviewActive = true/, "Voice preview start must invalidate pending UI effects");
+const packChangeStart = moduleSource.indexOf('packInput.addEventListener("change"');
+const packChangeEnd = moduleSource.indexOf("\n  rhythmInput?.addEventListener", packChangeStart);
+assert.ok(packChangeStart >= 0 && packChangeEnd > packChangeStart, "Sound pack setting handler must exist");
+assert.doesNotMatch(moduleSource.slice(packChangeStart, packChangeEnd), /playUiSound\(/, "Changing a settings selector must not emit an automatic preview");
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
@@ -111,4 +122,4 @@ assert.match(moduleSource, /ritmo\.ui-sounds\.v2/);
 assert.match(moduleSource, /LEGACY_STORAGE_KEY = "ritmo\.ui-sounds\.v1"/);
 assert.match(moduleSource, /JSON\.parse\(legacy\), enabled: false/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-console.log("UI sound tests passed: 64 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
+console.log("UI sound tests passed: 72 profiles, genre-aware Pop/Cyber rhythm, manual fallback, quieter mix, voice suppression, click cooldown and offline/Android packaging.");
