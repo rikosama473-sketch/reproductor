@@ -69,7 +69,15 @@ export const UI_SOUND_PACKS = Object.freeze({
   synthpop: Object.freeze({ label: "Synth-pop cálido", description: "Pequeño intervalo de sintetizador, breve y redondeado." }),
   neonpulse: Object.freeze({ label: "Pulso neón", description: "Impulso electrónico doble, bajo y de duración mínima." }),
   dream: Object.freeze({ label: "Sueño vaporoso", description: "Dos notas suaves y breves, sin atmósfera continua." }),
-  cassette: Object.freeze({ label: "Casete analógico", description: "Textura de cinta filtrada, muy corta y casi táctil." })
+  cassette: Object.freeze({ label: "Casete analógico", description: "Textura de cinta filtrada, muy corta y casi táctil." }),
+  pizzicato: Object.freeze({ label: "Cuerda pizzicato", description: "Cuerda clásica punteada, corta y amortiguada." }),
+  ocarina: Object.freeze({ label: "Ocarina tenue", description: "Tono redondo con ataque suave y sin silbido estridente." }),
+  woodblock: Object.freeze({ label: "Bloque de madera", description: "Golpe hueco y corto, como un botón de madera." }),
+  nylon: Object.freeze({ label: "Guitarra de nylon", description: "Cuerda cálida punteada, sin rasgueo ni agudos incisivos." }),
+  softkick: Object.freeze({ label: "Bombo acolchado", description: "Pulso grave y breve, sin explosión ni retumbo." }),
+  marbles: Object.freeze({ label: "Canicas", description: "Dos pequeños tonos juguetones, suaves y separados." }),
+  deepfm: Object.freeze({ label: "FM profunda", description: "Timbre digital grave y redondeado, sin pitido penetrante." }),
+  ripple: Object.freeze({ label: "Ondulación", description: "Barrido acuoso corto, con brillo limitado." })
 });
 
 export const UI_SOUND_RHYTHMS = Object.freeze({
@@ -79,7 +87,7 @@ export const UI_SOUND_RHYTHMS = Object.freeze({
   cyber: Object.freeze({ label: "Cyber / electrónico", description: "Usa dos micropulsos electrónicos de bajo nivel, solo al interactuar." })
 });
 
-const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse"]);
+const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "deepfm", "ripple"]);
 
 function normalizedGenreText(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -136,6 +144,8 @@ let lastAutomaticSoundAt = 0;
 let voicePreviewActive = false;
 let currentMusicGenre = "";
 let rhythmNoteIndex = 0;
+// Invalidates deferred AudioContext.resume() callbacks when settings or voice state changes.
+let soundRequestGeneration = 0;
 const pianoNotes = [392, 440, 493.88, 587.33, 523.25, 440, 493.88, 659.25];
 
 function getAudioContext() {
@@ -230,6 +240,7 @@ function voiceOutputIsActive() {
 }
 
 function silenceUiEffectsForVoice() {
+  soundRequestGeneration += 1;
   voicePreviewActive = true;
   if (!audioContext || !masterGain) return;
   const now = audioContext.currentTime;
@@ -580,6 +591,43 @@ function synthesize(context, pack, volume, documentRef, rhythmPreference = "auto
     addTone(context, masterGain, 174.61, { type: "sine", endFrequency: 164.81, duration: 0.017, amplitude: 0.002, attack: 0.004, filterType: "lowpass", cutoff: 260, delay: 0.006 });
     return;
   }
+  if (pack === "pizzicato") {
+    const note = [220, 246.94, 261.63, 293.66][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.94, duration: 0.029, amplitude: 0.008, attack: 0.002, filterType: "lowpass", cutoff: 520 });
+    return;
+  }
+  if (pack === "ocarina") {
+    const note = [293.66, 329.63, 349.23, 329.63][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "sine", endFrequency: note * 0.99, duration: 0.036, amplitude: 0.006, attack: 0.007, filterType: "lowpass", cutoff: 760 });
+    return;
+  }
+  if (pack === "woodblock") {
+    addWoodClick(context, masterGain, { duration: 0.016, cutoff: 430, amplitude: 0.006 });
+    return;
+  }
+  if (pack === "nylon") {
+    const note = [196, 220, 246.94, 220][noteIndex++ % 4];
+    addTone(context, masterGain, note, { type: "triangle", endFrequency: note * 0.89, duration: 0.032, amplitude: 0.008, attack: 0.002, filterType: "lowpass", cutoff: 500 });
+    return;
+  }
+  if (pack === "softkick") {
+    addTone(context, masterGain, 110, { type: "sine", endFrequency: 68, duration: 0.024, amplitude: 0.007, attack: 0.002, filterType: "lowpass", cutoff: 180 });
+    return;
+  }
+  if (pack === "marbles") {
+    addTone(context, masterGain, 277.18, { type: "sine", duration: 0.017, amplitude: 0.005, attack: 0.003, filterType: "lowpass", cutoff: 490 });
+    addTone(context, masterGain, 329.63, { type: "sine", duration: 0.014, amplitude: 0.003, attack: 0.003, filterType: "lowpass", cutoff: 560, delay: 0.022 });
+    return;
+  }
+  if (pack === "deepfm") {
+    addTone(context, masterGain, 164.81, { type: "sine", duration: 0.029, amplitude: 0.005, attack: 0.004, filterType: "lowpass", cutoff: 340 });
+    addTone(context, masterGain, 246.94, { type: "sine", duration: 0.019, amplitude: 0.0015, attack: 0.004, filterType: "lowpass", cutoff: 410, delay: 0.004 });
+    return;
+  }
+  if (pack === "ripple") {
+    addTone(context, masterGain, 330, { type: "sine", endFrequency: 261.63, duration: 0.026, amplitude: 0.004, attack: 0.004, filterType: "lowpass", cutoff: 430 });
+    return;
+  }
   if (pack === "minimal") {
     addTone(context, masterGain, 290, { type: "triangle", endFrequency: 250, duration: 0.024, amplitude: 0.018, attack: 0.002, filterType: "lowpass", cutoff: 420 });
     return;
@@ -588,10 +636,14 @@ function synthesize(context, pack, volume, documentRef, rhythmPreference = "auto
 
 function playUiSound(preferences, documentRef) {
   if (preferences.volume <= 0 || voiceOutputIsActive()) return;
+  const requestGeneration = ++soundRequestGeneration;
   const context = getAudioContext();
   if (!context) return;
   if (context.state === "suspended") {
-    context.resume().then(() => synthesize(context, preferences.pack, preferences.volume, documentRef, preferences.rhythm)).catch(() => {});
+    context.resume().then(() => {
+      if (requestGeneration !== soundRequestGeneration || voiceOutputIsActive()) return;
+      synthesize(context, preferences.pack, preferences.volume, documentRef, preferences.rhythm);
+    }).catch(() => {});
     return;
   }
   synthesize(context, preferences.pack, preferences.volume, documentRef, preferences.rhythm);
@@ -640,21 +692,25 @@ function initUiSounds(documentRef) {
   };
   syncControls();
   enabledInput.addEventListener("change", () => {
+    soundRequestGeneration += 1;
     preferences = normalizeUiSoundPreferences({ ...preferences, enabled: enabledInput.checked });
     persist();
   });
   packInput.addEventListener("change", () => {
+    soundRequestGeneration += 1;
     preferences = normalizeUiSoundPreferences({ ...preferences, pack: packInput.value });
     persist();
     updateRhythmStatus();
-    if (preferences.enabled) playUiSound(preferences, documentRef);
+    // Configuration controls stay silent; use the dedicated preview button to audition a sound.
   });
   rhythmInput?.addEventListener("change", () => {
+    soundRequestGeneration += 1;
     preferences = normalizeUiSoundPreferences({ ...preferences, rhythm: rhythmInput.value });
     persist();
     updateRhythmStatus();
   });
   volumeInput.addEventListener("input", () => {
+    soundRequestGeneration += 1;
     preferences = normalizeUiSoundPreferences({ ...preferences, volume: volumeInput.value });
     volumeOutput.value = preferences.volume + "%";
     volumeOutput.textContent = preferences.volume + "%";
