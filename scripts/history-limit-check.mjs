@@ -83,7 +83,8 @@ assert.equal(historyRowsVisited, 3, "history retrieval must stop when the limit 
 assert.equal((await storage.getHistory(3.8)).length, 3, "fractional limits are truncated to whole entries");
 assert.equal((await storage.getHistory()).length, historyRows.length, "omitting the argument keeps the default limit");
 assert.equal((await storage.getHistory(null)).length, historyRows.length, "null uses the default limit");
+historyRowsVisited = 0;
 assert.deepEqual(await storage.getHistory(-5), [], "negative limits clamp to zero");
+assert.equal(historyRowsVisited, 0, "negative limits must return without scanning the index");
 assert.equal(historyGetAllCalls, 0, "history queries must not materialize the full store with getAll()");
-assert.equal(historyRowsVisited, 3, "zero and negative limits must return without scanning the index");
 console.log("History limit regression tests passed: bounded reverse-index reads, zero scans for empty windows, fractional/default/null/negative limits.");
