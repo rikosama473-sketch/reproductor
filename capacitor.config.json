@@ -1,8 +1,0 @@
-{
-  "appId": "com.rikosama473.ritmo",
-  "appName": "Ritmo",
-  "webDir": "www",
-  "server": {
-    "androidScheme": "https"
-  }
-}
