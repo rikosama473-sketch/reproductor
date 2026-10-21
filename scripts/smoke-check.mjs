@@ -98,7 +98,7 @@ const id3ArtworkSource = fs.readFileSync(new URL("../src/id3-tags.js", import.me
 assert.match(id3ArtworkSource, /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
 assert.match(id3ArtworkSource, /hasSafePngDimensions[\s\S]*?hasSafeJpegDimensions/, "PNG and JPEG image dimensions must be checked before publishing cover bytes");
 
-assert.match(f.readFileSync(new URL("../src/id3-tags.js", import.meta.url), "utf8"), /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
+assert.match(id3ArtworkSource, /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
 
 assert.match(app, /function trackArtworkUrl\(track\)/, "Embedded album-art object URLs must be shared and managed");
 assert.match(app, /metadata\.artwork instanceof Uint8Array[\s\S]*?new Blob\(\[meta\.artwork\]/, "Imported MP3 covers must persist in IndexedDB as local Blob data");
