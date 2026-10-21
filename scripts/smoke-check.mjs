@@ -94,12 +94,20 @@ assert.match(app, /function renderFormatCapabilities/, "The app should report de
 assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
 assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
 assert.match(app, /MAX_EMBEDDED_ARTWORK_BYTES/, "Embedded artwork reads must have a strict memory limit");
+const id3ArtworkSource = fs.readFileSync(new URL("../src/id3-tags.js", import.meta.url), "utf8");
+assert.match(id3ArtworkSource, /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
+assert.match(id3ArtworkSource, /hasSafePngDimensions[\s\S]*?hasSafeJpegDimensions/, "PNG and JPEG image dimensions must be checked before publishing cover bytes");
+
 assert.match(f.readFileSync(new URL("../src/id3-tags.js", import.meta.url), "utf8"), /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
 
 assert.match(app, /function trackArtworkUrl\(track\)/, "Embedded album-art object URLs must be shared and managed");
 assert.match(app, /metadata\.artwork instanceof Uint8Array[\s\S]*?new Blob\(\[meta\.artwork\]/, "Imported MP3 covers must persist in IndexedDB as local Blob data");
 assert.match(app, /artwork: artworkUrl && track\?\.artworkBlob/, "Browser Media Session should use the real local artwork when available");
 assert.match(app, /releaseUnusedArtworkObjectUrls\(\)/, "Removed or replaced artwork Blob URLs must be released");
+assert.match(app, /track\?\.artworkInvalid === true/, "A browser-rejected cover must fall back to a placeholder");
+assert.match(app, /document\.addEventListener\("error", event =>[\s\S]*?track\.artworkInvalid = true[\s\S]*?render\(\)/, "Broken artwork must be marked and not decoded repeatedly");
+assert.match(app, /data-artwork-track/, "Album artwork decode errors must be attributed to their track");
+
 assert.match(app, /track\?\.artworkInvalid === true/, "A browser-rejected cover must fall back to a placeholder");
 assert.match(app, /document\.addEventListener\("error", event =>[\s\S]*?track\.artworkInvalid = true[\s\S]*?render\(\)/, "Broken artwork must be marked and not decoded repeatedly");
 assert.match(app, /data-artwork-track/, "Album artwork decode errors must be attributed to their track");
