@@ -143,6 +143,80 @@ assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
   assert.equal(decodeCalls, 0, "Output budget rejection must happen before decodeAudioData().");
 }
 
+// Cancellation during the metadata probe must release the temporary URL immediately.
+{
+  const controller = new AbortController();
+  let revoked = 0;
+  const fakeAudio = () => {
+    const handlers = new Map();
+    return {
+      duration: NaN,
+      preload: "",
+      src: "",
+      addEventListener(name, fn) { handlers.set(name, fn); },
+      removeEventListener(name) { handlers.delete(name); },
+      removeAttribute(name) { if (name === "src") this.src = ""; },
+      pause() {},
+      load() {}
+    };
+  };
+  const pending = probeAudioFileDuration({ name: "pending.wav" }, {
+    createAudioElement: fakeAudio,
+    createObjectURL: () => "blob:pending-audio",
+    revokeObjectURL: () => { revoked++; },
+    timeoutMs: 1000,
+    signal: controller.signal
+  });
+  controller.abort();
+  await assert.rejects(pending, error => error?.name === "AbortError");
+  assert.equal(revoked, 1, "Abort should release the metadata probe URL.");
+}
+
+// A cancellation during/after metadata lookup must prevent file reads and decode.
+{
+  const controller = new AbortController();
+  let arrayBufferCalls = 0;
+  let decodeCalls = 0;
+  const file = { size: 16, arrayBuffer: async () => { arrayBufferCalls++; return new ArrayBuffer(16); } };
+  const context = { sampleRate: 44100, decodeAudioData: async () => { decodeCalls++; return fakeBuffer([[0, 0]]); } };
+  await assert.rejects(
+    convertAudioFileToWav(file, context, {
+      durationProbe: async () => { controller.abort(); return 1; },
+      signal: controller.signal,
+      maxOutputBytes: 200000
+    }),
+    error => error?.name === "AbortError"
+  );
+  assert.equal(arrayBufferCalls, 0, "A cancelled conversion must not read the compressed file.");
+  assert.equal(decodeCalls, 0, "A cancelled conversion must not begin decoding.");
+}
+
+// The browser cannot stop a decodeAudioData() call already in progress, but the
+// result must be discarded and must not proceed to WAV allocation after cancel.
+{
+  const controller = new AbortController();
+  let decodedResolve;
+  let decodeStartedResolve;
+  const decodeStarted = new Promise(resolve => { decodeStartedResolve = resolve; });
+  const file = { size: 16, arrayBuffer: async () => new ArrayBuffer(16) };
+  const context = {
+    sampleRate: 44100,
+    decodeAudioData: async () => {
+      decodeStartedResolve();
+      return await new Promise(resolve => { decodedResolve = resolve; });
+    }
+  };
+  const pending = convertAudioFileToWav(file, context, {
+    durationProbe: async () => 1,
+    signal: controller.signal,
+    maxOutputBytes: 200000
+  });
+  await decodeStarted;
+  controller.abort();
+  decodedResolve(fakeBuffer([[0, 0]]));
+  await assert.rejects(pending, error => error?.name === "AbortError");
+}
+
 // Successful conversion still produces a valid WAV after preflight.
 {
   const file = { size: 16, arrayBuffer: async () => new ArrayBuffer(16) };
