@@ -44,9 +44,37 @@ const expanded = new DataView(await encodePcm16Wav(mono, 2).arrayBuffer());
 assert.equal(expanded.getUint16(22, true), 2, "Mono source may be duplicated to stereo");
 assert.equal(expanded.getInt16(44, true), expanded.getInt16(46, true));
 
-const surround = fakeBuffer([[1, 0], [0, 1], [-1, 0], [0, -1]]);
-const downmix = new DataView(await encodePcm16Wav(surround, 2).arrayBuffer());
-assert.equal(downmix.getUint16(22, true), 2, "Multichannel sources are downmixed to stereo");
+// Standard quad layout mixes corresponding left/right surround channels at half gain.
+{
+  const quad = fakeBuffer([[0.2], [0.4], [0.6], [-0.2]]);
+  const quadStereo = new DataView(await encodePcm16Wav(quad, 2).arrayBuffer());
+  assert.equal(quadStereo.getUint16(22, true), 2);
+  assert.equal(quadStereo.getInt16(44, true), Math.round(0.4 * 32767));
+  assert.equal(quadStereo.getInt16(46, true), Math.round(0.1 * 32767));
+  const quadMono = new DataView(await encodePcm16Wav(quad, 1).arrayBuffer());
+  assert.equal(quadMono.getInt16(44, true), Math.round(0.25 * 32767));
+}
+
+// Standard 5.1 layout mixes center and matching surrounds into left/right;
+// LFE is deliberately discarded rather than injected into only one side.
+{
+  const surround51 = fakeBuffer([[0.1], [-0.1], [0.2], [0.8], [0.3], [-0.3]]);
+  const stereo51 = new DataView(await encodePcm16Wav(surround51, 2).arrayBuffer());
+  const expectedLeft = 0.1 + Math.SQRT1_2 * (0.2 + 0.3);
+  const expectedRight = -0.1 + Math.SQRT1_2 * (0.2 - 0.3);
+  assert.equal(stereo51.getInt16(44, true), Math.round(expectedLeft * 32767));
+  assert.equal(stereo51.getInt16(46, true), Math.round(expectedRight * 32768));
+  const mono51 = new DataView(await encodePcm16Wav(surround51, 1).arrayBuffer());
+  assert.equal(mono51.getInt16(44, true), Math.round(0.2 * 32767), "Mono 5.1 downmix must omit LFE.");
+}
+
+// Unknown channel counts use a conservative discrete fallback.
+{
+  const unknownLayout = fakeBuffer([[0.2], [-0.4], [0.9]]);
+  const converted = new DataView(await encodePcm16Wav(unknownLayout, 2).arrayBuffer());
+  assert.equal(converted.getInt16(44, true), Math.round(0.2 * 32767));
+  assert.equal(converted.getInt16(46, true), Math.round(-0.4 * 32768));
+}
 assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
 
 // Duplicate basenames and case-only differences must not collide on common filesystems.
