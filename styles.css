@@ -539,10 +539,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .converter-progress-wrap progress::-webkit-progress-bar{border-radius:99px;background:#342a26}
 .converter-progress-wrap progress::-webkit-progress-value{border-radius:99px;background:linear-gradient(90deg,#8e6654,#d3b1a0)}
 .converter-results{margin-top:13px}
-.converter-result{align-items:flex-start}
-.converter-result-copy{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.converter-result{align-items:flex-start;flex-wrap:wrap}
+.converter-result-copy{display:grid;gap:4px;min-width:0;flex:1 1 100%;overflow-wrap:anywhere}
 .converter-result-copy small{color:var(--muted);line-height:1.5}
 .converter-result a{flex-shrink:0;color:#f0cdbb;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.converter-preview-toggle{flex-shrink:0;min-height:32px;padding:7px 10px;font-size:10px}
+.converter-result audio{display:block;flex:1 1 100%;width:100%;max-width:340px;height:36px}
+.converter-result audio[hidden]{display:none}
 .converter-result[data-tone="error"]{border-color:#714544;color:#ffcfcb}
 .converter-info{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
 .converter-info-mark{display:grid;width:46px;height:46px;place-items:center;border:1px solid #765a4e;border-radius:15px;background:linear-gradient(145deg,#c1a3982c,#8b66581c);color:#f0d5c8;font-size:22px}

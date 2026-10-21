@@ -94,6 +94,8 @@ let converterCancelRequested = false;
 let converterAudioContext = null;
 let converterAbortController = null;
 let converterOutputUrls = [];
+const converterPreviewElements = new Set();
+let activeConverterPreview = null;
 let converterOutputBytes = 0;
 let converterOutputFilenames = new Set();
 
@@ -1688,6 +1690,15 @@ function setMobileMenuOpen(open) {
   if (toggle) toggle.setAttribute("aria-expanded", String(isOpen));
 }
 function clearConverterOutputUrls() {
+  for (const preview of converterPreviewElements) {
+    try {
+      preview.pause();
+      preview.removeAttribute("src");
+      preview.load();
+    } catch {}
+  }
+  converterPreviewElements.clear();
+  activeConverterPreview = null;
   for (const url of converterOutputUrls) URL.revokeObjectURL(url);
   converterOutputUrls = [];
   converterOutputBytes = 0;
@@ -1760,6 +1771,51 @@ function appendConverterResult(fileName, detail, blob = null, tone = "success") 
     link.textContent = "Descargar WAV";
     link.setAttribute("aria-label", "Descargar WAV convertido de " + fileName);
     item.append(link);
+
+    // Preview the exact verified Blob using native browser controls. The player
+    // stays hidden and does not preload audio until the user explicitly opens it.
+    const previewToggle = document.createElement("button");
+    previewToggle.type = "button";
+    previewToggle.className = "button button-soft converter-preview-toggle";
+    previewToggle.textContent = "Escuchar";
+    previewToggle.setAttribute("aria-label", "Reproducir una vista previa de " + fileName);
+    previewToggle.setAttribute("aria-expanded", "false");
+
+    const preview = document.createElement("audio");
+    preview.controls = true;
+    preview.preload = "none";
+    preview.hidden = true;
+    preview.src = url;
+    preview.setAttribute("aria-label", "Vista previa del WAV convertido de " + fileName);
+    converterPreviewElements.add(preview);
+
+    preview.addEventListener("play", () => {
+      if (activeConverterPreview && activeConverterPreview !== preview) activeConverterPreview.pause();
+      activeConverterPreview = preview;
+    });
+    preview.addEventListener("pause", () => {
+      if (activeConverterPreview === preview) activeConverterPreview = null;
+    });
+    preview.addEventListener("ended", () => {
+      if (activeConverterPreview === preview) activeConverterPreview = null;
+    });
+    preview.addEventListener("error", () => {
+      description.textContent = detail + " · El navegador no pudo reproducir la vista previa; podés descargar el WAV para probarlo con otro reproductor.";
+    });
+    previewToggle.addEventListener("click", () => {
+      if (preview.hidden) {
+        preview.hidden = false;
+        previewToggle.textContent = "Ocultar";
+        previewToggle.setAttribute("aria-expanded", "true");
+      } else {
+        preview.pause();
+        preview.currentTime = 0;
+        preview.hidden = true;
+        previewToggle.textContent = "Escuchar";
+        previewToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    item.append(previewToggle, preview);
   }
   list.append(item);
 }
