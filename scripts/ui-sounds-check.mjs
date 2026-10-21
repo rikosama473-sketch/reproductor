@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { UI_SOUND_PACKS, normalizeUiSoundPreferences, DEFAULT_UI_SOUND_PREFERENCES } from "../src/ui-sounds.js";
 
-assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight"]);
+assert.deepEqual(Object.keys(UI_SOUND_PACKS), ["piano", "punk", "cyber", "wood", "glass", "marimba", "bubble", "bell", "sparkle", "pluck", "harp", "flute", "rain", "orbit", "heartbeat", "bamboo", "vinyl", "chord", "koto", "shakuhachi", "kalimba", "breeze", "paper", "sonar", "night", "double", "retro", "warm", "drum", "minimal", "felt", "lofi", "pixel", "musicbox", "ceramic", "water", "analog", "windchime", "typewriter", "moonlight", "celesta", "electricpiano", "handpan", "mutedguitar", "plush", "cloud", "sakura", "shore", "holo", "softbit", "starglow", "arcade"]);
 for (const [key, pack] of Object.entries(UI_SOUND_PACKS)) {
   assert.ok(pack.label, key + " has a visible label");
   assert.ok(pack.description, key + " explains its sound");
 }
-assert.deepEqual(normalizeUiSoundPreferences(null), { enabled: false, pack: "piano", volume: 20 });
+assert.deepEqual(normalizeUiSoundPreferences(null), { enabled: false, pack: "piano", volume: 15 });
 assert.equal(DEFAULT_UI_SOUND_PREFERENCES.enabled, false);
 assert.deepEqual(normalizeUiSoundPreferences({ enabled: true, pack: "punk", volume: 45 }), { enabled: true, pack: "punk", volume: 45 });
 assert.deepEqual(normalizeUiSoundPreferences({ enabled: "true", pack: "unknown", volume: 150 }), { enabled: false, pack: "piano", volume: 100 });
@@ -45,17 +45,23 @@ for (const snippet of [
   '<option value="pixel">Píxel pastel</option>', '<option value="musicbox">Caja musical tenue</option>',
   '<option value="ceramic">Cerámica mate</option>', '<option value="water">Gota de agua suave</option>',
   '<option value="analog">Sintetizador analógico suave</option>', '<option value="windchime">Carillón de viento tenue</option>',
-  '<option value="typewriter">Tecla mecánica suave</option>', '<option value="moonlight">Luz de luna</option>'
+  '<option value="typewriter">Tecla mecánica suave</option>', '<option value="moonlight">Luz de luna</option>',
+  '<option value="celesta">Celesta amortiguada</option>', '<option value="electricpiano">Piano eléctrico mate</option>',
+  '<option value="handpan">Handpan apacible</option>', '<option value="mutedguitar">Guitarra limpia muteada</option>',
+  '<option value="plush">Terciopelo</option>', '<option value="cloud">Nube suave</option>',
+  '<option value="sakura">Sakura</option>', '<option value="shore">Ola mansa</option>',
+  '<option value="holo">Holograma suave</option>', '<option value="softbit">8-bit aterciopelado</option>',
+  '<option value="starglow">Brillo estelar</option>', '<option value="arcade">Arcade cálido</option>'
 ]) assert.ok(html.includes(snippet), "Missing sound selector option: " + snippet);
-assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="20"/);
+assert.match(html, /id="ui-sounds-volume"[^>]*max="100"[^>]*value="15"/);
 assert.match(html, /src=["']\.\/src\/ui-sounds\.js["']/);
-assert.match(sw, /ritmo-shell-v52/);
+assert.match(sw, /ritmo-shell-v53/);
 assert.match(sw, /\.\/src\/ui-sounds\.js/);
 assert.match(prepare, /src\/ui-sounds\.js/);
 assert.match(mobileCheck, /src\/ui-sounds\.js/);
 assert.match(moduleSource, /MAX_OUTPUT_GAIN = 0\.025/);
-assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.06/);
-assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 125/);
+assert.match(moduleSource, /MUSIC_DUCK_FACTOR = 0\.04/);
+assert.match(moduleSource, /MIN_SOUND_INTERVAL_MS = 160/);
 assert.match(moduleSource, /function voiceOutputIsActive\(\)/);
 for (const key of Object.keys(UI_SOUND_PACKS)) assert.ok(moduleSource.includes('if (pack === "' + key + '")'), "Missing synthesizer branch: " + key);
 assert.match(moduleSource, /mediaIsPlayingOrEmbedded\(documentRef\)/, "Effects must detect active media before choosing their gain");
@@ -73,4 +79,4 @@ assert.match(moduleSource, /ritmo\.ui-sounds\.v2/);
 assert.match(moduleSource, /LEGACY_STORAGE_KEY = "ritmo\.ui-sounds\.v1"/);
 assert.match(moduleSource, /JSON\.parse\(legacy\), enabled: false/);
 assert.doesNotMatch(moduleSource, /\bfetch\s*\(/);
-console.log("UI sound tests passed: forty profiles, lower output cap, stronger media ducking, speech suppression, click cooldown and offline/Android packaging.");
+console.log("UI sound tests passed: fifty-two profiles, lower default volume, stronger media ducking, voice suppression, click cooldown and offline/Android packaging.");
