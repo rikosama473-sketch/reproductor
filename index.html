@@ -27,6 +27,7 @@
         <button class="nav-item" data-view="offline"><span class="nav-icon">⇩</span> Disponible sin conexión</button>
         <button class="nav-item" data-view="online"><span class="nav-icon">⌁</span> Añadir música online</button>
         <button class="nav-item" data-view="voices"><span class="nav-icon">♫</span> Estudio de voces</button>
+        <button class="nav-item" data-view="converter"><span class="nav-icon">⇄</span> Convertir audio</button>
       </nav>
       <div class="sidebar-divider"></div>
       <div class="side-label">TU ESPACIO</div>
@@ -302,6 +303,34 @@
             </div>
           </div>
         </section>
+        <section class="view-panel" id="converter-view" hidden>
+          <div class="page-intro converter-intro">
+            <div><div class="eyebrow">AUDIO LAB · CONVERSIÓN LOCAL</div><h1>Convertí tu audio <em>de verdad.</em></h1><p>Transformá archivos que tu navegador pueda decodificar a WAV PCM de 16 bits, sin subirlos a un servidor.</p></div>
+            <div class="converter-intro-note"><strong>El original queda intacto.</strong>Ritmo crea una descarga WAV nueva; nunca reemplaza ni elimina el archivo de origen.</div>
+          </div>
+          <div class="converter-layout">
+            <section class="converter-panel">
+              <div class="converter-panel-heading"><div><h2>Archivos de entrada</h2><p>Seleccioná hasta cinco archivos para convertirlos en una tanda.</p></div><span class="converter-badge">WAV · PCM16</span></div>
+              <label class="converter-dropzone" for="converter-files"><span class="converter-drop-icon" aria-hidden="true">⇧</span><strong>Elegir archivos de audio</strong><span>MP3, M4A, WAV, FLAC, Ogg y otros formatos solo si este navegador puede decodificarlos.</span><span class="button button-soft">Buscar archivos</span></label>
+              <input id="converter-files" class="converter-file-input" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.wave,.ogg,.oga,.opus,.webm,.flac,.aiff,.aif,.alac,.wma,.ape,.mp2" multiple>
+              <div class="converter-selection-head"><strong>Selección</strong><span id="converter-selection-summary">Todavía no elegiste archivos.</span></div>
+              <ul id="converter-file-list" class="converter-file-list"><li class="converter-empty">Los archivos seleccionados aparecerán aquí.</li></ul>
+              <div class="converter-options">
+                <label class="converter-field" for="converter-sample-rate"><span>Frecuencia de salida</span><select id="converter-sample-rate" class="form-input"><option value="44100">44,1 kHz</option><option value="48000">48 kHz</option></select></label>
+                <label class="converter-field" for="converter-channels"><span>Canales de salida</span><select id="converter-channels" class="form-input"><option value="2">Estéreo</option><option value="1">Mono</option></select></label>
+              </div>
+              <div class="converter-actions"><button class="button button-primary" id="converter-start" type="button" disabled>Convertir a WAV</button><button class="button button-soft" id="converter-cancel" type="button" disabled>Cancelar tanda</button><button class="button button-ghost" id="converter-clear" type="button">Limpiar</button></div>
+              <div class="converter-progress-wrap"><div class="converter-progress-copy"><strong id="converter-status" role="status" aria-live="polite">Esperando archivos.</strong><span id="converter-progress-label">0%</span></div><progress id="converter-progress" max="100" value="0">0%</progress></div>
+              <ul id="converter-results" class="converter-results" aria-live="polite"></ul>
+            </section>
+            <aside class="converter-panel converter-info">
+              <span class="converter-info-mark" aria-hidden="true">♫</span><h2>Qué hace esta conversión</h2>
+              <ul><li>Decodifica el archivo con el motor de audio del navegador y genera una cabecera WAV real con muestras PCM de 16 bits.</li><li>Permite elegir 44,1 o 48 kHz y salida mono o estéreo; si el navegador no acepta la frecuencia solicitada, informa la que utilizó.</li><li>La entrada se procesa de a un archivo por vez y el original no se modifica.</li></ul>
+              <div class="converter-warning"><strong>Límites de esta primera versión</strong><p>Solo convierte formatos que el navegador pueda decodificar. Cada archivo admite hasta 50 MiB y 7 minutos; la tanda, hasta 5 archivos y 100 MiB en total. La conversión completa se hace en memoria, por eso los límites son deliberados para proteger móviles y equipos con poca RAM.</p><p>WAV PCM16 no conserva etiquetas ni carátulas embebidas. Convertir un MP3 a WAV no recupera la calidad que el MP3 ya perdió. FLAC, MP3 y AAC como formatos de salida requieren un codificador adicional que esta versión todavía no incluye.</p></div>
+            </aside>
+          </div>
+        </section>
+
       </div>
     </main>
   </div>

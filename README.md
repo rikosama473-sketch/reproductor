@@ -53,6 +53,13 @@ El almacenamiento offline actual está pensado para archivos importados por el u
 - Un reproductor web no garantiza la reproducción en segundo plano o controles de pantalla bloqueada en todos los navegadores/dispositivos.
 - La compatibilidad PWA depende del navegador; para Android/iOS nativos haría falta un empaquetado y una capa de audio nativa.
 
+
+## Conversor de audio local — primera etapa
+
+La vista **Convertir audio** convierte uno o varios archivos a WAV RIFF con muestras PCM enteras de 16 bits. Permite solicitar 44,1 o 48 kHz y salida mono o estéreo; el navegador puede no aceptar la frecuencia solicitada y Ritmo muestra la frecuencia real utilizada. Los archivos se decodifican uno por uno y se generan enlaces para descargar los WAV. Los originales no se modifican ni se eliminan.
+
+Para evitar agotar la memoria, esta primera versión limita cada entrada a 50 MiB y 7 minutos, una tanda a 5 archivos y 100 MiB de entrada, y los resultados retenidos a 120 MiB. La decodificación requiere el archivo completo en memoria; por eso todavía no es adecuada para grabaciones largas ni bibliotecas enteras. Solo funcionan los formatos que el navegador y sus códecs puedan decodificar. El WAV de salida no conserva etiquetas ni carátulas embebidas. No incluye aún codificación de salida MP3/AAC/FLAC/Ogg, edición de etiquetas, guardado en una carpeta elegida ni cancelación dentro de una decodificación en curso.
+
 ## Privacidad
 
 Sin cuenta, analítica ni telemetría en esta versión. La tipografía web puede hacer una petición externa; las fuentes de audio online las decide el usuario. Para una distribución totalmente independiente, se puede retirar la fuente tipográfica remota y alojar tipografías propias con sus licencias.
@@ -81,7 +88,7 @@ La reproducción local integra Media Session cuando el navegador lo soporta para
 
 La importación se procesa en lotes de 20, conserva los blobs originales sin recodificarlos y evita una transacción única gigante. El navegador decide la cuota real disponible. Los metadatos ID3v2 básicos (título, artista, álbum) se leen de archivos MP3; en otros formatos el título se infiere del nombre de archivo en esta versión.
 
-Formatos frecuentes en navegadores modernos incluyen MP3, AAC/M4A, WAV, Ogg Vorbis/Opus, WebM Opus y FLAC, dependiendo del navegador, sistema y códec. La interfaz informa `canPlayType()` para varios tipos. WMA, APE, AIFF y otros códecs poco comunes no están garantizados. No se falsifica compatibilidad ni se hace transcodificación local en esta versión.
+Formatos frecuentes en navegadores modernos incluyen MP3, AAC/M4A, WAV, Ogg Vorbis/Opus, WebM Opus y FLAC, dependiendo del navegador, sistema y códec. La interfaz informa `canPlayType()` para varios tipos. WMA, APE, AIFF y otros códecs poco comunes no están garantizados. No se falsifica compatibilidad. La importación conserva los originales; el conversor local puede crear WAV PCM16 únicamente desde formatos que el navegador consiga decodificar, con límites explícitos de tamaño y duración.
 
 Las reproducciones de YouTube solo guardan metadatos del historial, nunca archivos de audio. La app usa el reproductor oficial, y ese contenido no está disponible sin conexión.
 

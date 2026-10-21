@@ -3,6 +3,8 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const source = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
+assert.match(source, /"\.\/src\/id3-tags\.js"/, "The MP3 metadata module must be cached for offline startup");
+assert.match(source, /"\.\/src\/audio-converter\.js"/, "The audio converter module must be cached for offline startup");
 const scopeUrl = "https://example.test/app/sw.js";
 const shellUrl = "https://example.test/app/index.html";
 
