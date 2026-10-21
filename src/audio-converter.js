@@ -133,37 +133,6 @@ export async function probeAudioFileDuration(file, {
 }
 
 /** Encode a decoded AudioBuffer as real little-endian PCM16 RIFF/WAVE data. */
-export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
-  if (!audioBuffer || !Number.isInteger(audioBuffer.length) || audioBuffer.length < 1 ||
-      !Number.isFinite(audioBuffer.sampleRate) || audioBuffer.sampleRate < 8000 ||
-      !Number.isInteger(audioBuffer.numberOfChannels) || audioBuffer.numberOfChannels < 1 ||
-      typeof audioBuffer.getChannelData !== "function") {
-    throw new TypeError("El audio decodificado no contiene muestras válidas.");
-  }
-  const channels = safeChannels(outputChannels);
-  const frames = audioBuffer.length;
-  const sampleRate = Math.round(audioBuffer.sampleRate);
-  const dataBytes = frames * channels * 2;
-  if (!Number.isSafeInteger(dataBytes) || dataBytes > 0xffffffff - 36) {
-    throw new RangeError("El WAV resultante supera el límite del formato RIFF.");
-  }
-
-  const buffer = new ArrayBuffer(44 + dataBytes);
-  const view = new DataView(buffer);
-  writeAscii(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataBytes, true);
-  writeAscii(view, 8, "WAVE");
-  writeAscii(view, 12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // WAVE_FORMAT_PCM
-  view.setUint16(22, channels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * channels * 2, true);
-  view.setUint16(32, channels * 2, true);
-  view.setUint16(34, 16, true);
-  writeAscii(view, 36, "data");
-  view.setUint32(40, dataBytes, true);
-
 function mixedPcmSample(sourceChannels, frame, outputChannel, outputChannels) {
   const count = sourceChannels.length;
   const surroundGain = Math.SQRT1_2;
@@ -194,6 +163,37 @@ function mixedPcmSample(sourceChannels, frame, outputChannel, outputChannels) {
   }
   return Number.isFinite(sample) ? sample : 0;
 }
+
+export function encodePcm16Wav(audioBuffer, outputChannels = 2) {
+  if (!audioBuffer || !Number.isInteger(audioBuffer.length) || audioBuffer.length < 1 ||
+      !Number.isFinite(audioBuffer.sampleRate) || audioBuffer.sampleRate < 8000 ||
+      !Number.isInteger(audioBuffer.numberOfChannels) || audioBuffer.numberOfChannels < 1 ||
+      typeof audioBuffer.getChannelData !== "function") {
+    throw new TypeError("El audio decodificado no contiene muestras válidas.");
+  }
+  const channels = safeChannels(outputChannels);
+  const frames = audioBuffer.length;
+  const sampleRate = Math.round(audioBuffer.sampleRate);
+  const dataBytes = frames * channels * 2;
+  if (!Number.isSafeInteger(dataBytes) || dataBytes > 0xffffffff - 36) {
+    throw new RangeError("El WAV resultante supera el límite del formato RIFF.");
+  }
+
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // WAVE_FORMAT_PCM
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * 2, true);
+  view.setUint16(32, channels * 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataBytes, true);
 
   const sourceChannels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) => audioBuffer.getChannelData(index));
 
