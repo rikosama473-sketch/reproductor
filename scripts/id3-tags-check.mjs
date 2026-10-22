@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MAX_EMBEDDED_ARTWORK_BYTES, parseId3Tags, validateEmbeddedArtwork } from "../src/id3-tags.js";
+import { MAX_EMBEDDED_ARTWORK_BYTES, MAX_ID3_FRAMES, parseId3Tags, validateEmbeddedArtwork } from "../src/id3-tags.js";
 
 const fallback = { title: "Filename title", artist: "Unknown artist", album: "", genre: "" };
 const synchsafe = value => [(value >> 21) & 0x7f, (value >> 14) & 0x7f, (value >> 7) & 0x7f, value & 0x7f];
@@ -54,6 +54,24 @@ const apic = (mime, pictureType, data, version = 3, description = "", frameFlags
     ...data
   ]), version, frameFlags);
 };
+
+// Keep synchronous parsing bounded even if an ID3 tag contains thousands of tiny frames.
+{
+  const payloadSize = MAX_ID3_FRAMES * 11 + frame("TIT2", "Over-limit sentinel").length;
+  const bytes = new Uint8Array(10 + payloadSize);
+  bytes.set([0x49, 0x44, 0x33, 3, 0, 0, ...synchsafe(payloadSize)], 0);
+  let offset = 10;
+  for (let index = 0; index < MAX_ID3_FRAMES; index++) {
+    bytes.set([0x54, 0x49, 0x54, 0x32, 0, 0, 0, 1, 0, 0, 3], offset);
+    offset += 11;
+  }
+  const sentinel = frame("TIT2", "Over-limit sentinel");
+  bytes.set(sentinel, offset);
+  offset += sentinel.length;
+  assert.equal(offset, bytes.length);
+  const bounded = parseId3Tags(bytes, fallback);
+  assert.equal(bounded.title, fallback.title, "The parser must not reach a frame beyond MAX_ID3_FRAMES.");
+}
 
 const v23 = parseId3Tags(tag(3, [frame("TIT2", "Piano nocturno"), frame("TPE1", "Artista"), frame("TALB", "Álbum"), frame("TCON", "17")]), fallback);
 assert.equal(v23.title, "Piano nocturno");

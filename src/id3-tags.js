@@ -1,3 +1,5 @@
+export const MAX_ID3_FRAMES = 4096;
+
 const TEXT_FRAMES = Object.freeze({
   TIT2: "title", TPE1: "artist", TALB: "album", TCON: "genre",
   TT2: "title", TP1: "artist", TAL: "album", TCO: "genre"
@@ -196,7 +198,12 @@ export function parseId3Tags(input, fallback = {}) {
 
   // ID3v2.4 tag size excludes its optional 10-byte footer, so frameEnd stays at tagEnd.
   const frameEnd = tagEnd;
+  let frameCount = 0;
   while (offset < frameEnd) {
+    frameCount += 1;
+    // A small tag can still contain a pathological number of tiny frames;
+    // stop scanning to bound synchronous work during import and playback.
+    if (frameCount > MAX_ID3_FRAMES) break;
     const headerSize = version === 2 ? 6 : 10;
     if (offset + headerSize > frameEnd) break;
     const idLength = version === 2 ? 3 : 4;
