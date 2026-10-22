@@ -246,4 +246,4 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
     "Non-audio files should be counted as unsupported rather than corrupt audio");
 }
 
-console.log("Import fingerprint checks passed: folder paths, Android URIs and saved fallback identity.");
+console.log("Import fingerprint checks passed: identity, bounded duplicate scans, cancellation and cooperative yielding.");
