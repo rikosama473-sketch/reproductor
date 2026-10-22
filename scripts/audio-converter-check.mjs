@@ -3,6 +3,7 @@ import {
   claimUniqueWavFilename,
   convertAudioFileToWav,
   MAX_CONVERTER_STREAM_CHUNK_BYTES,
+  MAX_CONVERTER_WAV_CHUNKS,
   encodePcm16Wav,
   MAX_CONVERTER_DURATION_SECONDS,
   probeAudioFileDuration,
@@ -306,6 +307,48 @@ assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
     /tamaño RIFF/
   );
   assert.equal(decodeCalls, 0, "Malformed RIFF input must be rejected before decoder fallback.");
+}
+
+// WAV files with excessive zero-length RIFF chunks must be rejected with bounded parser work.
+{
+  const chunkCount = MAX_CONVERTER_WAV_CHUNKS + 1;
+  const bytes = new Uint8Array(12 + 24 + 10 + (chunkCount - 2) * 8);
+  const view = new DataView(bytes.buffer);
+  const ascii = (offset, value) => {
+    for (let index = 0; index < value.length; index++) bytes[offset + index] = value.charCodeAt(index);
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, bytes.length - 8, true);
+  ascii(8, "WAVE");
+  let offset = 12;
+  ascii(offset, "fmt ");
+  view.setUint32(offset + 4, 16, true);
+  view.setUint16(offset + 8, 1, true);
+  view.setUint16(offset + 10, 1, true);
+  view.setUint32(offset + 12, 44100, true);
+  view.setUint32(offset + 16, 88200, true);
+  view.setUint16(offset + 20, 2, true);
+  view.setUint16(offset + 22, 16, true);
+  offset += 24;
+  ascii(offset, "data");
+  view.setUint32(offset + 4, 2, true);
+  view.setInt16(offset + 8, 123, true);
+  offset += 10;
+  for (let index = 2; index < chunkCount; index++) {
+    ascii(offset, "JUNK");
+    view.setUint32(offset + 4, 0, true);
+    offset += 8;
+  }
+  assert.equal(offset, bytes.length);
+  let decodeCalls = 0;
+  await assert.rejects(
+    convertAudioFileToWav(new Blob([bytes], { type: "audio/wav" }), {
+      sampleRate: 44100,
+      decodeAudioData: async () => { decodeCalls++; throw new Error("Must reject excessive RIFF chunks before fallback decode."); }
+    }),
+    /demasiados bloques RIFF/
+  );
+  assert.equal(decodeCalls, 0, "Excessive RIFF chunk counts must be rejected before decoder fallback.");
 }
 
 // Successful conversion still produces a valid WAV after preflight.
