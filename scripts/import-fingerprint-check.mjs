@@ -304,4 +304,4 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
     "Non-audio files should be counted as unsupported rather than corrupt audio");
 }
 
-console.log("Import fingerprint checks passed: identity, bounded duplicate scans, cancellation and cooperative yielding.");
+console.log("Import fingerprint checks passed: identity collisions, bounded duplicate scans, cancellation and cooperative yielding.");
