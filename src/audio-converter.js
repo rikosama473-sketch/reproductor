@@ -339,6 +339,7 @@ async function inspectStreamablePcm16Wav(file, signal) {
   let offset = 12;
   let format = null;
   let data = null;
+  let hasMultipleDataChunks = false;
   while (offset < file.size) {
     throwIfConverterAborted(signal);
     if (offset + 8 > file.size) {
@@ -372,13 +373,15 @@ async function inspectStreamablePcm16Wav(file, signal) {
         blockAlign: fmt.getUint16(12, true),
         bitsPerSample: fmt.getUint16(14, true)
       };
-    } else if (chunkName === "data" && data === null) {
-      data = { start: chunkStart, bytes: chunkSize };
+    } else if (chunkName === "data") {
+      if (data === null) data = { start: chunkStart, bytes: chunkSize };
+      else hasMultipleDataChunks = true;
     }
     offset = nextOffset;
   }
 
   if (!format || !data) throw new Error("El WAV de entrada no contiene los bloques fmt y data esperados.");
+  if (hasMultipleDataChunks) return null;
   // Other PCM formats and multichannel files remain on the existing decoder path.
   if (format.code !== 1 || ![1, 2].includes(format.channels) || format.bitsPerSample !== 16) {
     return null;
@@ -455,6 +458,7 @@ async function convertPcm16WavInChunks(file, layout, outputChannels, outputLimit
       const sourceStart = layout.dataStart + frameOffset * layout.blockAlign;
       const sourceEnd = sourceStart + frameCount * layout.blockAlign;
       const sourceBuffer = await file.slice(sourceStart, sourceEnd).arrayBuffer();
+      throwIfConverterAborted(signal);
       if (sourceBuffer.byteLength !== frameCount * layout.blockAlign) {
         throw new Error("No se pudo leer un bloque completo de muestras WAV.");
       }
