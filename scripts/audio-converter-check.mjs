@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   claimUniqueWavFilename,
   convertAudioFileToWav,
+  MAX_CONVERTER_STREAM_CHUNK_BYTES,
   encodePcm16Wav,
   MAX_CONVERTER_DURATION_SECONDS,
   probeAudioFileDuration,
@@ -227,6 +228,84 @@ assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
   controller.abort();
   decodedResolve(fakeBuffer([[0, 0]]));
   await assert.rejects(pending, error => error?.name === "AbortError");
+}
+
+// Supported PCM16 WAV inputs use the chunked path without decodeAudioData or a duration probe.
+{
+  let decodeCalls = 0;
+  let durationProbeCalls = 0;
+  const context = {
+    sampleRate: 44100,
+    decodeAudioData: async () => { decodeCalls++; throw new Error("Streaming PCM16 path must not decode the full file."); }
+  };
+  const result = await convertAudioFileToWav(monoWav, context, {
+    channels: 2,
+    durationProbe: async () => { durationProbeCalls++; throw new Error("PCM16 WAV path should use its sample count."); }
+  });
+  assert.equal(result.streaming, true);
+  assert.equal(result.conversionPath, "chunked-pcm16-wav");
+  assert.equal(result.channels, 2);
+  assert.equal(result.sourceChannels, 1);
+  assert.equal(result.sampleRate, 44100);
+  assert.equal(decodeCalls, 0);
+  assert.equal(durationProbeCalls, 0);
+  const out = new DataView(await result.blob.arrayBuffer());
+  assert.equal(out.getUint32(40, true), 12);
+  assert.equal(out.getInt16(44, true), -32768);
+  assert.equal(out.getInt16(46, true), -32768);
+  assert.equal(out.getInt16(48, true), 0);
+  assert.equal(out.getInt16(50, true), 0);
+  assert.equal(out.getInt16(52, true), 32767);
+  assert.equal(out.getInt16(54, true), 32767);
+}
+
+// Stereo-to-mono PCM conversion averages each pair using bounded intermediate buffers.
+{
+  const stereoInput = encodePcm16Wav(stereo, 2);
+  const result = await convertAudioFileToWav(stereoInput, { sampleRate: 44100 }, { channels: 1 });
+  const out = new DataView(await result.blob.arrayBuffer());
+  const inView = new DataView(await stereoInput.arrayBuffer());
+  assert.equal(result.streaming, true);
+  assert.equal(result.channels, 1);
+  assert.equal(out.getInt16(44, true), Math.round((inView.getInt16(44, true) + inView.getInt16(46, true)) / 2));
+  assert.equal(out.getInt16(46, true), Math.round((inView.getInt16(48, true) + inView.getInt16(50, true)) / 2));
+}
+
+// A conversion longer than one input chunk is split into bounded reads.
+{
+  const frames = Math.floor(MAX_CONVERTER_STREAM_CHUNK_BYTES / 2) + 7;
+  const samples = new Float32Array(frames).fill(0.25);
+  const wav = encodePcm16Wav(fakeBuffer([samples]), 1);
+  const requestedSizes = [];
+  const trackedFile = {
+    size: wav.size,
+    slice(start, end) {
+      requestedSizes.push(end - start);
+      return wav.slice(start, end);
+    }
+  };
+  const result = await convertAudioFileToWav(trackedFile, { sampleRate: 44100 }, { channels: 2 });
+  assert.equal(result.streaming, true);
+  assert.equal(result.blob.size, 44 + frames * 4);
+  const payloadReads = requestedSizes.filter(size => size > 16);
+  assert.ok(payloadReads.length >= 2, "Large PCM payload should be consumed in more than one chunk.");
+  assert.ok(payloadReads.every(size => size <= MAX_CONVERTER_STREAM_CHUNK_BYTES),
+    "Every input payload read must stay within the configured chunk budget.");
+}
+
+// A malformed RIFF length is rejected rather than silently routed through another decoder.
+{
+  const corrupted = new Uint8Array(await monoWav.arrayBuffer());
+  new DataView(corrupted.buffer).setUint32(4, corrupted.length, true);
+  let decodeCalls = 0;
+  await assert.rejects(
+    convertAudioFileToWav(new Blob([corrupted], { type: "audio/wav" }), {
+      sampleRate: 44100,
+      decodeAudioData: async () => { decodeCalls++; return fakeBuffer([[0, 0]]); }
+    }),
+    /tamaño RIFF/
+  );
+  assert.equal(decodeCalls, 0, "Malformed RIFF input must be rejected before decoder fallback.");
 }
 
 // Successful conversion still produces a valid WAV after preflight.
