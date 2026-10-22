@@ -76,7 +76,7 @@ let sw = await readFile(path.join(webDir, "sw.js"), "utf8");
 if (!/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/.test(sw)) {
   throw new Error("No se encontró una versión explícita del caché móvil en sw.js.");
 }
-sw = sw.replace(/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/, 'const CACHE_NAME = "ritmo-shell-v76";');
+sw = sw.replace(/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/, 'const CACHE_NAME = "ritmo-shell-v77";');
 if (!sw.includes('"./capacitor.js"') && !sw.includes("'./capacitor.js'")) {
   const indexEntry = '  "./index.html",';
   if (sw.split(indexEntry).length - 1 !== 1) {

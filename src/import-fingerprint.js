@@ -34,6 +34,8 @@ export const MAX_BLOB_COMPARISON_BYTES_PER_SEARCH = 128 * 1024 * 1024;
 // Also bound cumulative work for a whole import selection, not only each file.
 export const MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH = 256;
 export const MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH = 128 * 1024 * 1024;
+// Allow user input, paint and cancellation events to run during long comparisons.
+export const BLOB_COMPARE_YIELD_EVERY_CHUNKS = 4;
 
 function throwIfBlobComparisonAborted(signal) {
   if (!signal?.aborted) return;
@@ -44,7 +46,8 @@ function throwIfBlobComparisonAborted(signal) {
 
 export async function areBlobsByteIdentical(left, right, {
   chunkSize = DEFAULT_BLOB_COMPARE_CHUNK_BYTES,
-  signal
+  signal,
+  yieldControl = () => new Promise(resolve => setTimeout(resolve, 0))
 } = {}) {
   if (!left || !right || typeof left.slice !== "function" || typeof right.slice !== "function" ||
       !Number.isSafeInteger(Number(left.size)) || !Number.isSafeInteger(Number(right.size))) {
@@ -61,6 +64,7 @@ export async function areBlobsByteIdentical(left, right, {
       : DEFAULT_BLOB_COMPARE_CHUNK_BYTES
   ));
 
+  let comparedChunks = 0;
   for (let offset = 0; offset < size; offset += chunkBytes) {
     throwIfBlobComparisonAborted(signal);
     const end = Math.min(size, offset + chunkBytes);
@@ -80,6 +84,14 @@ export async function areBlobsByteIdentical(left, right, {
     const rightBytes = new Uint8Array(rightBuffer);
     for (let index = 0; index < leftBytes.length; index++) {
       if (leftBytes[index] !== rightBytes[index]) return false;
+    }
+
+    comparedChunks++;
+    if (end < size && comparedChunks % BLOB_COMPARE_YIELD_EVERY_CHUNKS === 0) {
+      // Blob.arrayBuffer() continuations alone can remain in the microtask queue;
+      // a timer yield lets the browser process paint and user cancellation events.
+      await yieldControl();
+      throwIfBlobComparisonAborted(signal);
     }
   }
   return true;

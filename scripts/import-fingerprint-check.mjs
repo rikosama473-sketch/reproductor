@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH, BLOB_COMPARE_YIELD_EVERY_CHUNKS } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -103,6 +103,43 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
   );
 }
 
+
+// Large equality checks periodically yield to the browser instead of monopolizing
+// the main thread; cancellation received during a yield is honored immediately.
+{
+  const chunkSize = 16 * 1024;
+  const bytes = new Uint8Array(chunkSize * 10 + 17);
+  for (let index = 0; index < bytes.length; index++) bytes[index] = (index * 19 + 5) & 0xff;
+  const left = new Blob([bytes]);
+  const right = new Blob([bytes.slice()]);
+  let yields = 0;
+  assert.equal(
+    await areBlobsByteIdentical(left, right, {
+      chunkSize,
+      yieldControl: async () => { yields++; }
+    }),
+    true,
+    "Yielding must not change the byte-identical result"
+  );
+  assert.equal(BLOB_COMPARE_YIELD_EVERY_CHUNKS, 4);
+  assert.equal(yields, 2, "A 10-chunk comparison must yield after chunks 4 and 8");
+
+  const controller = new AbortController();
+  let abortYields = 0;
+  await assert.rejects(
+    areBlobsByteIdentical(left, right, {
+      chunkSize,
+      signal: controller.signal,
+      yieldControl: async () => {
+        abortYields++;
+        controller.abort();
+      }
+    }),
+    error => error?.name === "AbortError",
+    "Cancellation received while yielding must end the comparison"
+  );
+  assert.equal(abortYields, 1, "Cancellation should stop at the first scheduled yield");
+}
 
 // A failed source read must not cause a file to be discarded. If another
 // candidate proves byte-identical, the verified match is sufficient.
