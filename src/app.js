@@ -2547,6 +2547,9 @@ async function importFiles(fileList, options = {}) {
     if (decision.action === "skip-content") {
       skippedByContent++;
       existing.add(fingerprint);
+      // Even skipped files have comparable bytes: keep checking subsequent
+      // selections with this same fingerprint for a later content change.
+      comparableFingerprints.add(fingerprint);
       continue;
     }
     existing.add(fingerprint);
