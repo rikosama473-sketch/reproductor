@@ -25,6 +25,9 @@ assert.match(engine, /throwIfConverterAborted\(signal\)/, "The engine must check
 assert.match(app, /createObjectURL\(blob\)/, "Converted output must be available as a downloadable file");
 assert.match(app, /URL\.revokeObjectURL\(url\)/, "Generated object URLs must be released");
 assert.match(app, /document\.createElement\("audio"\)/, "Converted outputs should expose native browser audio preview");
+assert.match(app, /const playback = preview\.play\(\)/, "Clicking Escuchar must request actual playback, not only reveal controls");
+assert.match(app, /playback\.catch\(error =>/, "Rejected media playback promises must be handled");
+assert.match(app, /NotAllowedError/, "Autoplay/user-gesture restrictions must produce a clear fallback message");
 assert.match(app, /preview\.controls = true/, "Converted audio preview must have real playback controls");
 assert.match(app, /preview\.preload = "none"/, "Preview audio must not preload until the user opens it");
 assert.match(app, /converterPreviewElements\.clear\(\)/, "Clearing results must release preview element references");
@@ -36,7 +39,7 @@ assert.match(engine, /RIFF/);
 assert.match(engine, /WAVE_FORMAT_PCM/);
 assert.match(engine, /MAX_CONVERTER_DURATION_SECONDS = 7 \* 60/);
 assert.match(engine, /MAX_CONVERTER_INPUT_BYTES = 50 \* 1024 \* 1024/);
-assert.match(sw, /ritmo-shell-v69/);
+assert.match(sw, /ritmo-shell-v70/);
 assert.match(sw, /"\.\/src\/audio-converter\.js"/, "Converter engine must be cached for offline startup");
 assert.match(styles, /\.converter-layout/);
 console.log("Audio converter UI tests passed: navigation, limits, real conversion wiring, cancellation, downloads and offline cache.");

@@ -1807,6 +1807,17 @@ function appendConverterResult(fileName, detail, blob = null, tone = "success") 
         preview.hidden = false;
         previewToggle.textContent = "Ocultar";
         previewToggle.setAttribute("aria-expanded", "true");
+        // This click is a real user gesture, so request playback here instead
+        // of making "Escuchar" only reveal a second Play button.
+        const playback = preview.play();
+        if (playback && typeof playback.catch === "function") {
+          playback.catch(error => {
+            const message = error?.name === "NotAllowedError"
+              ? "El navegador bloqueó el inicio de la vista previa; usá ▶ en los controles del reproductor."
+              : "No se pudo iniciar la vista previa en este navegador; todavía podés descargar el WAV.";
+            description.textContent = detail + " · " + message;
+          });
+        }
       } else {
         preview.pause();
         preview.currentTime = 0;
