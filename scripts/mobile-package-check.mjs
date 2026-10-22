@@ -38,7 +38,7 @@ assert.match(nativePlugin, /MediaStore\.Audio\.Media/, "Native plugin must query
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT/, "Native plugin must open the system document picker");
 assert.match(nativePlugin, /ACTION_OPEN_DOCUMENT_TREE/, "Native plugin must support selecting music folders");
 assert.match(nativePlugin, /listAudioFromTree/, "Native plugin must recursively inspect a selected folder tree");
-assert.match(sw, /ritmo-shell-v71/, "Mobile bundle should use its independent refreshed offline shell");
+assert.match(sw, /ritmo-shell-v72/, "Mobile bundle should use its independent refreshed offline shell");
 assert.match(sw, /capacitor\.js/, "Offline mobile shell must precache the Capacitor runtime");
 assert.match(sw, /\.\/src\/external-navigation\.js/, "The safe media-link validator must be available offline");
 for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/external-navigation.js", "src/import-fingerprint.js", "src/id3-tags.js", "src/audio-converter.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "pngtuber-capibara.png"]) {
