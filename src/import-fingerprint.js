@@ -31,6 +31,9 @@ export const MAX_BLOB_COMPARE_CHUNK_BYTES = 1024 * 1024;
 // cannot cause unbounded synchronous import work or gigabytes of repeated reads.
 export const MAX_BLOB_COMPARE_CANDIDATES = 128;
 export const MAX_BLOB_COMPARISON_BYTES_PER_SEARCH = 128 * 1024 * 1024;
+// Also bound cumulative work for a whole import selection, not only each file.
+export const MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH = 256;
+export const MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH = 128 * 1024 * 1024;
 
 function throwIfBlobComparisonAborted(signal) {
   if (!signal?.aborted) return;
@@ -93,8 +96,10 @@ export async function findIdenticalBlobCandidate(blob, candidates, options = {})
   const {
     maxCandidates: requestedMaxCandidates,
     maxComparisonBytes: requestedMaxComparisonBytes,
+    budget,
     ...comparisonOptions
   } = settings;
+  const sharedBudget = budget && typeof budget === "object" ? budget : null;
   const maxCandidates = Number.isSafeInteger(Number(requestedMaxCandidates)) && Number(requestedMaxCandidates) >= 0
     ? Math.min(MAX_BLOB_COMPARE_CANDIDATES, Number(requestedMaxCandidates))
     : MAX_BLOB_COMPARE_CANDIDATES;
@@ -107,23 +112,29 @@ export async function findIdenticalBlobCandidate(blob, candidates, options = {})
   let comparisonFailed = false;
 
   for (const candidate of candidates || []) {
-    if (candidateCount >= maxCandidates) {
+    if (candidateCount >= maxCandidates ||
+        (sharedBudget && (!Number.isSafeInteger(sharedBudget.remainingCandidates) ||
+          sharedBudget.remainingCandidates <= 0))) {
       return { identical: false, comparisonFailed: true };
     }
     candidateCount++;
+    if (sharedBudget) sharedBudget.remainingCandidates--;
 
     // Each byte-identical check reads both inputs. Stop before an attempt that
-    // would exceed the per-file I/O budget; the caller must keep the file when
-    // the result is inconclusive rather than risk discarding a real track.
+    // would exceed per-file or whole-import I/O budgets; inconclusive checks
+    // must preserve the incoming file rather than risk discarding real audio.
     const candidateSize = Number(candidate?.size);
     if (Number.isSafeInteger(sourceSize) && sourceSize > 0 &&
         Number.isSafeInteger(candidateSize) && candidateSize === sourceSize) {
       const estimatedBytes = sourceSize * 2;
       if (!Number.isSafeInteger(estimatedBytes) ||
-          comparisonBytes + estimatedBytes > maxComparisonBytes) {
+          comparisonBytes + estimatedBytes > maxComparisonBytes ||
+          (sharedBudget && (!Number.isSafeInteger(sharedBudget.remainingBytes) ||
+            estimatedBytes > sharedBudget.remainingBytes))) {
         return { identical: false, comparisonFailed: true };
       }
       comparisonBytes += estimatedBytes;
+      if (sharedBudget) sharedBudget.remainingBytes -= estimatedBytes;
     }
 
     try {

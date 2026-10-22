@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -166,6 +166,28 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
 
   assert.equal(MAX_BLOB_COMPARE_CANDIDATES, 128);
   assert.equal(MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, 128 * 1024 * 1024);
+  assert.equal(MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, 256);
+  assert.equal(MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH, 128 * 1024 * 1024);
+
+  const batchBudget = { remainingCandidates: 10, remainingBytes: 8 };
+  let nextFileReads = 0;
+  const nextFileCandidate = {
+    size: 4,
+    slice() {
+      nextFileReads++;
+      return identical.slice(0, 4);
+    }
+  };
+  const firstFileSearch = await findIdenticalBlobCandidate(input, [different, nextFileCandidate], { budget: batchBudget });
+  assert.deepEqual(firstFileSearch, { identical: false, comparisonFailed: true },
+    "The batch-wide byte budget must stop a later candidate after the previous comparison consumes the budget");
+  assert.equal(batchBudget.remainingBytes, 0);
+  assert.equal(nextFileReads, 0);
+
+  const secondFileSearch = await findIdenticalBlobCandidate(input, [nextFileCandidate], { budget: batchBudget });
+  assert.deepEqual(secondFileSearch, { identical: false, comparisonFailed: true },
+    "Subsequent files must respect the same cumulative import budget");
+  assert.equal(nextFileReads, 0, "Exhausting the batch budget must not read later candidates");
 }
  
 // Empty/unreadable audio files are separated before importing; unsupported
