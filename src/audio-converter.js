@@ -312,6 +312,7 @@ export async function validatePcm16WavBlob(blob, expected = {}) {
  * size are therefore checked before decodeAudioData() whenever metadata allows it.
  */
 export const MAX_CONVERTER_STREAM_CHUNK_BYTES = 256 * 1024;
+export const MAX_CONVERTER_WAV_CHUNKS = 4096;
 
 /**
  * Identify conventional RIFF/WAVE PCM16 mono/stereo input without reading its
@@ -340,8 +341,13 @@ async function inspectStreamablePcm16Wav(file, signal) {
   let format = null;
   let data = null;
   let hasMultipleDataChunks = false;
+  let chunkCount = 0;
   while (offset < file.size) {
     throwIfConverterAborted(signal);
+    chunkCount += 1;
+    if (chunkCount > MAX_CONVERTER_WAV_CHUNKS) {
+      throw new Error("El WAV contiene demasiados bloques RIFF; se rechazó para evitar un análisis desproporcionado.");
+    }
     if (offset + 8 > file.size) {
       throw new Error("El WAV de entrada termina dentro de una cabecera de bloque.");
     }
