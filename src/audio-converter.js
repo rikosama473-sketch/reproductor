@@ -311,6 +311,191 @@ export async function validatePcm16WavBlob(blob, expected = {}) {
  * Web Audio decodes complete file data into memory; duration and expected output
  * size are therefore checked before decodeAudioData() whenever metadata allows it.
  */
+export const MAX_CONVERTER_STREAM_CHUNK_BYTES = 256 * 1024;
+
+/**
+ * Identify conventional RIFF/WAVE PCM16 mono/stereo input without reading its
+ * audio payload. Unsupported codecs/channel layouts fall back to Web Audio.
+ */
+async function inspectStreamablePcm16Wav(file, signal) {
+  if (typeof file?.slice !== "function" || file.size < 44) return null;
+  throwIfConverterAborted(signal);
+  const signatureBuffer = await file.slice(0, 12).arrayBuffer();
+  if (signatureBuffer.byteLength !== 12) return null;
+  const signature = new DataView(signatureBuffer);
+  const riff = String.fromCharCode(
+    signature.getUint8(0), signature.getUint8(1),
+    signature.getUint8(2), signature.getUint8(3)
+  );
+  const wave = String.fromCharCode(
+    signature.getUint8(8), signature.getUint8(9),
+    signature.getUint8(10), signature.getUint8(11)
+  );
+  if (riff !== "RIFF" || wave !== "WAVE") return null;
+  if (signature.getUint32(4, true) + 8 !== file.size) {
+    throw new Error("El tamaño RIFF del WAV de entrada no coincide con el archivo real.");
+  }
+
+  let offset = 12;
+  let format = null;
+  let data = null;
+  while (offset < file.size) {
+    throwIfConverterAborted(signal);
+    if (offset + 8 > file.size) {
+      throw new Error("El WAV de entrada termina dentro de una cabecera de bloque.");
+    }
+    const chunkBuffer = await file.slice(offset, offset + 8).arrayBuffer();
+    if (chunkBuffer.byteLength !== 8) throw new Error("No se pudo leer un bloque del WAV de entrada.");
+    const chunkHeader = new DataView(chunkBuffer);
+    const chunkName = String.fromCharCode(
+      chunkHeader.getUint8(0), chunkHeader.getUint8(1),
+      chunkHeader.getUint8(2), chunkHeader.getUint8(3)
+    );
+    const chunkSize = chunkHeader.getUint32(4, true);
+    const chunkStart = offset + 8;
+    const chunkEnd = chunkStart + chunkSize;
+    const nextOffset = chunkEnd + (chunkSize % 2);
+    if (chunkEnd > file.size || nextOffset > file.size) {
+      throw new Error("Un bloque del WAV de entrada declara una longitud fuera del archivo.");
+    }
+
+    if (chunkName === "fmt " && format === null) {
+      if (chunkSize < 16) throw new Error("El bloque fmt del WAV de entrada está truncado.");
+      const fmtBuffer = await file.slice(chunkStart, chunkStart + 16).arrayBuffer();
+      if (fmtBuffer.byteLength !== 16) throw new Error("No se pudo leer el formato del WAV de entrada.");
+      const fmt = new DataView(fmtBuffer);
+      format = {
+        code: fmt.getUint16(0, true),
+        channels: fmt.getUint16(2, true),
+        sampleRate: fmt.getUint32(4, true),
+        byteRate: fmt.getUint32(8, true),
+        blockAlign: fmt.getUint16(12, true),
+        bitsPerSample: fmt.getUint16(14, true)
+      };
+    } else if (chunkName === "data" && data === null) {
+      data = { start: chunkStart, bytes: chunkSize };
+    }
+    offset = nextOffset;
+  }
+
+  if (!format || !data) throw new Error("El WAV de entrada no contiene los bloques fmt y data esperados.");
+  // Other PCM formats and multichannel files remain on the existing decoder path.
+  if (format.code !== 1 || ![1, 2].includes(format.channels) || format.bitsPerSample !== 16) {
+    return null;
+  }
+  if (format.sampleRate < 8000 || format.blockAlign !== format.channels * 2 ||
+      format.byteRate !== format.sampleRate * format.blockAlign) {
+    throw new Error("La frecuencia o la alineación PCM16 del WAV de entrada es incoherente.");
+  }
+  if (data.bytes <= 0 || data.bytes % format.blockAlign !== 0) {
+    throw new Error("La longitud PCM16 del WAV de entrada no está alineada con sus muestras.");
+  }
+  const frames = data.bytes / format.blockAlign;
+  const duration = frames / format.sampleRate;
+  if (!Number.isSafeInteger(frames) || !Number.isFinite(duration) || duration <= 0) {
+    throw new Error("La duración o el número de muestras del WAV de entrada no es válido.");
+  }
+  return {
+    dataStart: data.start,
+    dataBytes: data.bytes,
+    frames,
+    duration,
+    sampleRate: format.sampleRate,
+    sourceChannels: format.channels,
+    blockAlign: format.blockAlign
+  };
+}
+
+function createPcm16WavHeader(channels, sampleRate, dataBytes) {
+  if (!Number.isSafeInteger(dataBytes) || dataBytes <= 0 || dataBytes > 0xffffffff - 36) {
+    throw new RangeError("El WAV resultante supera el límite del formato RIFF.");
+  }
+  const buffer = new ArrayBuffer(44);
+  const view = new DataView(buffer);
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * 2, true);
+  view.setUint16(32, channels * 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataBytes, true);
+  return buffer;
+}
+
+/**
+ * Repack supported PCM16 WAV inputs in bounded chunks. No AudioBuffer and no
+ * whole-input ArrayBuffer is created. The final downloadable Blob still stores
+ * the complete output; this is a memory-reduced PCM path, not universal streaming.
+ */
+async function convertPcm16WavInChunks(file, layout, outputChannels, outputLimit, signal) {
+  const dataBytes = layout.frames * outputChannels * 2;
+  const outputBytes = 44 + dataBytes;
+  if (!Number.isSafeInteger(dataBytes) || outputBytes > outputLimit ||
+      outputBytes > MAX_CONVERTER_OUTPUT_BYTES) {
+    throw new Error("El WAV real supera el espacio disponible para resultados; se rechazó antes de procesar las muestras.");
+  }
+
+  const parts = [createPcm16WavHeader(outputChannels, layout.sampleRate, dataBytes)];
+  if (outputChannels === layout.sourceChannels) {
+    // Blob slices reuse the original PCM payload without decoding or copying it.
+    parts.push(file.slice(layout.dataStart, layout.dataStart + layout.dataBytes));
+  } else {
+    const framesPerChunk = Math.max(1, Math.floor(
+      MAX_CONVERTER_STREAM_CHUNK_BYTES / layout.blockAlign
+    ));
+    for (let frameOffset = 0; frameOffset < layout.frames; frameOffset += framesPerChunk) {
+      throwIfConverterAborted(signal);
+      const frameCount = Math.min(framesPerChunk, layout.frames - frameOffset);
+      const sourceStart = layout.dataStart + frameOffset * layout.blockAlign;
+      const sourceEnd = sourceStart + frameCount * layout.blockAlign;
+      const sourceBuffer = await file.slice(sourceStart, sourceEnd).arrayBuffer();
+      if (sourceBuffer.byteLength !== frameCount * layout.blockAlign) {
+        throw new Error("No se pudo leer un bloque completo de muestras WAV.");
+      }
+      const source = new DataView(sourceBuffer);
+      const outputBuffer = new ArrayBuffer(frameCount * outputChannels * 2);
+      const output = new DataView(outputBuffer);
+      for (let frame = 0; frame < frameCount; frame++) {
+        if (layout.sourceChannels === 1 && outputChannels === 2) {
+          const sample = source.getInt16(frame * 2, true);
+          output.setInt16(frame * 4, sample, true);
+          output.setInt16(frame * 4 + 2, sample, true);
+        } else {
+          const left = source.getInt16(frame * 4, true);
+          const right = source.getInt16(frame * 4 + 2, true);
+          const mono = Math.max(-32768, Math.min(32767, Math.round((left + right) / 2)));
+          output.setInt16(frame * 2, mono, true);
+        }
+      }
+      parts.push(outputBuffer);
+    }
+  }
+
+  throwIfConverterAborted(signal);
+  const blob = new Blob(parts, { type: "audio/wav" });
+  if (blob.size !== outputBytes) throw new Error("La longitud del WAV procesado no coincide con el tamaño calculado.");
+  const wavInfo = await validatePcm16WavBlob(blob, {
+    channels: outputChannels,
+    sampleRate: layout.sampleRate
+  });
+  return {
+    blob,
+    duration: wavInfo.duration,
+    sampleRate: wavInfo.sampleRate,
+    channels: wavInfo.channels,
+    sourceChannels: layout.sourceChannels,
+    wavInfo,
+    streaming: true,
+    conversionPath: "chunked-pcm16-wav"
+  };
+}
+
 export async function convertAudioFileToWav(file, audioContext, {
   channels = 2,
   durationProbe = probeAudioFileDuration,
@@ -319,9 +504,21 @@ export async function convertAudioFileToWav(file, audioContext, {
 } = {}) {
   if (!file || !Number.isFinite(file.size) || file.size <= 0) throw new Error("El archivo está vacío o no se puede leer.");
   if (file.size > MAX_CONVERTER_INPUT_BYTES) throw new Error("El archivo supera el límite de 50 MiB por conversión.");
+  throwIfConverterAborted(signal);
+  const wavLayout = await inspectStreamablePcm16Wav(file, signal);
+  const outputChannels = safeChannels(channels);
+  if (wavLayout && Number(audioContext?.sampleRate) === wavLayout.sampleRate) {
+    const outputLimit = Number.isFinite(maxOutputBytes)
+      ? Math.max(0, Math.min(MAX_CONVERTER_OUTPUT_BYTES, Math.floor(maxOutputBytes)))
+      : MAX_CONVERTER_OUTPUT_BYTES;
+    if (wavLayout.duration > MAX_CONVERTER_DURATION_SECONDS) {
+      throw new Error("La pista supera el límite de 7 minutos para evitar agotar la memoria del dispositivo.");
+    }
+    return await convertPcm16WavInChunks(file, wavLayout, outputChannels, outputLimit, signal);
+  }
+
   if (!audioContext || typeof audioContext.decodeAudioData !== "function") throw new Error("Este navegador no ofrece un decodificador de audio compatible.");
   if (typeof durationProbe !== "function") throw new TypeError("No hay un comprobador de duración disponible.");
-  throwIfConverterAborted(signal);
 
   let durationBeforeDecode;
   try {
@@ -379,7 +576,6 @@ export async function convertAudioFileToWav(file, audioContext, {
 
   // Duration metadata can be imperfect. Recalculate the exact PCM output size
   // from the decoded frame count before allocating the potentially large WAV.
-  const outputChannels = safeChannels(channels);
   const actualOutputBytes = 44 + decoded.length * outputChannels * 2;
   if (!Number.isSafeInteger(actualOutputBytes) || actualOutputBytes > outputLimit) {
     throw new Error("El WAV real supera el espacio restante para resultados; se rechazó antes de reservar el archivo de salida.");
