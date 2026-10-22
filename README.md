@@ -155,3 +155,10 @@ Ritmo también puede empaquetarse como aplicación Android con Capacitor. Cada c
 - Para distribuir actualizaciones sin perder instalaciones existentes o publicar en Play Console hace falta configurar una clave privada de lanzamiento y protegerla como secreto del entorno de compilación. No debe guardarse en este repositorio público.
 
 Detalles y fuentes del empaquetado: [docs/android-apk-packaging.md](docs/android-apk-packaging.md).
+
+
+## Conversión WAV PCM16 por bloques
+
+El conversor incorpora una ruta de memoria reducida para WAV RIFF/PCM16 mono o estéreo cuando la frecuencia de salida coincide con la de origen. Lee y transforma los datos en fragmentos de hasta 256 KiB; si no cambia el número de canales, reutiliza un segmento del Blob de entrada sin decodificarlo a un AudioBuffer. El WAV de salida sigue teniendo que quedar representado como Blob completo para poder escucharlo/descargarlo.
+
+Los MP3 y otros formatos, los WAV con otro códec/distribución de canales y los casos que requieren remuestreo siguen utilizando `decodeAudioData()` y, por tanto, todavía pueden cargar el archivo completo y el AudioBuffer en memoria. Esto no es streaming universal ni sustituye pruebas en dispositivos físicos.
