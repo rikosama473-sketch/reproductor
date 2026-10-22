@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH, BLOB_COMPARE_YIELD_EVERY_CHUNKS } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, classifyAudioImportFiles, classifyImportDuplicate, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH, BLOB_COMPARE_YIELD_EVERY_CHUNKS } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -227,6 +227,64 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
   assert.equal(nextFileReads, 0, "Exhausting the batch budget must not read later candidates");
 }
  
+// Identity keys are only conclusive when stored bytes cannot be compared.
+// If accessible bytes disagree, preserve the updated file instead of silently skipping it.
+{
+  const fingerprint = "Disc A/track.mp3|4|1234";
+  const existingFingerprints = new Set([fingerprint]);
+  const changedOriginal = new Blob([new Uint8Array([1, 2, 3, 4])]);
+  const modifiedContent = new Blob([new Uint8Array([1, 2, 3, 5])]);
+  let inaccessibleCandidateReads = 0;
+  const inaccessibleFingerprintSet = new Set();
+  const fastPath = await classifyImportDuplicate(changedOriginal, {
+    fingerprint,
+    existingFingerprints,
+    comparableFingerprints: inaccessibleFingerprintSet,
+    candidates: [{ size: 4, slice() { inaccessibleCandidateReads++; return modifiedContent.slice(); } }]
+  });
+  assert.deepEqual(fastPath, { action: "skip-identity", comparisonFailed: false, identityCollision: false },
+    "Native tracks without a comparable saved Blob should retain the URI/identity fast path");
+  assert.equal(inaccessibleCandidateReads, 0, "The identity fast path should avoid unnecessary reads when no same-identity Blob is comparable");
+
+  const comparableFingerprints = new Set([fingerprint]);
+  const changed = await classifyImportDuplicate(changedOriginal, {
+    fingerprint,
+    existingFingerprints,
+    comparableFingerprints,
+    candidates: [modifiedContent]
+  });
+  assert.deepEqual(changed, { action: "keep", comparisonFailed: false, identityCollision: true },
+    "Changed bytes with the same fingerprint must be retained when all comparable candidates differ");
+
+  const byteMatch = await classifyImportDuplicate(changedOriginal, {
+    fingerprint,
+    existingFingerprints,
+    comparableFingerprints,
+    candidates: [modifiedContent, new Blob([new Uint8Array([1, 2, 3, 4])])]
+  });
+  assert.deepEqual(byteMatch, { action: "skip-identity", comparisonFailed: false, identityCollision: false },
+    "An exact content match remains skippable even when path metadata matches");
+
+  const newFingerprintDuplicate = await classifyImportDuplicate(changedOriginal, {
+    fingerprint: "Disc B/track.mp3|4|1234",
+    existingFingerprints,
+    comparableFingerprints,
+    candidates: [changedOriginal]
+  });
+  assert.deepEqual(newFingerprintDuplicate, { action: "skip-content", comparisonFailed: false, identityCollision: false },
+    "Files with different identities but identical bytes should still be deduplicated");
+
+  const unreadable = { size: 4, slice() { return { arrayBuffer: async () => { throw new Error("provider read failed"); } }; } };
+  const inconclusive = await classifyImportDuplicate(changedOriginal, {
+    fingerprint,
+    existingFingerprints,
+    comparableFingerprints,
+    candidates: [unreadable]
+  });
+  assert.deepEqual(inconclusive, { action: "keep", comparisonFailed: true, identityCollision: true },
+    "An unreadable comparison must preserve the incoming file rather than assume it is a duplicate");
+}
+
 // Empty/unreadable audio files are separated before importing; unsupported
 // documents are not mislabeled as corrupt audio.
 {

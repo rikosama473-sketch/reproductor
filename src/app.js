@@ -4,7 +4,7 @@ import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
-import { classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "./import-fingerprint.js";
+import { classifyAudioImportFiles, classifyImportDuplicate, importedFileFingerprint, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "./import-fingerprint.js";
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
@@ -2485,6 +2485,7 @@ async function importFiles(fileList, options = {}) {
 
   const localTracks = state.tracks.filter(track => isLocal(track));
   const existing = new Set(localTracks.map(track => importedFileFingerprint(track)));
+  const comparableFingerprints = new Set();
   const candidatesBySize = new Map();
   const registerCandidate = blob => {
     if (!blob || typeof blob.slice !== "function" ||
@@ -2496,7 +2497,15 @@ async function importFiles(fileList, options = {}) {
   };
   // Browser-imported files keep a Blob, so they can be compared exactly in
   // bounded chunks. Native Android records without accessible bytes stay URI-based.
-  for (const track of localTracks) registerCandidate(track.blob);
+  for (const track of localTracks) {
+    registerCandidate(track.blob);
+    const trackSize = Number(track.size);
+    if (track.blob && typeof track.blob.slice === "function" &&
+        Number.isSafeInteger(trackSize) && trackSize > 0 &&
+        Number(track.blob.size) === trackSize) {
+      comparableFingerprints.add(importedFileFingerprint(track));
+    }
+  }
 
   const uniqueFiles = [];
   let skippedByIdentity = 0;
@@ -2509,7 +2518,8 @@ async function importFiles(fileList, options = {}) {
   };
   for (const file of files) {
     const fingerprint = importedFileFingerprint(file, options);
-    if (existing.has(fingerprint)) {
+    const knownIdentity = existing.has(fingerprint);
+    if (knownIdentity && !comparableFingerprints.has(fingerprint)) {
       skippedByIdentity++;
       continue;
     }
@@ -2522,9 +2532,19 @@ async function importFiles(fileList, options = {}) {
       toast("Comprobando copias idénticas por contenido…");
       comparisonStatusShown = true;
     }
-    const comparison = await findIdenticalBlobCandidate(file, candidates, { budget: duplicateComparisonBudget });
-    if (comparison.comparisonFailed) comparisonWarnings++;
-    if (comparison.identical) {
+    const decision = await classifyImportDuplicate(file, {
+      fingerprint,
+      existingFingerprints: existing,
+      comparableFingerprints,
+      candidates,
+      comparisonOptions: { budget: duplicateComparisonBudget }
+    });
+    if (decision.comparisonFailed) comparisonWarnings++;
+    if (decision.action === "skip-identity") {
+      skippedByIdentity++;
+      continue;
+    }
+    if (decision.action === "skip-content") {
       skippedByContent++;
       existing.add(fingerprint);
       continue;
@@ -2532,6 +2552,10 @@ async function importFiles(fileList, options = {}) {
     existing.add(fingerprint);
     uniqueFiles.push(file);
     registerCandidate(file);
+    if (typeof file.slice === "function" && Number(file.size) > 0 &&
+        Number.isSafeInteger(Number(file.size))) {
+      comparableFingerprints.add(fingerprint);
+    }
   }
 
   if (!uniqueFiles.length) {

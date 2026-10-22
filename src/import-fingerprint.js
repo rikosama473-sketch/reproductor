@@ -162,6 +162,40 @@ export async function findIdenticalBlobCandidate(blob, candidates, options = {})
 }
 
 
+/**
+ * Decide whether an incoming file can safely be skipped as a duplicate.
+ * A fingerprint alone is a useful fast path only when no matching stored Blob
+ * is available. When content can be read, compare bytes first so changed files
+ * with the same path, size and mtime are not silently discarded.
+ */
+export async function classifyImportDuplicate(blob, {
+  fingerprint,
+  existingFingerprints,
+  comparableFingerprints,
+  candidates,
+  comparisonOptions = {}
+} = {}) {
+  const knownIdentity = existingFingerprints instanceof Set && existingFingerprints.has(fingerprint);
+  const comparableIdentity = comparableFingerprints instanceof Set && comparableFingerprints.has(fingerprint);
+  if (knownIdentity && !comparableIdentity) {
+    return { action: "skip-identity", comparisonFailed: false, identityCollision: false };
+  }
+
+  const comparison = await findIdenticalBlobCandidate(blob, candidates, comparisonOptions);
+  if (comparison.identical) {
+    return {
+      action: knownIdentity ? "skip-identity" : "skip-content",
+      comparisonFailed: false,
+      identityCollision: false
+    };
+  }
+  return {
+    action: "keep",
+    comparisonFailed: comparison.comparisonFailed,
+    identityCollision: knownIdentity
+  };
+}
+
 const SUPPORTED_AUDIO_EXTENSION = /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i;
 
 /**
