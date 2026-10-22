@@ -273,7 +273,7 @@ assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
 
 // A conversion longer than one input chunk is split into bounded reads.
 {
-  const frames = Math.floor(MAX_CONVERTER_STREAM_CHUNK_BYTES / 2) + 7;
+  const frames = Math.floor(MAX_CONVERTER_STREAM_CHUNK_BYTES / 2) + 20;
   const samples = new Float32Array(frames).fill(0.25);
   const wav = encodePcm16Wav(fakeBuffer([samples]), 1);
   const requestedSizes = [];
