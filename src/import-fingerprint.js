@@ -27,6 +27,10 @@ export function importedFileFingerprint(fileOrTrack, options = {}) {
  */
 export const DEFAULT_BLOB_COMPARE_CHUNK_BYTES = 256 * 1024;
 export const MAX_BLOB_COMPARE_CHUNK_BYTES = 1024 * 1024;
+// Bound per-file duplicate detection so equal-size buckets from a large library
+// cannot cause unbounded synchronous import work or gigabytes of repeated reads.
+export const MAX_BLOB_COMPARE_CANDIDATES = 128;
+export const MAX_BLOB_COMPARISON_BYTES_PER_SEARCH = 128 * 1024 * 1024;
 
 function throwIfBlobComparisonAborted(signal) {
   if (!signal?.aborted) return;
@@ -85,10 +89,45 @@ export async function areBlobsByteIdentical(left, right, {
  * could not be read.
  */
 export async function findIdenticalBlobCandidate(blob, candidates, options = {}) {
+  const settings = options && typeof options === "object" ? options : {};
+  const {
+    maxCandidates: requestedMaxCandidates,
+    maxComparisonBytes: requestedMaxComparisonBytes,
+    ...comparisonOptions
+  } = settings;
+  const maxCandidates = Number.isSafeInteger(Number(requestedMaxCandidates)) && Number(requestedMaxCandidates) >= 0
+    ? Math.min(MAX_BLOB_COMPARE_CANDIDATES, Number(requestedMaxCandidates))
+    : MAX_BLOB_COMPARE_CANDIDATES;
+  const maxComparisonBytes = Number.isSafeInteger(Number(requestedMaxComparisonBytes)) && Number(requestedMaxComparisonBytes) >= 0
+    ? Math.min(MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, Number(requestedMaxComparisonBytes))
+    : MAX_BLOB_COMPARISON_BYTES_PER_SEARCH;
+  const sourceSize = Number(blob?.size);
+  let candidateCount = 0;
+  let comparisonBytes = 0;
   let comparisonFailed = false;
+
   for (const candidate of candidates || []) {
+    if (candidateCount >= maxCandidates) {
+      return { identical: false, comparisonFailed: true };
+    }
+    candidateCount++;
+
+    // Each byte-identical check reads both inputs. Stop before an attempt that
+    // would exceed the per-file I/O budget; the caller must keep the file when
+    // the result is inconclusive rather than risk discarding a real track.
+    const candidateSize = Number(candidate?.size);
+    if (Number.isSafeInteger(sourceSize) && sourceSize > 0 &&
+        Number.isSafeInteger(candidateSize) && candidateSize === sourceSize) {
+      const estimatedBytes = sourceSize * 2;
+      if (!Number.isSafeInteger(estimatedBytes) ||
+          comparisonBytes + estimatedBytes > maxComparisonBytes) {
+        return { identical: false, comparisonFailed: true };
+      }
+      comparisonBytes += estimatedBytes;
+    }
+
     try {
-      if (await areBlobsByteIdentical(blob, candidate, options)) {
+      if (await areBlobsByteIdentical(blob, candidate, comparisonOptions)) {
         return { identical: true, comparisonFailed: false };
       }
     } catch (error) {

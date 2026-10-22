@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES } from "../src/import-fingerprint.js";
+import { areBlobsByteIdentical, classifyAudioImportFiles, findIdenticalBlobCandidate, importedFileFingerprint, MAX_BLOB_COMPARE_CHUNK_BYTES, MAX_BLOB_COMPARE_CANDIDATES, MAX_BLOB_COMPARISON_BYTES_PER_SEARCH } from "../src/import-fingerprint.js";
 
 const modified = 1_760_000_000_000;
 const fileA = { name: "theme.mp3", size: 4096, lastModified: modified, webkitRelativePath: "Disc A/theme.mp3" };
@@ -131,6 +131,43 @@ assert.notEqual(importedFileFingerprint(uriTrackA), importedFileFingerprint(uriT
 }
 
 
+// Duplicate detection has a bounded candidate count and byte-read budget.
+// When the search becomes inconclusive, imports remain intact instead of being dropped.
+{
+  const input = new Blob([new Uint8Array([1, 2, 3, 4])]);
+  const different = new Blob([new Uint8Array([1, 2, 3, 5])]);
+  const identical = new Blob([new Uint8Array([1, 2, 3, 4])]);
+  let lateCandidateReads = 0;
+  const lateCandidate = {
+    size: 4,
+    slice() {
+      lateCandidateReads++;
+      return identical.slice(0, 4);
+    }
+  };
+
+  const byCount = await findIdenticalBlobCandidate(input, [different, lateCandidate], { maxCandidates: 1 });
+  assert.deepEqual(byCount, { identical: false, comparisonFailed: true },
+    "Candidate caps must be inconclusive rather than pretending the file is unique");
+  assert.equal(lateCandidateReads, 0, "Candidates beyond the cap must not be read");
+
+  let lateByteCandidateReads = 0;
+  const lateByteCandidate = {
+    size: 4,
+    slice() {
+      lateByteCandidateReads++;
+      return identical.slice(0, 4);
+    }
+  };
+  const byBytes = await findIdenticalBlobCandidate(input, [different, lateByteCandidate], { maxComparisonBytes: 8 });
+  assert.deepEqual(byBytes, { identical: false, comparisonFailed: true },
+    "The byte-read budget must stop before exceeding the configured allowance");
+  assert.equal(lateByteCandidateReads, 0, "Candidates beyond the byte budget must not be read");
+
+  assert.equal(MAX_BLOB_COMPARE_CANDIDATES, 128);
+  assert.equal(MAX_BLOB_COMPARISON_BYTES_PER_SEARCH, 128 * 1024 * 1024);
+}
+ 
 // Empty/unreadable audio files are separated before importing; unsupported
 // documents are not mislabeled as corrupt audio.
 {
