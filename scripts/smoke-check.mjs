@@ -403,5 +403,15 @@ assert.ok(app.includes("searchRadioBrowser(query, filter"), "Public radio search
 assert.ok(app.includes("radioStationClickUrl(station.stationuuid)"), "Radio Browser playback should signal station starts");
 assert.ok(app.includes("stopSpotifyEmbed({ preserveSaved: true, refresh: false })"), "Starting another source must stop Spotify audio to avoid overlap");
 assert.ok(sw.includes("./src/online-services.js"), "New online-source code must be cached in the offline shell");
-assert.ok(sw.includes("ritmo-shell-v80"), "PWA cache must be refreshed for the new online sources");
+assert.ok(sw.includes("ritmo-shell-v81"), "PWA cache must be refreshed for app-level network mode");
 console.log("Spotify official embed and keyless radio directory integration checks passed.");
+
+assert.ok(html.includes('id="network-mode-toggle"'), "The app must expose a single explicit Internet/offline mode toggle");
+assert.ok(html.includes('id="network-locked-note"'), "Unavailable online features must explain their lock state");
+assert.ok(html.includes('id="online-nav-lock"'), "The online navigation entry must show a lock when network features are unavailable");
+assert.ok(html.includes("Radio por altavoz"), "The radio screen must explain speaker playback and its internet requirement");
+assert.match(app, /function setNetworkModeEnabled\(enabled\)/, "The network mode must be controlled by one persisted state transition");
+assert.match(app, /if \(!isLocal\(track\) && !requireInternetMode\("reproducir esta fuente online"\)\) return;/, "A saved streaming URL must not bypass offline mode");
+assert.match(css, /\.network-mode-toggle\[data-mode="offline"\]/, "Offline mode must use its distinct violet visual state");
+assert.match(css, /\.network-mode-toggle\{[^}]*#ffd078[^}]*#ff9141/s, "Internet mode must use a visible orange visual state");
+
