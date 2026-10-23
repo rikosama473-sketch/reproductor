@@ -1350,7 +1350,7 @@ function render() {
   updateConnection();
 }
 const CHARACTER_COMPANION_SETTING_KEY = "character-companion-image";
-const DEFAULT_CHARACTER_COMPANION_SRC = "./assets/ritmo-capibara.svg";
+const DEFAULT_CHARACTER_COMPANION_SRC = "./assets/pibara-avatar.png";
 let customCharacterCompanionUrl = null;
 let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC;
 
