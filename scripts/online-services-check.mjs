@@ -4,7 +4,8 @@ import {
   radioStationClickUrl, searchRadioBrowser, RADIO_BROWSER_MIRRORS,
   buildInvidiousYoutubeSearchUrl, normalizeInvidiousYoutubeResult,
   searchInvidiousYoutube, INVIDIOUS_SEARCH_INSTANCES,
-  YOUTUBE_MODE_STORAGE_KEY, readYoutubeModeEnabled, persistYoutubeModeEnabled
+  YOUTUBE_MODE_STORAGE_KEY, readYoutubeModeEnabled, persistYoutubeModeEnabled,
+  NETWORK_MODE_STORAGE_KEY, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet
 } from "../src/online-services.js";
 import { readFile } from "node:fs/promises";
 
@@ -188,3 +189,19 @@ await assert.rejects(
   error => error?.name === "AbortError"
 );
 console.log("Keyless YouTube community search checks passed: host allowlist, schema normalization, mirror failover on errors/empty responses, official fallback and cancellation.");
+
+const networkStorage = {
+  value: null,
+  getItem(key) { assert.equal(key, NETWORK_MODE_STORAGE_KEY); return this.value; },
+  setItem(key, value) { assert.equal(key, NETWORK_MODE_STORAGE_KEY); this.value = value; }
+};
+assert.equal(readNetworkModeEnabled(networkStorage), true, "Internet mode remains the backwards-compatible default");
+assert.equal(persistNetworkModeEnabled(false, networkStorage), true);
+assert.equal(networkStorage.value, "offline");
+assert.equal(readNetworkModeEnabled(networkStorage), false, "Offline mode must persist between launches");
+assert.equal(networkModeCanUseInternet(false, true), false, "App offline mode must lock network features even when the device is connected");
+assert.equal(networkModeCanUseInternet(true, false), false, "Network-dependent features must lock when the device has no connection");
+assert.equal(networkModeCanUseInternet(true, true), true, "Network-dependent features unlock only when mode and connectivity permit them");
+assert.equal(readNetworkModeEnabled({ getItem() { throw new Error("blocked storage"); } }), true, "Storage errors must fall back without crashing");
+assert.equal(persistNetworkModeEnabled(false, { setItem() { throw new Error("blocked storage"); } }), false, "A blocked storage write must be reported");
+
