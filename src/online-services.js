@@ -242,3 +242,30 @@ export async function searchInvidiousYoutube(query, {
   if (lastEmptyResult) return lastEmptyResult;
   throw new Error(lastError?.message || "Ninguna instancia comunitaria de búsqueda de YouTube respondió.");
 }
+
+export const NETWORK_MODE_STORAGE_KEY = "ritmo.network-mode.v1";
+
+function networkModeStorage(storage) {
+  if (storage !== undefined) return storage;
+  try { return globalThis.localStorage; } catch { return null; }
+}
+
+export function readNetworkModeEnabled(storage) {
+  try { return networkModeStorage(storage)?.getItem(NETWORK_MODE_STORAGE_KEY) !== "offline"; }
+  catch { return true; }
+}
+
+export function persistNetworkModeEnabled(enabled, storage) {
+  try {
+    const target = networkModeStorage(storage);
+    if (!target || typeof target.setItem !== "function") return false;
+    target.setItem(NETWORK_MODE_STORAGE_KEY, enabled ? "online" : "offline");
+    return true;
+  } catch { return false; }
+}
+
+/** App-level policy: never switch off the device's Wi-Fi or mobile data. */
+export function networkModeCanUseInternet(modeEnabled, connected) {
+  return modeEnabled === true && connected !== false;
+}
+
