@@ -65,6 +65,7 @@ const syntaxChecks = [
 ];
 const regressionSuites = [
   "scripts/smoke-check.mjs",
+  "scripts/library-search-check.mjs",
   "scripts/character-companion-check.mjs",
   "scripts/external-navigation-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",
