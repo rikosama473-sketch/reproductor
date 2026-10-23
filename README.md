@@ -166,3 +166,7 @@ Los MP3 y otros formatos, los WAV con otro códec/distribución de canales y los
 ### Safe playback resume
 
 When a saved position has to wait for audio metadata, Ritmo binds that seek to the active playback request and media engine. A rapid track switch or pause cancels the pending listener, so a late `loadedmetadata` event cannot move a different song. The regression suite covers stale queued events, cancellation, inactive engines, and position clamping to a known duration.
+
+### Defensive saved-volume recovery
+
+Ritmo now distinguishes a valid saved mute (`0`) from damaged persisted values such as JSON `null`, blank strings or non-finite numbers. Invalid output-volume preferences fall back to the documented safe default instead of silently muting playback; the last-audible level stays within its valid range. Regression tests preserve intentional zero volume and valid legacy numeric strings.
