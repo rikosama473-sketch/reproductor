@@ -9,7 +9,9 @@ const youtubePlayerErrors = fs.readFileSync(new URL("../src/youtube-player-error
 const eqPresets = fs.readFileSync(new URL("../src/equalizer-presets.js", import.meta.url), "utf8");
 const importFingerprint = fs.readFileSync(new URL("../src/import-fingerprint.js", import.meta.url), "utf8");
 const asyncGenerationGate = fs.readFileSync(new URL("../src/async-generation-gate.js", import.meta.url), "utf8");
-const nativeMusicPluginSource = fs.readFileSync(new URL("../native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
+const playbackPosition = fs.readFileSync(new URL("../src/playback-position.js", import.meta.url), "utf8");
+const audioPreferences = fs.readFileSync(new URL("../src/audio-preferences.js", import.meta.url), "utf8");
+const nativeMusicPluginSource = fs.readFileSync(new URL("../mobile/native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
 const sw = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 const appIcon = fs.readFileSync(new URL("../assets/icon.svg", import.meta.url), "utf8");
@@ -46,6 +48,9 @@ assert.match(css, /\.sidebar\{[^}]*background:#1a1512/s, "The sidebar must use t
 assert.match(css, /\.topbar\{[^}]*background:#171310ee/s, "The top bar must use the matching warm dark surface");
 assert.match(css, /\.character-companion\.is-playing img\{animation:ritmoCompanionWalk/, "The companion must animate while playing");
 assert.match(css, /pointer-events:none/, "The decorative companion must never block player controls");
+assert.match(css, /\.album-artwork\{[^}]*object-fit:cover/s, "Embedded artwork must cover its thumbnail without stretching");
+assert.match(css, /\.library-album-art\.has-artwork:before[\s\S]*?display:none/, "Real library art should not be obscured by decorative placeholder vinyl rings");
+
 assert.match(css, /prefers-reduced-motion:reduce\)[\s\S]*?character-companion\.is-playing img/, "The companion must respect reduced-motion preferences");
 assert.match(appIcon, /stop-color="#c1a398"[\s\S]*?stop-color="#8b6658"/, "The installed app icon should use the same character-inspired palette");
 assert.match(app, /data-delete/, "Library must expose delete actions for imported entries");
@@ -90,25 +95,67 @@ assert.match(app, /if \(item\.persisted === true\)[\s\S]*nativeUri: uri,/, "Pers
 assert.match(app, /function renderFormatCapabilities/, "The app should report device audio format support");
 assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
 assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
+assert.match(app, /import \{ parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES \}/, "Browser and native cover extraction must share the safe raster-image validator");
+assert.match(app, /function decodeNativeArtworkBase64\(value, mimeType\)/, "Native cover bytes must be decoded under the same size limit");
+assert.match(app, /validateEmbeddedArtwork\(bytes, mimeType\)/, "Native cover bytes must not bypass signature and dimension validation");
+
+assert.match(app, /MAX_EMBEDDED_ARTWORK_BYTES/, "Embedded artwork reads must have a strict memory limit");
+const id3ArtworkSource = fs.readFileSync(new URL("../src/id3-tags.js", import.meta.url), "utf8");
+assert.match(id3ArtworkSource, /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
+assert.match(id3ArtworkSource, /hasSafePngDimensions[\s\S]*?hasSafeJpegDimensions/, "PNG and JPEG image dimensions must be checked before publishing cover bytes");
+
+assert.match(id3ArtworkSource, /MAX_EMBEDDED_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_EMBEDDED_ARTWORK_PIXELS = 8_388_608/, "Embedded covers must have pre-decode dimension and pixel-count limits");
+
+assert.match(app, /function trackArtworkUrl\(track\)/, "Embedded album-art object URLs must be shared and managed");
+assert.match(app, /metadata\.artwork instanceof Uint8Array[\s\S]*?new Blob\(\[meta\.artwork\]/, "Imported MP3 covers must persist in IndexedDB as local Blob data");
+assert.match(app, /artwork: artworkUrl && track\?\.artworkBlob/, "Browser Media Session should use the real local artwork when available");
+assert.match(app, /releaseUnusedArtworkObjectUrls\(\)/, "Removed or replaced artwork Blob URLs must be released");
+assert.match(app, /track\?\.artworkInvalid === true/, "A browser-rejected cover must fall back to a placeholder");
+assert.match(app, /document\.addEventListener\("error", event =>[\s\S]*?track\.artworkInvalid = true[\s\S]*?render\(\)/, "Broken artwork must be marked and not decoded repeatedly");
+assert.match(app, /data-artwork-track/, "Album artwork decode errors must be attributed to their track");
+
+assert.match(app, /track\?\.artworkInvalid === true/, "A browser-rejected cover must fall back to a placeholder");
+assert.match(app, /document\.addEventListener\("error", event =>[\s\S]*?track\.artworkInvalid = true[\s\S]*?render\(\)/, "Broken artwork must be marked and not decoded repeatedly");
+assert.match(app, /data-artwork-track/, "Album artwork decode errors must be attributed to their track");
+
+
 assert.match(app, /YOUTUBE_SEARCH_CACHE_STORAGE/, "Recent YouTube result metadata should be cacheable for offline discovery");
 assert.match(html, /id="history-view"/, "HTML must provide a history view");
 assert.match(html, /id="playlists-view"/, "HTML must provide a playlist view");
 assert.match(html, /id="format-capabilities"/, "HTML must expose audio format capabilities");
 assert.match(html, /id="library-no-results"/, "Library search should expose a no-matches empty state");
-assert.match(sw, /ritmo-shell-v62/, "Service worker cache must refresh for the new shell");
+assert.match(sw, /ritmo-shell-v80/, "Service worker cache must refresh for the new shell");
 console.log("History, playlists, mobile controls, and offline format checks passed.");
 
 
 assert.match(html, /id="settings-dialog"/, "Settings dialog should exist");
 assert.match(html, /id="eq-enabled"/, "Audio settings must expose equalizer enable control");
 assert.match(html, /id="eq-preset"/, "Audio settings must expose selectable equalizer presets");
-assert.match(eqPresets, /acoustic:[\s\S]*pop:[\s\S]*rock:[\s\S]*classical:[\s\S]*jazz:/, "Equalizer must provide genre presets");
+for (const preset of ["clean", "piano", "classical", "orchestral", "cinematic", "electronic", "cyberpunk", "synthwave", "ambient", "game-anime", "experimental"]) {
+  assert.match(html, new RegExp('option value="' + preset + '"'), "Settings UI must expose the " + preset + " sound profile");
+}
+assert.match(app, /presetName === "clean"/, "Clean mode must bypass EQ and limiter instead of merely setting gains to zero");
+for (const id of ["eq-user-profiles", "eq-profile-name", "eq-profile-save", "eq-profile-delete"]) {
+  assert.match(html, new RegExp('id="' + id + '"'), "Custom equalizer profile UI must expose " + id);
+}
+assert.match(app, /upsertSavedEqualizerProfile/, "Custom equalizer save must update the persisted profile collection");
+assert.match(app, /removeSavedEqualizerProfile/, "Custom equalizer delete must remove only the selected saved profile");
+assert.match(app, /normalizeSavedEqualizerProfiles\(saved\?\.userEqProfiles\)/, "Saved profile data must be normalized before restoring the selector");
+
+
+assert.match(eqPresets, /clean:[\s\S]*flat:[\s\S]*piano:[\s\S]*classical:[\s\S]*orchestral:[\s\S]*cinematic:[\s\S]*acoustic:[\s\S]*pop:[\s\S]*rock:[\s\S]*jazz:[\s\S]*bass:[\s\S]*vocal:[\s\S]*electronic:[\s\S]*cyberpunk:[\s\S]*synthwave:[\s\S]*ambient:[\s\S]*"game-anime":[\s\S]*experimental:/, "Equalizer must provide its documented genre presets");
 assert.match(app, /getEqualizerPreset\(presetName\)/, "Preset selection must apply a real equalizer profile");
 assert.match(app, /audioPrefs\.eqPreset = "custom"/, "Manual slider changes must identify the setting as custom");
 assert.match(html, /id="eq-bass"/, "Audio settings must expose bass adjustment");
 assert.match(html, /id="eq-mid"/, "Audio settings must expose midrange adjustment");
 assert.match(html, /id="eq-treble"/, "Audio settings must expose treble adjustment");
 assert.match(html, /id="limiter-toggle"/, "Audio settings must expose soft peak limiting");
+assert.match(html, /Media3 de Android no aplica este limitador/, "The UI must disclose that the soft limiter is not active in the native Android playback engine");
+assert.match(app, /Media3 Android no ofrece este limitador/, "Changing the limiter must explain its native-engine limitation when relevant");
+assert.match(app, /Modo limpio: ecualizador nativo desactivado\.[\s\S]*?Media3 Android no aplica el limitador suave/, "Clean mode must not claim to disable a limiter that the native engine does not implement");
+assert.match(app, /Modo limpio activado: ecualizador y limitador apagados en el procesamiento Web Audio/, "Clean mode should explicitly confirm the real Web Audio bypass");
+
+
 assert.match(html, /id="keep-screen-awake"/, "Playback settings must expose optional Wake Lock request");
 assert.match(html, /id="sleep-start"/, "Playback settings must provide a sleep timer");
 assert.match(html, /id="request-storage-button"/, "Storage settings must allow a user-directed persistent-storage request");
@@ -124,7 +171,7 @@ assert.match(app, /async function downloadStreamOffline/, "Direct audio URLs sho
 assert.match(app, /MAX_DOWNLOAD_BYTES = 150 \* 1024 \* 1024/, "Offline saving must enforce a bounded download size");
 assert.match(app, /mode: "cors", credentials: "omit"/, "Direct downloads must respect browser CORS and avoid sending credentials");
 assert.match(app, /function renderDiagnostics/, "The settings must summarize actual browser capabilities");
-assert.match(sw, /ritmo-shell-v62/, "Service-worker cache must refresh after playback settings are added");
+assert.match(sw, /ritmo-shell-v80/, "Service-worker cache must refresh after playback settings are added");
 console.log("Audio settings, wake-lock consent, timer, diagnostics, retries and permitted direct-audio offline-save checks passed.");
 
 
@@ -159,7 +206,7 @@ assert.match(app, /creativecommons\.org/, "The app must verify the declared Crea
 assert.match(app, /function addArchiveFile/, "Catalog tracks should be addable to the local library as remote sources");
 assert.match(app, /function archiveFileURL/, "Catalog file actions must link to the original archive host");
 assert.match(app, /Descargar original/, "Catalog should provide the source's original-file link, not bypass its delivery rules");
-assert.match(sw, /ritmo-shell-v62/, "Service-worker cache should refresh after adding the open-license catalog");
+assert.match(sw, /ritmo-shell-v80/, "Service-worker cache should refresh after adding the open-license catalog");
 console.log("Internet Archive open-license search, metadata verification and original-file link smoke checks passed.");
 
 
@@ -175,7 +222,7 @@ assert.match(app, /function addArchiveFile/, "Verified Archive audio should be a
 assert.match(app, /function archiveFileURL/, "Original files should use Archive.org direct links");
 assert.match(app, /Descargar original/, "Catalog should provide source-file navigation rather than bypass CORS");
 assert.match(app, /track\.sourceProvider === "Internet Archive"/, "Archive tracks should open original files directly where binary servers don't provide CORS");
-assert.match(sw, /ritmo-shell-v62/, "Service Worker cache should refresh with the open-license catalog");
+assert.match(sw, /ritmo-shell-v80/, "Service Worker cache should refresh with the open-license catalog");
 console.log("Internet Archive catalog, license checks, source links and offline import guidance smoke checks passed.");
 
 
@@ -200,7 +247,7 @@ assert.match(app, /setOutputVolume\(audioPrefs\.volume\)/, "Startup should apply
 assert.match(app, /function releaseUnusedObjectURLs/, "The player should release object URLs for tracks that are no longer active");
 assert.match(app, /releaseUnusedObjectURLs\(isLocal\(track\) \? track\.id : null\)/, "Track changes should retain a blob URL only for the active local track");
 assert.match(importFingerprint, /export function importedFileFingerprint/, "Import deduplication should expose a reusable path-aware fingerprint module");
-assert.match(app, /import \{ importedFileFingerprint \} from "\.\/import-fingerprint\.js"/, "The app should use the shared import fingerprint module");
+assert.match(app, /import \{[^}]*\bimportedFileFingerprint\b[^}]*\} from "\.\/import-fingerprint\.js"/, "The app should use the shared import fingerprint module");
 assert.match(app, /function nativeEqualizerPayload\(\)/, "Native playback must share saved equalizer settings with Media3");
 assert.match(app, /setEqualizer: invoke\("setEqualizer"\)/, "The UI must update the Android EQ without switching engines");
 assert.match(importFingerprint, /source\.webkitRelativePath \|\| source\.sourcePath/, "Folder imports should distinguish identical filenames in different folders");
@@ -243,6 +290,12 @@ console.log("Fourth-pass regressions passed: async audio switching, latest-query
 assert.match(storage, /A helper callback can throw after it has already queued a write\.[\s\S]*tx\.abort\(\)/, "A synchronous storage callback failure must abort any queued writes");
 assert.match(app, /async function removeCurrent\(\) \{\s*\/\/[\s\S]*cancelPendingPlaybackIntent\(\);/, "Removing a selected track must invalidate any pending play request");
 assert.match(app, /function resumeCurrentTrack\(\) \{[\s\S]*playTrack\(track\.id, true, \{ keepQueue: true, resumeAt: position, skipHistory: true \}\);/, "Resume actions must pass through request-aware track selection");
+assert.match(app, /schedulePlaybackPositionRestore\(targetEngine, options\.resumeAt, \{[\s\S]*isCurrentRequest: isCurrentPlaybackRequest,[\s\S]*isActiveElement: element => element === audio/, "Deferred seeking must verify the playback request and active media element");
+assert.match(app, /function cancelPendingPlaybackPositionRestore\(\)[\s\S]*cancel\?\.\(\);/, "Track switches and pauses must cancel old metadata-seek listeners");
+assert.match(playbackPosition, /if \(!isCurrentRequest\(\) \|\| !isActiveElement\(element\)\) return;/, "The position helper must ignore stale requests and inactive engines");
+assert.match(app, /normalizeSavedAudioLevel\(saved\?\.volume, DEFAULT_AUDIO_PREFS\.volume\)/, "Invalid saved volume must use the safe default instead of becoming zero");
+assert.match(app, /normalizeSavedAudioLevel\(saved\?\.lastAudibleVolume, DEFAULT_AUDIO_PREFS\.lastAudibleVolume, 0\.01\)/, "Last audible level must be validated and remain above mute");
+assert.match(audioPreferences, /value === null \|\| value === undefined[\s\S]*typeof value === "string" && value\.trim\(\) === ""/, "Corrupt null and blank levels must be treated as damaged, not intentional zero");
 assert.match(app, /function cancelPendingPlaybackIntent\(\) \{\s*playbackRequestId \+= 1;\s*pendingPlaybackRequestId = null;/, "Pausing must invalidate pending play requests and clear their intent");
 assert.match(app, /function pauseCurrentTrack\(\) \{[\s\S]*cancelPendingPlaybackIntent\(\);[\s\S]*state\.nativePlayback\.active[\s\S]*nativePlaybackPlugin\(\)\?\.pause\(\)[\s\S]*else audio\.pause\(\);/, "Explicit pause must cancel async playback and pause the active HTML or Media3 engine");
 assert.match(app, /pendingPlaybackRequestId = autoplay \? requestId : null;/, "Autoplay requests must expose their pending intent before asynchronous setup");
@@ -273,11 +326,11 @@ assert.match(html, /id="expanded-seek-bar"/, "Expanded player must include a fun
 assert.match(app, /function renderLibraryGrid\(/, "The visual library should render track artwork cards");
 assert.match(app, /function setLibraryMode\(/, "Library presentation changes must be handled by a stateful control");
 assert.match(app, /expanded-volume-bar[\s\S]*?dispatchEvent\(new Event\("input"/, "Expanded volume control must route through the standard persisted volume handler");
-assert.match(sw, /ritmo-shell-v62/, "Service-worker shell cache must refresh for the interface redesign");
+assert.match(sw, /ritmo-shell-v80/, "Service-worker shell cache must refresh for the interface redesign");
 console.log("Library grid/list, immersive playback, and synchronized expanded controls passed.");
 
 assert.match(app, /button\.tagName !== "BUTTON" && \(event\.key === "Enter" \|\| event\.key === " "\)/, "Native play buttons must not manually replay their own keyboard activation");
-assert.match(sw, /ritmo-shell-v62/, "PWA shell cache must refresh for the keyboard activation fix");
+assert.match(sw, /ritmo-shell-v80/, "PWA shell cache must refresh for the keyboard activation fix");
 
 
 assert.match(html, /id="app-update-banner"/, "PWA should announce when an updated controller is taking over an already-controlled page");
@@ -286,7 +339,7 @@ assert.match(app, /const hadController = Boolean\(navigator\.serviceWorker\.cont
 assert.match(app, /if \(hadController && !updatePromptShown\) \{[\s\S]*?updatePromptShown = true;[\s\S]*?\$\("#app-update-banner"\)\.hidden = false;/, "PWA update prompt should be shown only once after an actual controller replacement");
 assert.match(app, /app-update-now[\s\S]*?window\.location\.reload\(\)/, "The update action must reload the page to synchronize its HTML and JavaScript");
 assert.match(app, /setOutputVolume\(audioPrefs\.volume\);\s*\$\("#expanded-volume-bar"\)\.value = String\(audioPrefs\.volume\)/, "Mute/unmute must route through the shared output volume controller and keep the expanded slider in sync");
-assert.match(sw, /ritmo-shell-v62/, "PWA shell cache should advance with the update prompt and mute sync fixes");
+assert.match(sw, /ritmo-shell-v80/, "PWA shell cache should advance with the update prompt and mute sync fixes");
 console.log("PWA update prompt and expanded mute synchronization checks passed.");
 
 
@@ -350,5 +403,5 @@ assert.ok(app.includes("searchRadioBrowser(query, filter"), "Public radio search
 assert.ok(app.includes("radioStationClickUrl(station.stationuuid)"), "Radio Browser playback should signal station starts");
 assert.ok(app.includes("stopSpotifyEmbed({ preserveSaved: true, refresh: false })"), "Starting another source must stop Spotify audio to avoid overlap");
 assert.ok(sw.includes("./src/online-services.js"), "New online-source code must be cached in the offline shell");
-assert.ok(sw.includes("ritmo-shell-v62"), "PWA cache must be refreshed for the new online sources");
+assert.ok(sw.includes("ritmo-shell-v80"), "PWA cache must be refreshed for the new online sources");
 console.log("Spotify official embed and keyless radio directory integration checks passed.");

@@ -26,7 +26,7 @@ for (const value of rejected) assert.equal(normalizeExternalMediaUrl(value), nul
 assert.equal(normalizeExternalMediaUrl("x".repeat(2049)), null);
 
 const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
-const native = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
+const native = await readFile(new URL("../mobile/native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
 const mobilePackage = await readFile(new URL("../scripts/prepare-android-native.mjs", import.meta.url), "utf8");
 const serviceWorker = await readFile(new URL("../sw.js", import.meta.url), "utf8");
 
@@ -45,7 +45,7 @@ assert.match(native, /"www\.youtube\.com"\.equals\(host\)/);
 assert.match(native, /"open\.spotify\.com"\.equals\(host\)/);
 assert.match(native, /"https"\.equalsIgnoreCase\(uri\.getScheme\(\)\)/);
 assert.match(mobilePackage, /RitmoPlaybackPlugin/);
-assert.match(serviceWorker, /ritmo-shell-v62/);
+assert.match(serviceWorker, /ritmo-shell-v80/);
 assert.match(serviceWorker, /"\.\/src\/external-navigation\.js"/);
 assert.match(app, /youtubeSearchURL\(query\)/);
 assert.match(app, /youtubeVideoURL\(videoId\)/);

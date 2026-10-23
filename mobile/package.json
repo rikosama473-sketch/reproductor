@@ -1,0 +1,23 @@
+{
+  "name": "ritmo-mobile-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicación nativa móvil de Ritmo mediante Capacitor",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare:web": "node scripts/prepare-web.mjs",
+    "android:init": "npm run prepare:web && npx cap add android && npm run android:configure",
+    "android:sync": "npm run prepare:web && npx cap sync android && npm run android:configure",
+    "android:configure": "node scripts/configure-android.mjs && node scripts/prepare-native.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

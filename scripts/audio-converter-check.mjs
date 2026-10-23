@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
-import { encodePcm16Wav } from "../src/audio-converter.js";
+import {
+  claimUniqueWavFilename,
+  convertAudioFileToWav,
+  MAX_CONVERTER_STREAM_CHUNK_BYTES,
+  MAX_CONVERTER_WAV_CHUNKS,
+  encodePcm16Wav,
+  MAX_CONVERTER_DURATION_SECONDS,
+  probeAudioFileDuration,
+  validatePcm16WavBlob
+} from "../src/audio-converter.js";
 
 function fakeBuffer(channelSamples, sampleRate = 44100) {
   return {
     numberOfChannels: channelSamples.length,
     length: channelSamples[0].length,
     sampleRate,
+    duration: channelSamples[0].length / sampleRate,
     getChannelData(channel) { return Float32Array.from(channelSamples[channel]); }
   };
 }
@@ -37,8 +47,365 @@ const expanded = new DataView(await encodePcm16Wav(mono, 2).arrayBuffer());
 assert.equal(expanded.getUint16(22, true), 2, "Mono source may be duplicated to stereo");
 assert.equal(expanded.getInt16(44, true), expanded.getInt16(46, true));
 
-const surround = fakeBuffer([[1, 0], [0, 1], [-1, 0], [0, -1]]);
-const downmix = new DataView(await encodePcm16Wav(surround, 2).arrayBuffer());
-assert.equal(downmix.getUint16(22, true), 2, "Multichannel sources are downmixed to stereo");
+// Standard quad layout mixes corresponding left/right surround channels at half gain.
+{
+  const quad = fakeBuffer([[0.2], [0.4], [0.6], [-0.2]]);
+  const quadStereo = new DataView(await encodePcm16Wav(quad, 2).arrayBuffer());
+  assert.equal(quadStereo.getUint16(22, true), 2);
+  assert.equal(quadStereo.getInt16(44, true), Math.round(0.4 * 32767));
+  assert.equal(quadStereo.getInt16(46, true), Math.round(0.1 * 32767));
+  const quadMono = new DataView(await encodePcm16Wav(quad, 1).arrayBuffer());
+  assert.equal(quadMono.getInt16(44, true), Math.round(0.25 * 32767));
+}
+
+// Standard 5.1 layout mixes center and matching surrounds into left/right;
+// LFE is deliberately discarded rather than injected into only one side.
+{
+  const surround51 = fakeBuffer([[0.1], [-0.1], [0.2], [0.8], [0.3], [-0.3]]);
+  const stereo51 = new DataView(await encodePcm16Wav(surround51, 2).arrayBuffer());
+  const expectedLeft = 0.1 + Math.SQRT1_2 * (0.2 + 0.3);
+  const expectedRight = -0.1 + Math.SQRT1_2 * (0.2 - 0.3);
+  assert.equal(stereo51.getInt16(44, true), Math.round(expectedLeft * 32767));
+  assert.equal(stereo51.getInt16(46, true), Math.round(expectedRight * 32768));
+  const mono51 = new DataView(await encodePcm16Wav(surround51, 1).arrayBuffer());
+  assert.equal(mono51.getInt16(44, true), Math.round(0.2 * 32767), "Mono 5.1 downmix must omit LFE.");
+}
+
+// Peak protection applies one fixed gain to a hot 5.1 mix instead of hard-clipping
+// every channel independently; normal-level mixes retain their original gain.
+{
+  const hot51 = fakeBuffer([[1], [1], [1], [1], [1], [1]]);
+  const stereoHot = new DataView(await encodePcm16Wav(hot51, 2).arrayBuffer());
+  assert.equal(stereoHot.getInt16(44, true), 32767, "Hot 5.1 left mix should be attenuated to full scale without clipping.");
+  assert.equal(stereoHot.getInt16(46, true), 32767, "Hot 5.1 right mix should share the same static gain.");
+  const monoHot = new DataView(await encodePcm16Wav(hot51, 1).arrayBuffer());
+  assert.equal(monoHot.getInt16(44, true), 32767, "Hot mono downmix should be peak-protected.");
+}
+
+// Unknown channel counts use a conservative discrete fallback.
+{
+  const unknownLayout = fakeBuffer([[0.2], [-0.4], [0.9]]);
+  const converted = new DataView(await encodePcm16Wav(unknownLayout, 2).arrayBuffer());
+  assert.equal(converted.getInt16(44, true), Math.round(0.2 * 32767));
+  assert.equal(converted.getInt16(46, true), Math.round(-0.4 * 32768));
+}
 assert.throws(() => encodePcm16Wav({ length: 0 }), /muestras válidas/);
-console.log("Audio converter tests passed: RIFF/WAVE header, PCM16 samples, mono/stereo and multichannel downmix.");
+
+// Duplicate basenames and case-only differences must not collide on common filesystems.
+{
+  const usedNames = new Set();
+  assert.equal(claimUniqueWavFilename("Theme.mp3", usedNames), "Theme.wav");
+  assert.equal(claimUniqueWavFilename("theme.flac", usedNames), "theme (2).wav");
+  assert.equal(claimUniqueWavFilename("CON.ogg", usedNames), "_CON.wav");
+  assert.equal(claimUniqueWavFilename("Folder/Track?.mp3", usedNames), "Folder-Track-.wav");
+}
+
+// Metadata probing must revoke its temporary URL on success.
+{
+  let revoked = 0;
+  const fakeAudio = () => {
+    const handlers = new Map();
+    return {
+      duration: 2.5,
+      preload: "",
+      src: "",
+      addEventListener(name, fn) { handlers.set(name, fn); },
+      removeEventListener(name) { handlers.delete(name); },
+      removeAttribute(name) { if (name === "src") this.src = ""; },
+      pause() {},
+      load() {
+        if (this.src) queueMicrotask(() => handlers.get("loadedmetadata")?.());
+      }
+    };
+  };
+  const duration = await probeAudioFileDuration({ name: "short.wav" }, {
+    createAudioElement: fakeAudio,
+    createObjectURL: () => "blob:test-audio",
+    revokeObjectURL: url => { assert.equal(url, "blob:test-audio"); revoked++; },
+    timeoutMs: 100
+  });
+  assert.equal(duration, 2.5);
+  assert.equal(revoked, 1, "The metadata probe must release its temporary object URL.");
+}
+
+// Overlong files must be rejected before reading their bytes or decoding PCM.
+{
+  let arrayBufferCalls = 0;
+  let decodeCalls = 0;
+  const file = { size: 1024, arrayBuffer: async () => { arrayBufferCalls++; return new ArrayBuffer(1024); } };
+  const context = { sampleRate: 44100, decodeAudioData: async () => { decodeCalls++; return fakeBuffer([[0, 0]]); } };
+  await assert.rejects(
+    convertAudioFileToWav(file, context, { durationProbe: async () => MAX_CONVERTER_DURATION_SECONDS + 1 }),
+    /7 minutos/
+  );
+  assert.equal(arrayBufferCalls, 0, "Duration rejection must happen before reading the compressed file.");
+  assert.equal(decodeCalls, 0, "Duration rejection must happen before decodeAudioData().");
+}
+
+// Batch output budget must be enforced using the estimated WAV size before decode.
+{
+  let decodeCalls = 0;
+  const file = { size: 16, arrayBuffer: async () => new ArrayBuffer(16) };
+  const context = { sampleRate: 44100, decodeAudioData: async () => { decodeCalls++; return fakeBuffer([[0, 0]]); } };
+  await assert.rejects(
+    convertAudioFileToWav(file, context, {
+      durationProbe: async () => 1,
+      maxOutputBytes: 1024
+    }),
+    /WAV estimado supera/
+  );
+  assert.equal(decodeCalls, 0, "Output budget rejection must happen before decodeAudioData().");
+}
+
+// Cancellation during the metadata probe must release the temporary URL immediately.
+{
+  const controller = new AbortController();
+  let revoked = 0;
+  const fakeAudio = () => {
+    const handlers = new Map();
+    return {
+      duration: NaN,
+      preload: "",
+      src: "",
+      addEventListener(name, fn) { handlers.set(name, fn); },
+      removeEventListener(name) { handlers.delete(name); },
+      removeAttribute(name) { if (name === "src") this.src = ""; },
+      pause() {},
+      load() {}
+    };
+  };
+  const pending = probeAudioFileDuration({ name: "pending.wav" }, {
+    createAudioElement: fakeAudio,
+    createObjectURL: () => "blob:pending-audio",
+    revokeObjectURL: () => { revoked++; },
+    timeoutMs: 1000,
+    signal: controller.signal
+  });
+  controller.abort();
+  await assert.rejects(pending, error => error?.name === "AbortError");
+  assert.equal(revoked, 1, "Abort should release the metadata probe URL.");
+}
+
+// A cancellation during/after metadata lookup must prevent file reads and decode.
+{
+  const controller = new AbortController();
+  let arrayBufferCalls = 0;
+  let decodeCalls = 0;
+  const file = { size: 16, arrayBuffer: async () => { arrayBufferCalls++; return new ArrayBuffer(16); } };
+  const context = { sampleRate: 44100, decodeAudioData: async () => { decodeCalls++; return fakeBuffer([[0, 0]]); } };
+  await assert.rejects(
+    convertAudioFileToWav(file, context, {
+      durationProbe: async () => { controller.abort(); return 1; },
+      signal: controller.signal,
+      maxOutputBytes: 200000
+    }),
+    error => error?.name === "AbortError"
+  );
+  assert.equal(arrayBufferCalls, 0, "A cancelled conversion must not read the compressed file.");
+  assert.equal(decodeCalls, 0, "A cancelled conversion must not begin decoding.");
+}
+
+// The browser cannot stop a decodeAudioData() call already in progress, but the
+// result must be discarded and must not proceed to WAV allocation after cancel.
+{
+  const controller = new AbortController();
+  let decodedResolve;
+  let decodeStartedResolve;
+  const decodeStarted = new Promise(resolve => { decodeStartedResolve = resolve; });
+  const file = { size: 16, arrayBuffer: async () => new ArrayBuffer(16) };
+  const context = {
+    sampleRate: 44100,
+    decodeAudioData: async () => {
+      decodeStartedResolve();
+      return await new Promise(resolve => { decodedResolve = resolve; });
+    }
+  };
+  const pending = convertAudioFileToWav(file, context, {
+    durationProbe: async () => 1,
+    signal: controller.signal,
+    maxOutputBytes: 200000
+  });
+  await decodeStarted;
+  controller.abort();
+  decodedResolve(fakeBuffer([[0, 0]]));
+  await assert.rejects(pending, error => error?.name === "AbortError");
+}
+
+// Supported PCM16 WAV inputs use the chunked path without decodeAudioData or a duration probe.
+{
+  let decodeCalls = 0;
+  let durationProbeCalls = 0;
+  const context = {
+    sampleRate: 44100,
+    decodeAudioData: async () => { decodeCalls++; throw new Error("Streaming PCM16 path must not decode the full file."); }
+  };
+  const result = await convertAudioFileToWav(monoWav, context, {
+    channels: 2,
+    durationProbe: async () => { durationProbeCalls++; throw new Error("PCM16 WAV path should use its sample count."); }
+  });
+  assert.equal(result.streaming, true);
+  assert.equal(result.conversionPath, "chunked-pcm16-wav");
+  assert.equal(result.channels, 2);
+  assert.equal(result.sourceChannels, 1);
+  assert.equal(result.sampleRate, 44100);
+  assert.equal(decodeCalls, 0);
+  assert.equal(durationProbeCalls, 0);
+  const out = new DataView(await result.blob.arrayBuffer());
+  assert.equal(out.getUint32(40, true), 12);
+  assert.equal(out.getInt16(44, true), -32768);
+  assert.equal(out.getInt16(46, true), -32768);
+  assert.equal(out.getInt16(48, true), 0);
+  assert.equal(out.getInt16(50, true), 0);
+  assert.equal(out.getInt16(52, true), 32767);
+  assert.equal(out.getInt16(54, true), 32767);
+}
+
+// Stereo-to-mono PCM conversion averages each pair using bounded intermediate buffers.
+{
+  const stereoInput = encodePcm16Wav(stereo, 2);
+  const result = await convertAudioFileToWav(stereoInput, { sampleRate: 44100 }, { channels: 1 });
+  const out = new DataView(await result.blob.arrayBuffer());
+  const inView = new DataView(await stereoInput.arrayBuffer());
+  assert.equal(result.streaming, true);
+  assert.equal(result.channels, 1);
+  assert.equal(out.getInt16(44, true), Math.round((inView.getInt16(44, true) + inView.getInt16(46, true)) / 2));
+  assert.equal(out.getInt16(46, true), Math.round((inView.getInt16(48, true) + inView.getInt16(50, true)) / 2));
+}
+
+// A conversion longer than one input chunk is split into bounded reads.
+{
+  const frames = Math.floor(MAX_CONVERTER_STREAM_CHUNK_BYTES / 2) + 20;
+  const samples = new Float32Array(frames).fill(0.25);
+  const wav = encodePcm16Wav(fakeBuffer([samples]), 1);
+  const requestedSizes = [];
+  const trackedFile = {
+    size: wav.size,
+    slice(start, end) {
+      requestedSizes.push(end - start);
+      return wav.slice(start, end);
+    }
+  };
+  const result = await convertAudioFileToWav(trackedFile, { sampleRate: 44100 }, { channels: 2 });
+  assert.equal(result.streaming, true);
+  assert.equal(result.blob.size, 44 + frames * 4);
+  const payloadReads = requestedSizes.filter(size => size > 16);
+  assert.ok(payloadReads.length >= 2, "Large PCM payload should be consumed in more than one chunk.");
+  assert.ok(payloadReads.every(size => size <= MAX_CONVERTER_STREAM_CHUNK_BYTES),
+    "Every input payload read must stay within the configured chunk budget.");
+}
+
+// A malformed RIFF length is rejected rather than silently routed through another decoder.
+{
+  const corrupted = new Uint8Array(await monoWav.arrayBuffer());
+  new DataView(corrupted.buffer).setUint32(4, corrupted.length, true);
+  let decodeCalls = 0;
+  await assert.rejects(
+    convertAudioFileToWav(new Blob([corrupted], { type: "audio/wav" }), {
+      sampleRate: 44100,
+      decodeAudioData: async () => { decodeCalls++; return fakeBuffer([[0, 0]]); }
+    }),
+    /tamaño RIFF/
+  );
+  assert.equal(decodeCalls, 0, "Malformed RIFF input must be rejected before decoder fallback.");
+}
+
+// WAV files with excessive zero-length RIFF chunks must be rejected with bounded parser work.
+{
+  const chunkCount = MAX_CONVERTER_WAV_CHUNKS + 1;
+  const bytes = new Uint8Array(12 + 24 + 10 + (chunkCount - 2) * 8);
+  const view = new DataView(bytes.buffer);
+  const ascii = (offset, value) => {
+    for (let index = 0; index < value.length; index++) bytes[offset + index] = value.charCodeAt(index);
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, bytes.length - 8, true);
+  ascii(8, "WAVE");
+  let offset = 12;
+  ascii(offset, "fmt ");
+  view.setUint32(offset + 4, 16, true);
+  view.setUint16(offset + 8, 1, true);
+  view.setUint16(offset + 10, 1, true);
+  view.setUint32(offset + 12, 44100, true);
+  view.setUint32(offset + 16, 88200, true);
+  view.setUint16(offset + 20, 2, true);
+  view.setUint16(offset + 22, 16, true);
+  offset += 24;
+  ascii(offset, "data");
+  view.setUint32(offset + 4, 2, true);
+  view.setInt16(offset + 8, 123, true);
+  offset += 10;
+  for (let index = 2; index < chunkCount; index++) {
+    ascii(offset, "JUNK");
+    view.setUint32(offset + 4, 0, true);
+    offset += 8;
+  }
+  assert.equal(offset, bytes.length);
+  let decodeCalls = 0;
+  await assert.rejects(
+    convertAudioFileToWav(new Blob([bytes], { type: "audio/wav" }), {
+      sampleRate: 44100,
+      decodeAudioData: async () => { decodeCalls++; throw new Error("Must reject excessive RIFF chunks before fallback decode."); }
+    }),
+    /demasiados bloques RIFF/
+  );
+  assert.equal(decodeCalls, 0, "Excessive RIFF chunk counts must be rejected before decoder fallback.");
+}
+
+// Successful conversion still produces a valid WAV after preflight.
+{
+  const file = { size: 16, arrayBuffer: async () => new ArrayBuffer(16) };
+  const context = { sampleRate: 44100, decodeAudioData: async () => fakeBuffer([[0, 0]]) };
+  const result = await convertAudioFileToWav(file, context, {
+    durationProbe: async () => 1,
+    maxOutputBytes: 200000
+  });
+  assert.equal(result.blob.type, "audio/wav");
+  assert.equal(result.channels, 2);
+  assert.equal(result.blob.size, 52);
+}
+
+// Validate the generated file structure independently from the encoder.
+// RIFF size must equal file size - 8, PCM format must be coherent and the
+// declared data length must exactly match the real WAV payload.
+{
+  const info = await validatePcm16WavBlob(monoWav, { channels: 1, sampleRate: 44100 });
+  assert.deepEqual(info, {
+    format: "pcm_s16le",
+    channels: 1,
+    sampleRate: 44100,
+    bitsPerSample: 16,
+    blockAlign: 2,
+    byteRate: 88200,
+    dataBytes: 6,
+    frames: 3,
+    duration: 3 / 44100,
+    fileBytes: 50
+  });
+  await assert.rejects(
+    validatePcm16WavBlob(new Blob([new Uint8Array([1, 2, 3])])),
+    /tamaño inválido|incompleto/
+  );
+
+  async function mutateWav(offset, value, width = 1) {
+    const bytes = new Uint8Array(await monoWav.arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    if (width === 4) view.setUint32(offset, value, true);
+    else if (width === 2) view.setUint16(offset, value, true);
+    else view.setUint8(offset, value);
+    return new Blob([bytes], { type: "audio/wav" });
+  }
+
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(4, 99, 4)), /tamaño RIFF/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(20, 3, 2)), /PCM entero/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(22, 3, 2)), /PCM entero/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(28, 123, 4)), /frecuencia o la alineación/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(32, 4, 2)), /frecuencia o la alineación/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(34, 24, 2)), /PCM entero/);
+  await assert.rejects(validatePcm16WavBlob(await mutateWav(40, 4, 4)), /longitud de las muestras/);
+  await assert.rejects(validatePcm16WavBlob(monoWav, { channels: 2 }), /canales WAV/);
+  const notData = new Uint8Array(await monoWav.arrayBuffer());
+  notData.set([0x4a, 0x55, 0x4e, 0x4b], 36);
+  await assert.rejects(validatePcm16WavBlob(new Blob([notData])), /Falta el bloque de muestras/);
+}
+
+console.log("Audio converter tests passed: PCM16 RIFF/WAVE, mono/stereo and multichannel output, duration preflight, URL cleanup and batch-output budget.");

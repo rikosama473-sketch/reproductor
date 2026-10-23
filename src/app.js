@@ -3,11 +3,13 @@ import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
 import { readableYoutubePlayerError } from "./youtube-player-errors.js";
-import { EQUALIZER_PRESETS, getEqualizerPreset } from "./equalizer-presets.js";
-import { importedFileFingerprint } from "./import-fingerprint.js";
-import { parseId3Tags } from "./id3-tags.js";
-import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES } from "./audio-converter.js";
+import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
+import { classifyAudioImportFiles, classifyImportDuplicate, importedFileFingerprint, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "./import-fingerprint.js";
+import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
+import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
+import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
+import { normalizeSavedAudioLevel } from "./audio-preferences.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
@@ -34,6 +36,7 @@ function setOutputVolume(value) {
 }
 let screenWakeLock = null;
 let playbackRequestId = 0;
+let pendingPlaybackPositionCancel = null;
 // Identifies a play() request that has not reached confirmed playback yet.
 // Pause must cancel intent even while the media element still reports paused.
 let pendingPlaybackRequestId = null;
@@ -46,14 +49,21 @@ let youtubeModeEnabledState = readYoutubeModeEnabled();
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
-const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: true, keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: true, userEqProfiles: [], keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
+    const userEqProfiles = normalizeSavedEqualizerProfiles(saved?.userEqProfiles);
+    const savedPresetExists = saved && (
+      saved.eqPreset === "custom" ||
+      Object.prototype.hasOwnProperty.call(EQUALIZER_PRESETS, saved.eqPreset) ||
+      userEqProfiles.some(profile => "user:" + profile.id === saved.eqPreset)
+    );
     return {
       ...DEFAULT_AUDIO_PREFS,
       ...(saved && typeof saved === "object" ? saved : {}),
-      eqPreset: (saved && (saved.eqPreset === "custom" || Object.prototype.hasOwnProperty.call(EQUALIZER_PRESETS, saved.eqPreset))) ? saved.eqPreset : "custom",
+      userEqProfiles,
+      eqPreset: savedPresetExists ? saved.eqPreset : "custom",
       bass: Math.max(-12, Math.min(12, Number(saved?.bass) || 0)),
       mid: Math.max(-12, Math.min(12, Number(saved?.mid) || 0)),
       treble: Math.max(-12, Math.min(12, Number(saved?.treble) || 0)),
@@ -61,15 +71,15 @@ function loadAudioPreferences() {
       limiter: saved?.limiter !== false,
       keepScreenAwake: saved?.keepScreenAwake === true,
       fadeOutAtEnd: saved?.fadeOutAtEnd !== false,
-      volume: Number.isFinite(Number(saved?.volume)) ? Math.max(0, Math.min(1, Number(saved.volume))) : 0.8,
-      lastAudibleVolume: Number.isFinite(Number(saved?.lastAudibleVolume)) ? Math.max(0.01, Math.min(1, Number(saved.lastAudibleVolume))) : 0.8
+      volume: normalizeSavedAudioLevel(saved?.volume, DEFAULT_AUDIO_PREFS.volume),
+      lastAudibleVolume: normalizeSavedAudioLevel(saved?.lastAudibleVolume, DEFAULT_AUDIO_PREFS.lastAudibleVolume, 0.01)
     };
   } catch { return { ...DEFAULT_AUDIO_PREFS }; }
 }
 const audioPrefs = loadAudioPreferences();
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
-const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, nativeMusicPlugin: null, nativePlayerPlugin: null,
+const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, mediaSessionArtworkUrl: "", nativeMusicPlugin: null, nativePlayerPlugin: null,
   nativePlayback: { active: false, isPlaying: false, currentTime: 0, duration: 0, playbackState: "idle", trackId: null, endedHandled: false } };
  
 const LIBRARY_VIEW_KEY = "ritmo.library-view.v1";
@@ -85,8 +95,12 @@ let converterFiles = [];
 let converterRunning = false;
 let converterCancelRequested = false;
 let converterAudioContext = null;
+let converterAbortController = null;
 let converterOutputUrls = [];
+const converterPreviewElements = new Set();
+let activeConverterPreview = null;
 let converterOutputBytes = 0;
+let converterOutputFilenames = new Set();
 
 
 function escapeHTML(value) {
@@ -135,24 +149,94 @@ function normalizeId3Genre(value) {
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
 const trackGenreReadsInProgress = new Set();
+const artworkObjectUrls = new Map();
+const nativeArtworkReadsInProgress = new Set();
 function notifySoundTrackContext(track) {
   window.dispatchEvent(new CustomEvent("ritmo:track-context", {
     detail: { genre: String(track?.genre || ""), radioTags: String(track?.radioTags || "") }
   }));
 }
 function backfillTrackGenre(track) {
-  if (!track || track.genre || !(track.blob instanceof Blob) || !/\.mp3$/i.test(track.name || "") || trackGenreReadsInProgress.has(track.id)) return;
+  if (!track || track.metadataScanned === true || !(track.blob instanceof Blob) ||
+      !/\.mp3$/i.test(track.name || "") || trackGenreReadsInProgress.has(track.id)) return;
   trackGenreReadsInProgress.add(track.id);
   void readMp3Tags(track.blob, track.name).then(metadata => {
-    if (!metadata.genre) return;
     const current = getTrack(track.id);
-    if (!current || current.genre) return;
-    current.genre = metadata.genre;
+    if (!current) return;
+    let changed = false;
+    if (!current.genre && metadata.genre) {
+      current.genre = metadata.genre;
+      changed = true;
+    }
+    if (!current.artworkBlob && metadata.artwork instanceof Uint8Array &&
+        (metadata.artworkMimeType === "image/jpeg" || metadata.artworkMimeType === "image/png") &&
+        metadata.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES) {
+      current.artworkBlob = new Blob([metadata.artwork], { type: metadata.artworkMimeType });
+      changed = true;
+    }
+    if (current.metadataScanned !== true) {
+      current.metadataScanned = true;
+      changed = true;
+    }
+    if (!changed) return;
     return saveTrack(current).then(() => {
-      if (state.currentId === current.id) notifySoundTrackContext(current);
+      if (state.currentId === current.id) {
+        notifySoundTrackContext(current);
+        // The same track may already have published a fallback icon to the OS.
+        state.mediaSessionTrackId = null;
+      }
+      render();
+      if (state.currentId === current.id) updateMediaSession();
     });
   }).catch(() => {}).finally(() => trackGenreReadsInProgress.delete(track.id));
 }
+function decodeNativeArtworkBase64(value, mimeType) {
+  const base64 = String(value || "");
+  const maxEncodedLength = Math.ceil(MAX_EMBEDDED_ARTWORK_BYTES / 3) * 4;
+  if (!base64 || base64.length > maxEncodedLength || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 !== 0) return null;
+  try {
+    const binary = atob(base64);
+    if (binary.length > MAX_EMBEDDED_ARTWORK_BYTES) return null;
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    return validateEmbeddedArtwork(bytes, mimeType);
+  } catch {
+    return null;
+  }
+}
+function backfillNativeTrackArtwork(track) {
+  if (!track || track.artworkBlob instanceof Blob || track.nativeArtworkScanned === true ||
+      (!track.nativeUri && !track.nativePath) || nativeArtworkReadsInProgress.has(track.id)) return;
+  const plugin = nativeMusicPlugin();
+  if (!plugin?.getEmbeddedArtwork) return;
+  nativeArtworkReadsInProgress.add(track.id);
+  void plugin.getEmbeddedArtwork({ uri: String(track.nativeUri || ""), path: String(track.nativePath || "") }).then(async result => {
+    const current = getTrack(track.id);
+    if (!current || current.artworkBlob instanceof Blob || current.nativeArtworkScanned === true) return;
+    const bytes = result?.found === true
+      ? decodeNativeArtworkBase64(result.base64, result.mimeType)
+      : null;
+    if (bytes) {
+      const mimeType = String(result.mimeType).toLowerCase();
+      current.artworkBlob = new Blob([bytes], { type: mimeType });
+      current.artworkInvalid = false;
+    }
+    current.nativeArtworkScanned = true;
+    await saveTrack(current);
+    if (!getTrack(current.id)) return;
+    render();
+    if (state.currentId === current.id) {
+      state.mediaSessionArtworkUrl = "";
+      state.mediaSessionTrackId = null;
+      updateMediaSession();
+    }
+  }).catch(error => {
+    // File permissions can expire for document providers. Leave the track
+    // retryable on the next play rather than persisting a false "no cover".
+    console.debug("No se pudo leer la portada nativa de " + track.name + ".", error);
+  }).finally(() => nativeArtworkReadsInProgress.delete(track.id));
+}
+
 function isLocal(track) {
   return track?.kind === "file" && (
     track.blob instanceof Blob ||
@@ -180,7 +264,8 @@ function nativeMusicPlugin() {
       pickAudioFolder: invoke("pickAudioFolder"),
       listAudioFromTree: invoke("listAudioFromTree"),
       resolveAudioPath: invoke("resolveAudioPath"),
-      pruneAudioCache: invoke("pruneAudioCache")
+      pruneAudioCache: invoke("pruneAudioCache"),
+      getEmbeddedArtwork: invoke("getEmbeddedArtwork")
     };
   }
   return state.nativeMusicPlugin;
@@ -415,11 +500,72 @@ function coverClass(track) {
   for (const char of (track?.title || "ritmo")) hash = (hash * 31 + char.charCodeAt(0)) | 0;
   return palettes[Math.abs(hash) % palettes.length];
 }
+function trackArtworkUrl(track) {
+  const blob = track?.artworkBlob;
+  if (track?.artworkInvalid === true || !(blob instanceof Blob) || blob.size < 8 ||
+      blob.size > MAX_EMBEDDED_ARTWORK_BYTES ||
+      !["image/jpeg", "image/png"].includes(String(blob.type || "").toLowerCase())) return "";
+  const cached = artworkObjectUrls.get(track.id);
+  if (cached?.blob === blob) return cached.url;
+  if (cached) {
+    try { URL.revokeObjectURL(cached.url); } catch {}
+    artworkObjectUrls.delete(track.id);
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    artworkObjectUrls.set(track.id, { blob, url });
+    return url;
+  } catch {
+    return "";
+  }
+}
+function releaseUnusedArtworkObjectUrls() {
+  for (const [trackId, entry] of artworkObjectUrls) {
+    const track = getTrack(trackId);
+    if (track?.artworkBlob === entry.blob && track?.artworkInvalid !== true) continue;
+    try { URL.revokeObjectURL(entry.url); } catch {}
+    artworkObjectUrls.delete(trackId);
+  }
+}
+function releaseAllArtworkObjectUrls() {
+  for (const entry of artworkObjectUrls.values()) {
+    try { URL.revokeObjectURL(entry.url); } catch {}
+  }
+  artworkObjectUrls.clear();
+}
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) releaseAllArtworkObjectUrls();
+});
+function artworkImageHTML(track, className = "album-artwork") {
+  const url = trackArtworkUrl(track);
+  return url ? '<img class="' + className + '" data-artwork-track="' + escapeHTML(track.id) +
+    '" src="' + escapeHTML(url) + '" alt="" loading="lazy" decoding="async">' : "";
+}
+document.addEventListener("error", event => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || !image.classList.contains("album-artwork")) return;
+  const track = getTrack(image.dataset.artworkTrack);
+  if (!track || track.artworkInvalid === true) return;
+  // A valid tag header can still contain corrupt compressed pixels. Remember
+  // that the browser rejected this artwork so rendering falls back to the
+  // placeholder instead of retrying the same broken decode on every view.
+  track.artworkInvalid = true;
+  state.mediaSessionArtworkUrl = "";
+  state.mediaSessionTrackId = null;
+  void saveTrack(track).catch(() => {});
+  render();
+  if (state.currentId === track.id) updateMediaSession();
+}, true);
 function coverHTML(track, extra = "") {
-  return '<div class="track-mini-cover ' + coverClass(track) + " " + extra + '">♫</div>';
+  const artwork = artworkImageHTML(track);
+  return '<div class="track-mini-cover ' + coverClass(track) + (artwork ? " has-artwork" : "") + " " + extra + '">' +
+    (artwork || "♫") + '</div>';
 }
 function coverCardHTML(track) {
-  return '<div class="cover-art ' + coverClass(track) + '"><span>♫</span><button class="card-play" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">▶</button></div>';
+  const artwork = artworkImageHTML(track);
+  return '<div class="cover-art ' + coverClass(track) + (artwork ? " has-artwork" : "") + '">' +
+    (artwork || "<span>♫</span>") +
+    '<button class="card-play" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">▶</button></div>';
 }
 function syncLibraryViewControls() {
   const listView = $("#library-list-view");
@@ -444,13 +590,17 @@ function renderLibraryGrid(list) {
   root.innerHTML = list.map((track, index) => {
     const active = track.id === state.currentId;
     const favoriteClass = track.favorite ? " is-favorite" : "";
+    const artwork = artworkImageHTML(track);
+    const hasArtwork = artwork ? " has-artwork" : "";
     const source = isLocal(track) ? "EN ESTE DISPOSITIVO" : "STREAMING ONLINE";
     const download = track.kind !== "url" ? "" : track.sourceProvider === "Internet Archive"
       ? '<a class="row-icon archive-track-download" href="' + escapeHTML(track.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original" aria-label="Abrir archivo original">⇩</a>'
       : '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión si está permitido" aria-label="Guardar audio online sin conexión">⇩</button>';
     return '<article class="library-album-card' + (active ? " library-album-active" : "") + '" data-library-card="' + escapeHTML(track.id) + '">' +
-      '<button class="library-album-art ' + coverClass(track) + '" type="button" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">' +
-      '<span class="library-art-stamp">' + String(index + 1).padStart(2, "0") + '</span><span class="library-art-glyph">♫</span><span class="library-art-caption">' + escapeHTML(track.album || "RITMO MIX") + '</span><span class="library-art-play">▶</span></button>' +
+      '<button class="library-album-art ' + coverClass(track) + hasArtwork + '" type="button" data-play="' + escapeHTML(track.id) + '" aria-label="Reproducir ' + escapeHTML(track.title) + '">' +
+      artwork + '<span class="library-art-stamp">' + String(index + 1).padStart(2, "0") + '</span>' +
+      (hasArtwork ? "" : '<span class="library-art-glyph">♫</span>') +
+      '<span class="library-art-caption">' + escapeHTML(track.album || "RITMO MIX") + '</span><span class="library-art-play">▶</span></button>' +
       '<div class="library-album-meta"><div class="library-album-title-row"><div class="library-album-title"><strong title="' + escapeHTML(track.title) + '">' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div><span class="library-album-status' + (active ? " is-live" : "") + '" title="' + (active ? "Pista seleccionada" : source) + '">' + (active ? "♫" : (isLocal(track) ? "●" : "↗")) + '</span></div>' +
       '<div class="library-album-actions"><span class="library-album-source">' + source + '</span><div class="library-album-buttons"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" type="button" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + download +
       '<button class="row-icon' + favoriteClass + '" data-favorite="' + escapeHTML(track.id) + '" type="button" aria-label="' + (track.favorite ? "Quitar de favoritos" : "Agregar a favoritos") + '" title="Favorito">' + (track.favorite ? "♥" : "♡") + '</button><button class="row-icon delete-track" data-delete="' + escapeHTML(track.id) + '" type="button" aria-label="Eliminar ' + escapeHTML(track.title) + '" title="Eliminar de la biblioteca">×</button></div></div></div></article>';
@@ -759,9 +909,15 @@ function resumeCurrentTrack() {
   const position = Number.isFinite(playbackCurrentTime()) ? playbackCurrentTime() : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true });
 }
+function cancelPendingPlaybackPositionRestore() {
+  const cancel = pendingPlaybackPositionCancel;
+  pendingPlaybackPositionCancel = null;
+  cancel?.();
+}
 function cancelPendingPlaybackIntent() {
   playbackRequestId += 1;
   pendingPlaybackRequestId = null;
+  cancelPendingPlaybackPositionRestore();
 }
 function pauseCurrentTrack() {
   if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) {
@@ -818,9 +974,29 @@ function bindAudioEngineEvents(element) {
     showPlaybackStatus(mediaErrorMessage(currentTrack(), element.error), "error", true);
   });
 }
+function renderSavedEqualizerProfileOptions() {
+  const group = $("#eq-user-profiles");
+  if (!group) return;
+  audioPrefs.userEqProfiles = normalizeSavedEqualizerProfiles(audioPrefs.userEqProfiles);
+  group.replaceChildren();
+  for (const profile of audioPrefs.userEqProfiles) {
+    const option = document.createElement("option");
+    option.value = "user:" + profile.id;
+    option.textContent = profile.name;
+    group.append(option);
+  }
+  group.hidden = audioPrefs.userEqProfiles.length === 0;
+}
 function syncSettingsUI() {
+  renderSavedEqualizerProfileOptions();
   $("#eq-enabled").checked = audioPrefs.equalizerEnabled;
-  $("#eq-preset").value = audioPrefs.eqPreset || "custom";
+  const presetSelect = $("#eq-preset");
+  presetSelect.value = audioPrefs.eqPreset || "custom";
+  if (!presetSelect.value) {
+    audioPrefs.eqPreset = "custom";
+    presetSelect.value = "custom";
+  }
+  $("#eq-profile-delete").disabled = !presetSelect.value.startsWith("user:");
   $("#eq-bass").value = String(audioPrefs.bass);
   $("#eq-mid").value = String(audioPrefs.mid);
   $("#eq-treble").value = String(audioPrefs.treble);
@@ -1084,15 +1260,19 @@ function updateMediaSession() {
   const spotifySession = !track && spotifyCurrentEmbed && spotifyControllerReady ? spotifyCurrentEmbed : null;
   if (!track && !youtubeSession && !spotifySession) { clearMediaSession(navigator.mediaSession, state); return; }
   const sessionKey = youtubeSession ? "youtube:" + youtubeSession.sessionId : spotifySession ? "spotify:" + spotifySession.uri : track.id;
-  if (state.mediaSessionTrackId !== sessionKey && "MediaMetadata" in window) {
+  const artworkUrl = trackArtworkUrl(track);
+  if ((state.mediaSessionTrackId !== sessionKey || state.mediaSessionArtworkUrl !== artworkUrl) && "MediaMetadata" in window) {
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: youtubeSession ? (youtubeSession.title || "Video de YouTube") : spotifySession ? (spotifySession.title || spotifySession.label) : (track.title || "Audio sin título"),
         artist: youtubeSession ? "YouTube" : spotifySession ? "Spotify · Reproductor oficial" : (track.artist || "Artista desconocido"),
         album: youtubeSession ? "Ritmo · YouTube" : spotifySession ? "Spotify Embed" : (track.album || "Ritmo"),
-        artwork: [{ src: new URL("./assets/icon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
+        artwork: artworkUrl && track?.artworkBlob
+          ? [{ src: artworkUrl, type: track.artworkBlob.type }]
+          : [{ src: new URL("./assets/icon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
       });
       state.mediaSessionTrackId = sessionKey;
+      state.mediaSessionArtworkUrl = artworkUrl;
     } catch {}
   }
   if (youtubeSession) {
@@ -1141,6 +1321,7 @@ function setupMediaSession() {
   for (const [action, handler] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(action, handler); } catch {} }
 }
 function render() {
+  releaseUnusedArtworkObjectUrls();
   const all = state.tracks;
   $("#library-count").textContent = String(all.length);
   $("#stat-total").innerHTML = all.length + ' <small>canciones</small>';
@@ -1319,7 +1500,11 @@ function updatePlayer() {
   $("#next-button").disabled = externalSession || !state.tracks.length;
   $("#seek-bar").disabled = !hasMedia || (spotifySession && spotifySession.type !== "episode");
   $("#player-favorite").disabled = !track;
-  $("#player-cover").className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "");
+  const playerArtwork = trackArtworkUrl(track);
+  const playerCover = $("#player-cover");
+  playerCover.className = "cover-thumb cover-placeholder " + (track ? coverClass(track) : "") + (playerArtwork ? " has-artwork" : "");
+  playerCover.innerHTML = playerArtwork ? '<img class="album-artwork" data-artwork-track="' + escapeHTML(track.id) +
+    '" src="' + escapeHTML(playerArtwork) + '" alt="" decoding="async">' : "<span>♫</span>";
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
   $("#player-favorite").classList.toggle("is-favorite", Boolean(track?.favorite));
   $("#player-favorite").setAttribute("aria-label", track?.favorite ? "Quitar de favoritos" : "Marcar favorito");
@@ -1514,13 +1699,19 @@ function setMobileMenuOpen(open) {
   if (toggle) toggle.setAttribute("aria-expanded", String(isOpen));
 }
 function clearConverterOutputUrls() {
+  for (const preview of converterPreviewElements) {
+    try {
+      preview.pause();
+      preview.removeAttribute("src");
+      preview.load();
+    } catch {}
+  }
+  converterPreviewElements.clear();
+  activeConverterPreview = null;
   for (const url of converterOutputUrls) URL.revokeObjectURL(url);
   converterOutputUrls = [];
   converterOutputBytes = 0;
-}
-function safeWavFilename(name) {
-  const base = String(name || "audio").replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").replace(/[. ]+$/g, "").trim().slice(0, 100);
-  return (base || "audio") + ".wav";
+  converterOutputFilenames = new Set();
 }
 function renderConverterSelection(preserveStatus = false) {
   const list = $("#converter-file-list");
@@ -1585,10 +1776,66 @@ function appendConverterResult(fileName, detail, blob = null, tone = "success") 
     converterOutputUrls.push(url);
     const link = document.createElement("a");
     link.href = url;
-    link.download = safeWavFilename(fileName);
+    link.download = claimUniqueWavFilename(fileName, converterOutputFilenames);
     link.textContent = "Descargar WAV";
     link.setAttribute("aria-label", "Descargar WAV convertido de " + fileName);
     item.append(link);
+
+    // Preview the exact verified Blob using native browser controls. The player
+    // stays hidden and does not preload audio until the user explicitly opens it.
+    const previewToggle = document.createElement("button");
+    previewToggle.type = "button";
+    previewToggle.className = "button button-soft converter-preview-toggle";
+    previewToggle.textContent = "Escuchar";
+    previewToggle.setAttribute("aria-label", "Reproducir una vista previa de " + fileName);
+    previewToggle.setAttribute("aria-expanded", "false");
+
+    const preview = document.createElement("audio");
+    preview.controls = true;
+    preview.preload = "none";
+    preview.hidden = true;
+    preview.src = url;
+    preview.setAttribute("aria-label", "Vista previa del WAV convertido de " + fileName);
+    converterPreviewElements.add(preview);
+
+    preview.addEventListener("play", () => {
+      if (activeConverterPreview && activeConverterPreview !== preview) activeConverterPreview.pause();
+      activeConverterPreview = preview;
+    });
+    preview.addEventListener("pause", () => {
+      if (activeConverterPreview === preview) activeConverterPreview = null;
+    });
+    preview.addEventListener("ended", () => {
+      if (activeConverterPreview === preview) activeConverterPreview = null;
+    });
+    preview.addEventListener("error", () => {
+      description.textContent = detail + " · El navegador no pudo reproducir la vista previa; podés descargar el WAV para probarlo con otro reproductor.";
+    });
+    previewToggle.addEventListener("click", () => {
+      if (preview.hidden) {
+        preview.hidden = false;
+        previewToggle.textContent = "Ocultar";
+        previewToggle.setAttribute("aria-expanded", "true");
+        // This click is a real user gesture, so request playback here instead
+        // of making "Escuchar" only reveal a second Play button.
+        const playback = preview.play();
+        if (playback && typeof playback.catch === "function") {
+          playback.catch(error => {
+            const message = error?.name === "NotAllowedError"
+              ? "El navegador bloqueó el inicio de la vista previa; usá ▶ en los controles del reproductor."
+              : "No se pudo iniciar la vista previa en este navegador; todavía podés descargar el WAV.";
+            description.textContent = detail + " · " + message;
+          });
+        }
+      } else {
+        preview.pause();
+        preview.currentTime = 0;
+        preview.hidden = true;
+        previewToggle.textContent = "Escuchar";
+        previewToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    item.append(previewToggle, preview);
   }
   list.append(item);
 }
@@ -1615,6 +1862,7 @@ async function runAudioConversion() {
   $("#converter-results").replaceChildren();
   converterRunning = true;
   converterCancelRequested = false;
+  converterAbortController = new AbortController();
   $("#converter-start").disabled = true;
   $("#converter-cancel").disabled = false;
   $("#converter-clear").disabled = true;
@@ -1636,7 +1884,7 @@ async function runAudioConversion() {
       const file = files[index];
       $("#converter-status").textContent = "Convirtiendo " + (index + 1) + " de " + files.length + ": " + file.name;
       try {
-        const result = await convertAudioFileToWav(file, converterAudioContext, { channels });
+        const result = await convertAudioFileToWav(file, converterAudioContext, { channels, maxOutputBytes: MAX_CONVERTER_OUTPUT_BYTES - converterOutputBytes, signal: converterAbortController?.signal });
         if (converterCancelRequested) break;
         if (converterOutputBytes + result.blob.size > MAX_CONVERTER_OUTPUT_BYTES) {
           throw new Error("La tanda superaría el límite de 120 MiB de resultados. Descargá los WAV actuales y empezá otra tanda.");
@@ -1647,6 +1895,7 @@ async function runAudioConversion() {
           " · " + rate + " kHz · " + result.channels + (result.channels === 1 ? " canal" : " canales"), result.blob);
         converted++;
       } catch (error) {
+        if (converterCancelRequested && error?.name === "AbortError") break;
         failed++;
         appendConverterResult(file.name, error?.message || "No se pudo convertir este archivo.", null, "error");
       }
@@ -1665,6 +1914,7 @@ async function runAudioConversion() {
   } finally {
     try { await converterAudioContext?.close(); } catch {}
     converterAudioContext = null;
+    converterAbortController = null;
     converterRunning = false;
     $("#converter-start").disabled = !converterFiles.length;
     $("#converter-cancel").disabled = true;
@@ -1682,8 +1932,9 @@ function bindAudioConverterEvents() {
   $("#converter-cancel").addEventListener("click", () => {
     if (!converterRunning) return;
     converterCancelRequested = true;
+    converterAbortController?.abort();
     $("#converter-cancel").disabled = true;
-    $("#converter-status").textContent = "Cancelación solicitada; se detendrá al terminar la decodificación actual.";
+    $("#converter-status").textContent = "Cancelación solicitada. Si se están leyendo metadatos, se detendrá ahora; una decodificación ya iniciada no se puede interrumpir y su resultado se descartará al terminar.";
   });
   $("#converter-clear").addEventListener("click", clearConverterWorkspace);
   window.addEventListener("pagehide", clearConverterOutputUrls);
@@ -1705,6 +1956,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   if (!track) return;
   stopSpotifyEmbed({ preserveSaved: true, refresh: false });
   const requestId = ++playbackRequestId;
+  cancelPendingPlaybackPositionRestore();
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
   // Invalidate pending state reads as soon as a newer play request arrives.
@@ -1747,6 +1999,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   state.currentId = track.id;
   notifySoundTrackContext(track);
   backfillTrackGenre(track);
+  backfillNativeTrackArtwork(track);
   try {
     if (useNativePlayer) {
       // Pass MediaStore/SAF URI directly to Media3 instead of copying audio into app cache.
@@ -1854,11 +2107,21 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       releaseUnusedObjectURLs(isLocal(track) ? track.id : null);
       if (Number.isFinite(options.resumeAt) && options.resumeAt > 0) {
         const targetEngine = audio;
-        const restorePosition = () => {
-          try { targetEngine.currentTime = Number.isFinite(targetEngine.duration) && targetEngine.duration > 0 ? Math.min(options.resumeAt, targetEngine.duration) : options.resumeAt; } catch {}
-        };
-        if (targetEngine.readyState >= 1) restorePosition();
-        else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
+        if (targetEngine.readyState >= 1) {
+          if (isCurrentPlaybackRequest() && targetEngine === audio) {
+            setPlaybackPosition(targetEngine, options.resumeAt);
+          }
+        } else {
+          let cancelRestore;
+          cancelRestore = schedulePlaybackPositionRestore(targetEngine, options.resumeAt, {
+            isCurrentRequest: isCurrentPlaybackRequest,
+            isActiveElement: element => element === audio,
+            onSettled: () => {
+              if (pendingPlaybackPositionCancel === cancelRestore) pendingPlaybackPositionCancel = null;
+            }
+          });
+          pendingPlaybackPositionCancel = cancelRestore;
+        }
       }
       if (autoplay) await audio.play();
       if (!isCurrentPlaybackRequest()) return;
@@ -2230,15 +2493,106 @@ async function browseAudioFolder() {
 }
 
 async function importFiles(fileList, options = {}) {
-  const files = [...fileList].filter(file => file.type.startsWith("audio/") || /\.(mp3|m4a|mp4|aac|wav|wave|ogg|oga|opus|webm|flac|aiff|aif|alac|wma|ape|mp2|mid|midi|caf|3gp|amr)$/i.test(file.name));
-  if (!files.length) { toast("No encontré archivos de audio compatibles."); return; }
-  const existing = new Set(state.tracks.filter(track => isLocal(track)).map(track => importedFileFingerprint(track)));
+  const selection = classifyAudioImportFiles(fileList);
+  const files = selection.files;
+  const skippedEmptyFiles = selection.emptyFiles.length;
+  if (!files.length) {
+    toast(skippedEmptyFiles
+      ? "Se omitieron " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s); no se importó ninguno."
+      : "No encontré archivos de audio compatibles.");
+    return;
+  }
+
+  const localTracks = state.tracks.filter(track => isLocal(track));
+  const existing = new Set(localTracks.map(track => importedFileFingerprint(track)));
+  const comparableFingerprints = new Set();
+  const candidatesBySize = new Map();
+  const registerCandidate = blob => {
+    if (!blob || typeof blob.slice !== "function" ||
+        !Number.isSafeInteger(Number(blob.size)) || Number(blob.size) <= 0) return;
+    const size = Number(blob.size);
+    const bucket = candidatesBySize.get(size) || [];
+    bucket.push(blob);
+    candidatesBySize.set(size, bucket);
+  };
+  // Browser-imported files keep a Blob, so they can be compared exactly in
+  // bounded chunks. Native Android records without accessible bytes stay URI-based.
+  for (const track of localTracks) {
+    registerCandidate(track.blob);
+    const trackSize = Number(track.size);
+    if (track.blob && typeof track.blob.slice === "function" &&
+        Number.isSafeInteger(trackSize) && trackSize > 0 &&
+        Number(track.blob.size) === trackSize) {
+      comparableFingerprints.add(importedFileFingerprint(track));
+    }
+  }
+
   const uniqueFiles = [];
+  let skippedByIdentity = 0;
+  let skippedByContent = 0;
+  let comparisonWarnings = 0;
+  let comparisonStatusShown = false;
+  const duplicateComparisonBudget = {
+    remainingCandidates: MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH,
+    remainingBytes: MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH
+  };
   for (const file of files) {
     const fingerprint = importedFileFingerprint(file, options);
-    if (!existing.has(fingerprint)) { existing.add(fingerprint); uniqueFiles.push(file); }
+    const knownIdentity = existing.has(fingerprint);
+    if (knownIdentity && !comparableFingerprints.has(fingerprint)) {
+      skippedByIdentity++;
+      continue;
+    }
+
+    const fileSize = Number(file.size);
+    const candidates = Number.isSafeInteger(fileSize) && fileSize > 0
+      ? (candidatesBySize.get(fileSize) || [])
+      : [];
+    if (candidates.length && !comparisonStatusShown) {
+      toast("Comprobando copias idénticas por contenido…");
+      comparisonStatusShown = true;
+    }
+    const decision = await classifyImportDuplicate(file, {
+      fingerprint,
+      existingFingerprints: existing,
+      comparableFingerprints,
+      candidates,
+      comparisonOptions: { budget: duplicateComparisonBudget }
+    });
+    if (decision.comparisonFailed) comparisonWarnings++;
+    if (decision.action === "skip-identity") {
+      skippedByIdentity++;
+      continue;
+    }
+    if (decision.action === "skip-content") {
+      skippedByContent++;
+      existing.add(fingerprint);
+      // Even skipped files have comparable bytes: keep checking subsequent
+      // selections with this same fingerprint for a later content change.
+      comparableFingerprints.add(fingerprint);
+      continue;
+    }
+    existing.add(fingerprint);
+    uniqueFiles.push(file);
+    registerCandidate(file);
+    if (typeof file.slice === "function" && Number(file.size) > 0 &&
+        Number.isSafeInteger(Number(file.size))) {
+      comparableFingerprints.add(fingerprint);
+    }
   }
-  if (!uniqueFiles.length) { toast("Esos archivos ya están en tu biblioteca."); return; }
+
+  if (!uniqueFiles.length) {
+    const details = [];
+    if (skippedByIdentity) details.push(skippedByIdentity + " ya se reconocían por su ruta o identidad");
+    if (skippedByContent) details.push(skippedByContent + " eran copias binarias idénticas");
+    if (comparisonWarnings) details.push(comparisonWarnings + " comprobación(es) fallida(s); esos archivos no se descartaron");
+    if (skippedEmptyFiles) details.push(skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)");
+    toast(details.length
+      ? "No se importaron archivos nuevos: " + details.join(" · ") + "."
+      : "Esos archivos ya están en tu biblioteca.");
+    return;
+  }
+
   let saved = 0, bytesSaved = 0, failure = null;
   const BATCH_SIZE = 20;
   for (let offset = 0; offset < uniqueFiles.length; offset += BATCH_SIZE) {
@@ -2248,6 +2602,10 @@ async function importFiles(fileList, options = {}) {
       const tracks = await Promise.all(batch.map(async file => {
         const meta = await readMp3Tags(file);
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "", genre: meta.genre || "",
+          ...(meta.artwork instanceof Uint8Array && (meta.artworkMimeType === "image/jpeg" || meta.artworkMimeType === "image/png") &&
+              meta.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES
+            ? { artworkBlob: new Blob([meta.artwork], { type: meta.artworkMimeType }) } : {}),
+          metadataScanned: /\.mp3$/i.test(file.name),
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
@@ -2261,11 +2619,23 @@ async function importFiles(fileList, options = {}) {
   try { state.tracks = await getAllTracks(); } catch {}
   render();
   if (saved) {
-    toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " + formatBytes(bytesSaved) + (failure ? " · importación parcial" : ""));
+    const duplicateNote = skippedByContent
+      ? " · " + skippedByContent + " copia(s) idéntica(s) omitida(s)"
+      : "";
+    const comparisonNote = comparisonWarnings
+      ? " · " + comparisonWarnings + " comprobación(es) no concluyentes; se conservaron"
+      : "";
+    const emptyFilesNote = skippedEmptyFiles
+      ? " · " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)"
+      : "";
+    toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " +
+      formatBytes(bytesSaved) + duplicateNote + comparisonNote + emptyFilesNote + (failure ? " · importación parcial" : ""));
     requestPersistentStorage().catch(() => {});
     if (!currentTrack()) showView("library");
   } else {
-    toast(failure?.name === "QuotaExceededError" ? "No hay espacio suficiente en el navegador. Importá menos archivos por vez o liberá almacenamiento." : (failure?.message || "No se pudo importar la música."));
+    toast(failure?.name === "QuotaExceededError"
+      ? "No hay espacio suficiente en el navegador. Importá menos archivos por vez o liberá almacenamiento."
+      : (failure?.message || "No se pudo importar la música."));
   }
 }
 async function removeCurrent() {
@@ -3521,6 +3891,7 @@ function bindEvents() {
   $("#close-settings-bottom").addEventListener("click", () => $("#settings-dialog").close());
   $("#eq-enabled").addEventListener("change", async event => {
     audioPrefs.equalizerEnabled = event.target.checked;
+    if (audioPrefs.equalizerEnabled && audioPrefs.eqPreset === "clean") audioPrefs.eqPreset = "flat";
     saveAudioPreferences();
     syncSettingsUI();
     const track = currentTrack();
@@ -3569,12 +3940,40 @@ function bindEvents() {
   }
   $("#eq-preset").addEventListener("change", async event => {
     const presetName = event.target.value;
+    const selectedSavedProfile = audioPrefs.userEqProfiles.find(profile => "user:" + profile.id === presetName);
+    $("#eq-profile-name").value = selectedSavedProfile?.name || "";
     if (presetName === "custom") {
       audioPrefs.eqPreset = "custom";
       saveAudioPreferences();
       return;
     }
-    const values = getEqualizerPreset(presetName);
+    if (presetName === "clean") {
+      Object.assign(audioPrefs, {
+        eqPreset: "clean", bass: 0, mid: 0, treble: 0,
+        equalizerEnabled: false, limiter: false
+      });
+      saveAudioPreferences();
+      syncSettingsUI();
+      const track = currentTrack();
+      const nativeTrackActive = Boolean(state.nativePlayback.active && track &&
+        state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
+      if (nativeTrackActive) {
+        try { await applyNativeEqualizerPreferences(); }
+        catch (error) { $("#eq-status").textContent = error.message || "No se pudo activar el modo limpio en Android."; return; }
+      } else if (track && isLocal(track)) {
+        applyCurrentEnginePreference();
+      }
+      $("#eq-status").textContent = nativeTrackActive
+        ? "Modo limpio: ecualizador nativo desactivado. Media3 Android no aplica el limitador suave en esta integración."
+        : track && isLocal(track)
+          ? "Modo limpio activado: ecualizador y limitador apagados en el procesamiento Web Audio; el archivo original no se modifica."
+          : "Modo limpio guardado para archivos locales: ecualizador y limitador desactivados cuando se use el procesamiento Web Audio.";
+      return;
+    }
+    const savedProfile = selectedSavedProfile;
+    const values = savedProfile
+      ? { bass: savedProfile.bass, mid: savedProfile.mid, treble: savedProfile.treble }
+      : getEqualizerPreset(presetName);
     if (!values) {
       audioPrefs.eqPreset = "custom";
       syncSettingsUI();
@@ -3600,12 +3999,65 @@ function bindEvents() {
       }
       applyCurrentEnginePreference();
     }
-    $("#eq-status").textContent = "Preajuste «" + EQUALIZER_PRESETS[presetName].label + "» aplicado a archivos locales.";
+    const profile = savedProfile
+      ? { label: savedProfile.name, description: "Perfil personalizado guardado en este dispositivo." }
+      : EQUALIZER_PRESETS[presetName];
+    $("#eq-status").textContent = track && isLocal(track)
+      ? "Perfil «" + profile.label + "» aplicado a este archivo local. " + profile.description
+      : "Perfil «" + profile.label + "» guardado para archivos locales; no procesa fuentes online. " + profile.description;
+  });
+  $("#eq-profile-save").addEventListener("click", () => {
+    const name = String($("#eq-profile-name").value || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    if (!name) {
+      $("#eq-status").textContent = "Escribí un nombre para guardar el perfil.";
+      $("#eq-profile-name").focus();
+      return;
+    }
+    const existing = audioPrefs.userEqProfiles.find(profile =>
+      profile.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+    );
+    if (existing && !window.confirm("«" + existing.name + "» ya existe. ¿Querés reemplazar sus valores por los actuales?")) return;
+    const id = existing?.id || ("saved-" + (globalThis.crypto?.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10)));
+    try {
+      audioPrefs.userEqProfiles = upsertSavedEqualizerProfile(audioPrefs.userEqProfiles, {
+        id, name, bass: audioPrefs.bass, mid: audioPrefs.mid, treble: audioPrefs.treble
+      });
+      audioPrefs.eqPreset = "user:" + id;
+      saveAudioPreferences();
+      syncSettingsUI();
+      $("#eq-profile-name").value = name;
+      $("#eq-status").textContent = "Perfil «" + name + "» guardado en este dispositivo. Seleccionalo para recuperar estos valores.";
+    } catch (error) {
+      $("#eq-status").textContent = error?.message || "No se pudo guardar el perfil personalizado.";
+    }
+  });
+  $("#eq-profile-delete").addEventListener("click", () => {
+    const selected = $("#eq-preset").value;
+    if (!selected.startsWith("user:")) return;
+    const id = selected.slice("user:".length);
+    const profile = audioPrefs.userEqProfiles.find(item => item.id === id);
+    if (!profile || !window.confirm("¿Eliminar el perfil «" + profile.name + "» de este dispositivo?")) return;
+    audioPrefs.userEqProfiles = removeSavedEqualizerProfile(audioPrefs.userEqProfiles, id);
+    audioPrefs.eqPreset = "custom";
+    saveAudioPreferences();
+    syncSettingsUI();
+    $("#eq-profile-name").value = profile.name;
+    $("#eq-status").textContent = "Perfil «" + profile.name + "» eliminado de este dispositivo; no se borró ningún archivo de audio.";
   });
   $("#limiter-toggle").addEventListener("change", event => {
     audioPrefs.limiter = event.target.checked;
+    if (audioPrefs.limiter && audioPrefs.eqPreset === "clean") audioPrefs.eqPreset = "flat";
     saveAudioPreferences();
+    syncSettingsUI();
     applyAudioGraphPreferences();
+    const track = currentTrack();
+    const nativeTrackActive = Boolean(state.nativePlayback.active && track &&
+      state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
+    $("#eq-status").textContent = nativeTrackActive
+      ? "Preferencia guardada. El limitador suave solo se aplica a archivos locales reproducidos por Web Audio; Media3 Android no ofrece este limitador en la integración actual."
+      : "Preferencia guardada. El limitador suave se aplica al procesamiento Web Audio de archivos locales; no cambia el archivo original.";
   });
   $("#eq-reset").addEventListener("click", () => {
     audioPrefs.eqPreset = "flat"; audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = true;

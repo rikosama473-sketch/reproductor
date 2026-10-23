@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 
 const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
-const service = await readFile(new URL("../native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
-const plugin = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
-const java = await readFile(new URL("../native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
-const playbackPlugin = await readFile(new URL("../native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
-const playbackService = await readFile(new URL("../native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
+const service = await readFile(new URL("../mobile/native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
+const plugin = await readFile(new URL("../mobile/native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
+const java = await readFile(new URL("../mobile/native/android/RitmoMusicLibraryPlugin.java", import.meta.url), "utf8");
+const playbackPlugin = await readFile(new URL("../mobile/native/android/RitmoPlaybackPlugin.java", import.meta.url), "utf8");
+const playbackService = await readFile(new URL("../mobile/native/android/RitmoPlaybackService.java", import.meta.url), "utf8");
 const prep = await readFile(new URL("./prepare-android-native.mjs", import.meta.url), "utf8");
 const workflow = await readFile(new URL("../.github/workflows/android-apk.yml", import.meta.url), "utf8");
 
@@ -20,6 +20,18 @@ assert.match(java, /READ_MEDIA_AUDIO/, "Android 13+ debe usar el permiso de audi
 assert.match(java, /READ_EXTERNAL_STORAGE/, "Android 12 y anteriores deben usar el permiso heredado");
 assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo debe consultar MediaStore");
 assert.match(java, /MAX_MEDIASTORE_RESULTS = 10000/, "MediaStore debe limitar la cantidad de registros para evitar una respuesta nativa enorme");
+assert.match(java, /public void getEmbeddedArtwork\(PluginCall call\)/, "Android must expose a lazy embedded-artwork reader for native tracks");
+assert.match(java, /MediaMetadataRetriever/, "Native artwork extraction must use Android media metadata APIs");
+assert.match(java, /MAX_ARTWORK_RAW_BYTES = 8 \* 1024 \* 1024/, "Native art reader must reject unbounded embedded payloads before decode");
+assert.match(java, /MAX_ARTWORK_OUTPUT_BYTES = 512 \* 1024/, "The artwork returned to the WebView must stay under the shared limit");
+assert.match(java, /BitmapFactory\.Options bounds = new BitmapFactory\.Options\(\);\s*bounds\.inJustDecodeBounds = true/, "Native dimensions must be inspected before allocating the decoded bitmap");
+assert.match(java, /MAX_ARTWORK_DIMENSION = 4096[\s\S]*?MAX_ARTWORK_PIXELS = 8_388_608L/, "Native image dimensions and pixel count must be bounded");
+assert.match(java, /decode\.inSampleSize = sampleSize[\s\S]*?BitmapFactory\.decodeByteArray/, "Native covers must be downsampled before decoding to a bitmap");
+assert.match(java, /Bitmap\.CompressFormat\.JPEG[\s\S]*?result\.length <= MAX_ARTWORK_OUTPUT_BYTES/, "Native artwork must be converted to bounded JPEG output");
+assert.match(app, /getEmbeddedArtwork: invoke\("getEmbeddedArtwork"\)/, "JavaScript must expose the Android cover reader");
+assert.match(app, /function backfillNativeTrackArtwork\(track\)/, "Android-library cover fetching must be lazy and track-specific");
+assert.match(app, /nativeArtworkScanned === true[\s\S]*?plugin\.getEmbeddedArtwork/, "Native art fetching must avoid repeated scans when a result is available");
+
 assert.match(java, /files\.length\(\) >= MAX_MEDIASTORE_RESULTS[\s\S]*?truncated = true/, "El escaneo debe detectar e informar los resultados parciales");
 assert.match(java, /result\.put\("truncated", truncated\)/, "El plugin debe enviar al usuario el estado de truncamiento");
 assert.match(java, /private synchronized String copyToPrivateCache\(/, "Concurrent provider resolutions must not truncate the same temporary cache file");
@@ -90,7 +102,8 @@ assert.match(prep, /const pluginClasses = \["RitmoMusicLibraryPlugin", "RitmoPla
 assert.match(prep, /registerPlugin\(" \+ name \+ "\.class\);/, "El build debe registrar dinámicamente ambos plugins Android");
 assert.match(prep, /FOREGROUND_SERVICE_MEDIA_PLAYBACK/, "El empaquetado debe declarar el servicio multimedia");
 assert.match(prep, /media3-exoplayer:1\.11\.1/, "El empaquetado debe fijar una versión revisada de Media3");
-assert.match(workflow, /prepare-android-native\.mjs/, "CI debe preparar los plugins antes de compilar");
+assert.match(workflow, /npm --prefix mobile run android:init/, "CI debe construir desde la carpeta móvil aislada");
+assert.match(prep, /mobile", "native", "android"/, "La preparación debe tomar el código nativo de mobile/native/android");
 console.log("Android music discovery and Media3 playback checks passed.");
 
 assert.match(app, /createAsyncGenerationGate/, "Native poll coordination must use a generation-safe gate");

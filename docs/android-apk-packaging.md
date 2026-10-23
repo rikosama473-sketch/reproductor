@@ -2,9 +2,9 @@
 
 ## Diseño elegido
 
-Ritmo sigue siendo la misma app web estática: `scripts/prepare-mobile.mjs` copia HTML, CSS, JavaScript, service worker, manifest e iconos a `www/`. Capacitor 8.5.3 crea una actividad Android que sirve ese contenido desde el origen HTTPS local de Capacitor; la biblioteca de audio continúa guardándose en IndexedDB del dispositivo y los archivos elegidos siguen pasando por el selector del usuario. No se sube la biblioteca local a un servidor.
+Ritmo sigue siendo la misma app web estática: `scripts/prepare-mobile.mjs` (invocado por `mobile/scripts/prepare-web.mjs`) copia HTML, CSS, JavaScript, service worker, manifest e iconos a `mobile/www/`. Capacitor 8.5.3 crea una actividad Android que sirve ese contenido desde el origen HTTPS local de Capacitor; la biblioteca de audio continúa guardándose en IndexedDB del dispositivo y los archivos elegidos siguen pasando por el selector del usuario. No se sube la biblioteca local a un servidor.
 
-El proyecto nativo `android/`, `www/` y `node_modules/` se generan en el build y se ignoran en Git para no incluir compilados ni árboles generados. Se pueden crear localmente mediante `npm install` y `npm run android:init`; en las ejecuciones siguientes se puede usar `npm run android:sync`.
+El proyecto nativo `mobile/android/`, `mobile/www/` y `mobile/node_modules/` se generan en el build y se ignoran en Git para no incluir compilados ni árboles generados. Se pueden crear localmente mediante `npm install --prefix mobile` y `npm --prefix mobile run android:init`; en las ejecuciones siguientes se puede usar `npm --prefix mobile run android:sync`.
 
 ## APK CI
 
@@ -21,7 +21,7 @@ Para distribuir actualizaciones sin esa limitación, crear un APK de lanzamiento
 ## Revisión técnica y límites
 
 - Capacitor 8 requiere Node 22+ y Android SDK. En octubre de 2026 la línea estable consultada es 8.5.3; su historial incluye correcciones recientes de Android, por eso se evita usar una previsualización de Capacitor 9.
-- El service worker se conserva y sus recursos se comprueban al preparar `www/`, pero las pruebas estáticas no demuestran reproducción real en todos los WebView.
+- El service worker se conserva y sus recursos se comprueban al preparar `mobile/www/`, pero las pruebas estáticas no demuestran reproducción real en todos los WebView.
 - La selección de archivos, la reproducción en segundo plano, Media Session, los enlaces externos y los embeds de YouTube requieren una prueba manual en dispositivos Android físicos. Android WebView/YouTube pueden imponer restricciones independientes de la app.
 - Las funciones de búsqueda online y streaming necesitan red; la biblioteca local previamente importada está diseñada para seguir disponible offline. No se descarga ni se extrae audio desde YouTube.
 
@@ -52,7 +52,7 @@ La ejecución posterior [39068069529](https://github.com/rikosama473-sketch/repr
 
 La primera APK solo utilizaba un `<input type="file">` HTML dentro del WebView. Además, `folder-picker` no estaba enlazado a ningún botón y no existía una consulta nativa a la biblioteca multimedia del dispositivo. Por eso no podía descubrir automáticamente los MP3 ya guardados.
 
-La solución incorpora `native/android/RitmoMusicLibraryPlugin.java` y lo registra en cada proyecto Android generado por `scripts/prepare-android-native.mjs`:
+La solución incorpora `mobile/native/android/RitmoMusicLibraryPlugin.java` y lo registra en cada proyecto Android generado por `scripts/prepare-android-native.mjs`:
 
 - **Buscar música del teléfono** solicita `READ_MEDIA_AUDIO` en Android 13+ y `READ_EXTERNAL_STORAGE` hasta Android 12; consulta `MediaStore.Audio.Media` y añade metadatos/URI de pistas indexadas.
 - **Importar archivos** abre `ACTION_OPEN_DOCUMENT`; el usuario puede navegar por carpetas y seleccionar varios archivos de audio. Después Ritmo importa sus bytes a IndexedDB para permitir escucha sin conexión.
@@ -126,3 +126,8 @@ Referencias de casos reales y soluciones publicadas por mantenedores:
 - AndroidX publicó la lista de cambios de Media3 1.11.1 con correcciones de reproducción y extractores: [notas oficiales](https://developer.android.com/jetpack/androidx/releases/media3).
 
 Ritmo aplica estas defensas en su propio plugin; no agrega una dependencia de selector de archivos adicional. La validación estática no reemplaza las pruebas con dispositivos y proveedores OEM reales.
+
+
+## Estructura de plataforma actual
+
+La configuración de Capacitor y el código Java específico de Android están aislados en `mobile/`; la salida Android se genera en `mobile/www/` y el proyecto nativo en `mobile/android/`. El empaquetador móvil usa un caché de Service Worker propio e incluye `capacitor.js` en el shell offline. La salida PC se prepara por separado en `desktop/dist/` y no depende del puente nativo.

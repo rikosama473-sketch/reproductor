@@ -1,23 +1,18 @@
 {
-  "name": "ritmo-android",
+  "name": "ritmo-workspace",
   "version": "1.0.0",
   "private": true,
-  "description": "Empaquetado Android del reproductor musical Ritmo",
+  "description": "Fuentes compartidas y herramientas de validación para Ritmo móvil y PC",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "prepare:web": "node scripts/prepare-mobile.mjs",
-    "android:init": "npm run prepare:web && npx cap add android",
-    "android:sync": "npm run prepare:web && npx cap sync android",
+    "prepare:web": "npm --prefix mobile run prepare:web",
+    "android:init": "npm --prefix mobile run android:init",
+    "android:sync": "npm --prefix mobile run android:sync",
+    "desktop:prepare": "npm --prefix desktop run prepare",
+    "desktop:start": "npm --prefix desktop run start",
     "validate": "node scripts/validate.mjs"
-  },
-  "dependencies": {
-    "@capacitor/android": "8.5.3",
-    "@capacitor/core": "8.5.3"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "8.5.3"
   }
 }

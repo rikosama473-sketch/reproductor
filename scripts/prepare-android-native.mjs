@@ -4,8 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const androidRoot = path.join(root, "android");
-const config = JSON.parse(await readFile(path.join(root, "capacitor.config.json"), "utf8"));
+const androidRoot = path.resolve(process.env.RITMO_ANDROID_ROOT || path.join(root, "android"));
+const configPath = path.resolve(process.env.RITMO_CAPACITOR_CONFIG || path.join(root, "capacitor.config.json"));
+const config = JSON.parse(await readFile(configPath, "utf8"));
 assert.equal(config.appId, "com.rikosama473.ritmo", "El puente debe usar el package ID de Ritmo");
 const javaDirectory = path.join(androidRoot, "app", "src", "main", "java", ...config.appId.split("."));
 const targetJava = path.join(javaDirectory, "RitmoMusicLibraryPlugin.java");
@@ -14,9 +15,9 @@ const manifest = path.join(androidRoot, "app", "src", "main", "AndroidManifest.x
 const gradleFile = path.join(androidRoot, "app", "build.gradle");
 
 await mkdir(javaDirectory, { recursive: true });
-await copyFile(path.join(root, "native", "android", "RitmoMusicLibraryPlugin.java"), targetJava);
-await copyFile(path.join(root, "native", "android", "RitmoPlaybackPlugin.java"), path.join(javaDirectory, "RitmoPlaybackPlugin.java"));
-await copyFile(path.join(root, "native", "android", "RitmoPlaybackService.java"), path.join(javaDirectory, "RitmoPlaybackService.java"));
+await copyFile(path.join(root, "mobile", "native", "android", "RitmoMusicLibraryPlugin.java"), targetJava);
+await copyFile(path.join(root, "mobile", "native", "android", "RitmoPlaybackPlugin.java"), path.join(javaDirectory, "RitmoPlaybackPlugin.java"));
+await copyFile(path.join(root, "mobile", "native", "android", "RitmoPlaybackService.java"), path.join(javaDirectory, "RitmoPlaybackService.java"));
 
 let activity = await readFile(mainActivity, "utf8");
 if (!activity.includes("import android.os.Bundle;")) {

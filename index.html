@@ -435,14 +435,54 @@
     </section>
 
     <section class="settings-section">
-      <div class="settings-section-heading"><div><h3>Ecualizador</h3><p>Elegí un perfil Acústico, Pop, Rock, Clásico, Jazz, Graves o Voces; después ajustá graves, medios y agudos a mano.</p></div>
+      <div class="settings-section-heading"><div><h3>Ecualizador</h3><p>Elegí un perfil por estilo y afiná graves, medios y agudos. «Limpio» evita el ecualizador y el limitador; «Plano» mantiene las bandas en 0 dB.</p></div>
         <label class="settings-switch"><input type="checkbox" id="eq-enabled"><span>Activar</span></label>
       </div>
-      <label class="eq-control" for="eq-preset"><span>Preajuste de sonido</span><select id="eq-preset" class="form-input" aria-label="Preajuste de ecualizador"><option value="custom">Personalizado</option><option value="flat">Plano</option><option value="acoustic">Acústico</option><option value="pop">Pop</option><option value="rock">Rock</option><option value="classical">Clásico</option><option value="jazz">Jazz</option><option value="bass">Más graves</option><option value="vocal">Voces</option></select></label>
+      <label class="eq-control" for="eq-preset"><span>Preajuste de sonido</span><select id="eq-preset" class="form-input" aria-label="Preajuste de ecualizador">
+          <option value="custom">Personalizado</option>
+          <optgroup label="Neutro">
+            <option value="clean">Limpio (sin procesamiento)</option>
+            <option value="flat">Plano</option>
+          </optgroup>
+          <optgroup label="Clásica e instrumental">
+            <option value="piano">Piano clásico</option>
+            <option value="classical">Clásico / instrumental</option>
+            <option value="orchestral">Orquesta</option>
+            <option value="cinematic">Cinemático / banda sonora</option>
+            <option value="acoustic">Acústico</option>
+          </optgroup>
+          <optgroup label="Bandas y voces">
+            <option value="pop">Pop</option>
+            <option value="rock">Rock</option>
+            <option value="jazz">Jazz</option>
+            <option value="bass">Más graves</option>
+            <option value="vocal">Voces</option>
+          </optgroup>
+          <optgroup label="Electrónica y ambientes">
+            <option value="electronic">Electrónica</option>
+            <option value="cyberpunk">Cyberpunk</option>
+            <option value="synthwave">Synthwave</option>
+            <option value="ambient">Ambient</option>
+          </optgroup>
+          <optgroup label="Anime y experimental">
+            <option value="game-anime">Videojuegos / anime</option>
+            <option value="experimental">Experimental</option>
+          </optgroup>
+          <optgroup label="Mis perfiles guardados" id="eq-user-profiles" hidden></optgroup>
+        </select></label>
+      <div class="eq-profile-saver">
+        <label for="eq-profile-name">Guardar los ajustes actuales como perfil</label>
+        <div class="eq-profile-controls">
+          <input id="eq-profile-name" class="form-input" type="text" maxlength="40" placeholder="Ej.: Piano suave de auriculares" autocomplete="off">
+          <button class="button button-soft" id="eq-profile-save" type="button">Guardar perfil</button>
+          <button class="button button-soft" id="eq-profile-delete" type="button" disabled>Eliminar guardado</button>
+        </div>
+        <p class="settings-note">Hasta 20 perfiles por dispositivo. Se guardan solo los tres valores de ecualización y no modifican los archivos originales.</p>
+      </div>
       <label class="eq-control" for="eq-bass"><span>Graves</span><output id="eq-bass-value">0 dB</output><input id="eq-bass" type="range" min="-12" max="12" step="1" value="0"></label>
       <label class="eq-control" for="eq-mid"><span>Medios / voces</span><output id="eq-mid-value">0 dB</output><input id="eq-mid" type="range" min="-12" max="12" step="1" value="0"></label>
       <label class="eq-control" for="eq-treble"><span>Agudos</span><output id="eq-treble-value">0 dB</output><input id="eq-treble" type="range" min="-12" max="12" step="1" value="0"></label>
-      <label class="settings-check"><input type="checkbox" id="limiter-toggle" checked><span><strong>Limitador suave</strong><small>Reduce picos que pueden causar distorsión; no sustituye un volumen seguro.</small></span></label>
+      <label class="settings-check"><input type="checkbox" id="limiter-toggle" checked><span><strong>Limitador suave</strong><small>Reduce picos en archivos locales reproducidos por Web Audio. El motor nativo Media3 de Android no aplica este limitador.</small></span></label>
       <button class="button button-soft" id="eq-reset" type="button">Restablecer sonido</button>
       <p class="settings-note" id="eq-status" role="status">El sonido original no se modifica.</p>
     </section>

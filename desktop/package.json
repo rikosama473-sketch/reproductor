@@ -1,0 +1,14 @@
+{
+  "name": "ritmo-desktop-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Salida independiente de Ritmo para PC y navegadores de escritorio",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "node scripts/prepare.mjs",
+    "start": "npm run prepare && node scripts/serve.mjs"
+  }
+}
