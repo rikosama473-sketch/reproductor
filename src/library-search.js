@@ -8,6 +8,7 @@ export function normalizeLibrarySearchText(value) {
     .normalize("NFD")
     .replace(/n\u0303/gi, "ñ")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_.\/\\-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toLocaleLowerCase();
