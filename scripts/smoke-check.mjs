@@ -467,3 +467,12 @@ assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
 assert.match(sw, /src\/music-finder-ui\.js/, "The finder controller must be in the offline shell");
 assert.match(sw, /assets\/pibara-avatar\.png/, "Pibara's transparent artwork must be in the offline shell");
+
+const vorbisMetadataApp = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const vorbisMetadataSource = fs.readFileSync(new URL("../src/vorbis-comments.js", import.meta.url), "utf8");
+assert.ok(vorbisMetadataApp.includes('from "./vorbis-comments.js"'), "The app must integrate local Vorbis-comment metadata parsing");
+assert.match(vorbisMetadataApp, /parseFlacVorbisComments/);
+assert.match(vorbisMetadataApp, /parseOggVorbisComments/);
+assert.match(vorbisMetadataApp, /isVorbisMetadataFilename\(file\.name\)/, "Imported FLAC/Ogg/Opus metadata must be marked as scanned");
+assert.match(vorbisMetadataSource, /MAX_VORBIS_METADATA_BYTES/, "Vorbis metadata parsing must stay bounded");
+console.log("Vorbis metadata integration checks passed.");
