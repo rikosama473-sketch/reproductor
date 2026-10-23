@@ -60,7 +60,7 @@ El almacenamiento offline actual está pensado para archivos importados por el u
 
 - No hay todavía catálogo de búsqueda musical online, backend de cuentas ni sincronización en la nube.
 - La importación lee etiquetas de texto ID3v2 de MP3 y carátulas JPEG/PNG incrustadas en ID3 APIC/PIC (máximo 512 KiB por imagen); todavía no lee etiquetas Vorbis/MP4, no edita las etiquetas originales y no extrae letras sincronizadas.
-- La cola reproduce la biblioteca cargada; todavía no tiene administración manual de cola ni listas de reproducción editables.
+- La cola permite reordenar y quitar pistas sin borrar los archivos de la biblioteca. Las listas se pueden crear, renombrar, reordenar canción por canción y editar quitando una canción sin eliminarla de la biblioteca; esos cambios quedan guardados localmente en IndexedDB. Si una lista ya está reproduciéndose, la cola de esa sesión conserva su orden actual: volvé a pulsar «Reproducir lista» para aplicar el nuevo orden.
 - Un reproductor web no garantiza la reproducción en segundo plano o controles de pantalla bloqueada en todos los navegadores/dispositivos.
 - La compatibilidad PWA depende del navegador. La carpeta `mobile/` empaqueta la versión Android nativa; iOS nativo todavía no se declara compatible.
 

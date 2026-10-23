@@ -7,6 +7,7 @@ const musicFinder = fs.readFileSync(new URL("../src/music-finder-ui.js", import.
 const musicRecognition = fs.readFileSync(new URL("../src/music-recognition.js", import.meta.url), "utf8");
 const librarySearch = fs.readFileSync(new URL("../src/library-search.js", import.meta.url), "utf8");
 const storage = fs.readFileSync(new URL("../src/storage.js", import.meta.url), "utf8");
+const playlistEditing = fs.readFileSync(new URL("../src/playlist-editing.js", import.meta.url), "utf8");
 const audioVolume = fs.readFileSync(new URL("../src/audio-output-volume.js", import.meta.url), "utf8");
 const youtubePlayerErrors = fs.readFileSync(new URL("../src/youtube-player-errors.js", import.meta.url), "utf8");
 const eqPresets = fs.readFileSync(new URL("../src/equalizer-presets.js", import.meta.url), "utf8");
@@ -81,6 +82,15 @@ assert.match(storage, /createObjectStore\(HISTORY/, "Storage should keep a persi
 assert.match(storage, /createObjectStore\(PLAYLISTS/, "Storage should persist playlists");
 assert.match(app, /function renderHistory/, "The app should render recent playback history");
 assert.match(app, /function renderPlaylists/, "The app should render named playlists");
+assert.ok(app.includes('import { normalizePlaylistName, renamePlaylist, movePlaylistTrack, removePlaylistTrack } from "./playlist-editing.js"'), "Playlist edits must use shared validated helpers");
+assert.match(app, /data-rename-playlist/, "Saved playlists must expose rename actions");
+assert.match(html, /id="playlist-rename-button"/, "Opened playlists must be renamable too");
+assert.match(app, /data-playlist-track-move/, "Playlist songs must be reorderable");
+assert.match(app, /data-playlist-track-remove/, "Playlist-only removal must be separate from library deletion");
+assert.match(playlistEditing, /function normalizePlaylistName/);
+assert.match(playlistEditing, /function movePlaylistTrack/);
+assert.match(playlistEditing, /function removePlaylistTrack/);
+assert.ok(app.includes("movePlaylistTrackById(selected.id, row.dataset.trackRow, direction)"), "Track edits must keep the target playlist ID");
 assert.match(app, /function setupMediaSession/, "The app should expose mobile/system media controls");
 assert.match(app, /if \(!useNativePlayer && state\.nativePlayback\.active\) \{\s*await stopNativePlayback\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;\s*\}/, "A stale request must stop after awaiting the previous native session");
 assert.match(app, /if \(state\.nativePlayback\.active\) \{\s*await stopNativePlayback\(\);\s*if \(!isCurrentPlaybackRequest\(\)\) return;\s*\}\s*let desiredEngine/, "A stale request must not replace the active engine after native shutdown");
