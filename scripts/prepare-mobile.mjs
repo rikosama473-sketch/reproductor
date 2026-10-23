@@ -83,7 +83,7 @@ if (!Number.isSafeInteger(desktopCacheVersion) || desktopCacheVersion < 1 ||
     desktopCacheVersion >= Number.MAX_SAFE_INTEGER) {
   throw new Error("La versión del caché web no es válida para preparar el paquete Android.");
 }
-sw = sw.replace(cachePattern, \`const CACHE_NAME = "ritmo-shell-v\${desktopCacheVersion + 1}";\`);
+sw = sw.replace(cachePattern, 'const CACHE_NAME = "ritmo-shell-v' + (desktopCacheVersion + 1) + '";');
 if (!sw.includes('"./capacitor.js"') && !sw.includes("'./capacitor.js'")) {
   const indexEntry = '  "./index.html",';
   if (sw.split(indexEntry).length - 1 !== 1) {
