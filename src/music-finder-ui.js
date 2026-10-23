@@ -272,6 +272,9 @@ export function createMusicFinderController({
   }
 
   function syncNetworkState(locked) {
+    if (locked && (recorder?.state === "recording" || requestController)) {
+      cancelCapture("La identificación se canceló porque se perdió la conexión o se activó el modo sin conexión.");
+    }
     const note = $("#music-recognition-network-note");
     if (note) note.hidden = !locked;
     const start = $("#music-recognition-start");
