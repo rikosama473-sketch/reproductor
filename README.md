@@ -170,3 +170,12 @@ When a saved position has to wait for audio metadata, Ritmo binds that seek to t
 ### Defensive saved-volume recovery
 
 Ritmo now distinguishes a valid saved mute (`0`) from damaged persisted values such as JSON `null`, blank strings or non-finite numbers. Invalid output-volume preferences fall back to the documented safe default instead of silently muting playback; the last-audible level stays within its valid range. Regression tests preserve intentional zero volume and valid legacy numeric strings.
+
+## Modo Internet / modo sin conexión y radio por altavoz
+
+El botón de la barra superior permite elegir entre **Modo Internet** (naranja) y **Modo sin conexión** (violeta). La elección se guarda localmente. En modo sin conexión, Ritmo bloquea las búsquedas online, las radios por streaming, los embeds de YouTube/Spotify, los enlaces externos de audio y las descargas desde fuentes remotas; detiene cualquier fuente online que estuviera sonando. La música importada o guardada como archivo local, la biblioteca, las listas, los favoritos, el historial, la cola local, el ecualizador compatible y el conversor siguen disponibles. Las fuentes online guardadas quedan señaladas con un candado para no confundirlas con archivos locales.
+
+**Este interruptor controla las funciones de Ritmo, no el sistema operativo:** no apaga el Wi-Fi ni los datos móviles del teléfono y no equivale a un cortafuegos para todo el dispositivo. La conexión puede seguir usándose para actualizaciones de la PWA, recursos ya referenciados por el navegador u otras aplicaciones. Para cortar toda la conexión, usá los controles de red del sistema operativo.
+
+La radio del directorio de Ritmo es **radio por internet** y puede salir por el altavoz integrado del teléfono cuando no hay auriculares conectados; no requiere auriculares como condición para reproducir una emisión online, pero sí conexión de red. No se promete radio FM offline: para sintonizar FM sin datos el equipo debe contar con un receptor FM y una antena compatibles, y Android no ofrece una interfaz universal que permita a cualquier aplicación activar ese hardware. Ritmo no fingirá sintonizar FM si el dispositivo no lo soporta.
+

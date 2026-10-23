@@ -10,7 +10,7 @@ import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, 
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
 import { normalizeSavedAudioLevel } from "./audio-preferences.js";
-import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
+import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
 
@@ -46,6 +46,7 @@ let nativeUrlFallbackInProgressFor = null;
 let youtubeSearchRequestId = 0;
 let youtubeSearchAbortController = null;
 let youtubeModeEnabledState = readYoutubeModeEnabled();
+let networkModeEnabledState = readNetworkModeEnabled();
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
@@ -592,7 +593,7 @@ function renderLibraryGrid(list) {
     const favoriteClass = track.favorite ? " is-favorite" : "";
     const artwork = artworkImageHTML(track);
     const hasArtwork = artwork ? " has-artwork" : "";
-    const source = isLocal(track) ? "EN ESTE DISPOSITIVO" : "STREAMING ONLINE";
+    const source = isLocal(track) ? "EN ESTE DISPOSITIVO" : (networkModeIsAvailable() ? "STREAMING ONLINE" : "🔒 ONLINE BLOQUEADO");
     const download = track.kind !== "url" ? "" : track.sourceProvider === "Internet Archive"
       ? '<a class="row-icon archive-track-download" href="' + escapeHTML(track.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original" aria-label="Abrir archivo original">⇩</a>'
       : '<button class="row-icon" type="button" data-download-track="' + escapeHTML(track.id) + '" title="Guardar sin conexión si está permitido" aria-label="Guardar audio online sin conexión">⇩</button>';
@@ -620,12 +621,13 @@ function sortedForView(view) {
 }
 function trackRow(track, index) {
   const active = track.id === state.currentId;
+  const lockedOnline = !isLocal(track) && !networkModeIsAvailable();
   const favClass = track.favorite ? " is-favorite" : "";
   return '<div class="track-row' + (active ? ' currently-playing' : '') + '" data-track-row="' + escapeHTML(track.id) + '">' +
     '<span class="track-index">' + (active && !playbackIsPaused() ? "♫" : String(index + 1).padStart(2, "0")) + '</span>' +
     '<div class="track-main" data-play="' + escapeHTML(track.id) + '" role="button" tabindex="0" aria-label="Reproducir ' + escapeHTML(track.title) + '">' + coverHTML(track) +
     '<div class="track-copy"><strong>' + escapeHTML(track.title) + '</strong><small>' + escapeHTML(track.artist || "Artista desconocido") + '</small></div></div>' +
-    '<span class="source-tag' + (isLocal(track) ? "" : " stream") + '">' + (isLocal(track) ? "Offline" : "Online") + '</span>' +
+    '<span class="source-tag' + (isLocal(track) ? "" : " stream" + (lockedOnline ? " network-locked" : "")) + '">' + (isLocal(track) ? "Offline" : (lockedOnline ? "🔒 Online" : "Online")) + '</span>' +
     '<span class="track-duration">' + (track.duration ? formatTime(track.duration) : "—") + '</span>' +
     '<div class="track-actions"><button class="row-icon" data-add-playlist="' + escapeHTML(track.id) + '" title="Agregar a una lista" aria-label="Agregar a una lista">☷</button>' + (track.kind === "url" ? (track.sourceProvider === "Internet Archive"
       ? '<a class="row-icon archive-track-download" href="' + escapeHTML(track.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original para descargar" aria-label="Abrir archivo original para descargar">⇩</a>'
@@ -1558,10 +1560,112 @@ function updatePlayerFavorite() {
   $("#player-favorite").textContent = track?.favorite ? "♥" : "♡";
   $("#player-favorite").classList.toggle("is-favorite", Boolean(track?.favorite));
 }
+function networkModeIsAvailable() {
+  return networkModeCanUseInternet(networkModeEnabledState, navigator.onLine);
+}
+function requireInternetMode(action = "esta función") {
+  if (!networkModeEnabledState) {
+    toast("🔒 Modo sin conexión: " + action + " está bloqueado. Activá Modo Internet para continuar.");
+    return false;
+  }
+  if (!navigator.onLine) {
+    toast("✕ No se detecta conexión de red. Conectá Wi-Fi o datos móviles para " + action + ".");
+    return false;
+  }
+  return true;
+}
+function syncNetworkModeControls() {
+  const toggle = $("#network-mode-toggle");
+  const locked = !networkModeIsAvailable();
+  if (toggle) {
+    toggle.dataset.mode = networkModeEnabledState ? "online" : "offline";
+    toggle.setAttribute("aria-pressed", String(networkModeEnabledState));
+    toggle.setAttribute("aria-label", networkModeEnabledState ? "Modo Internet activo" : "Modo sin conexión activo");
+    toggle.title = networkModeEnabledState ? "Modo Internet: las funciones online están permitidas" : "Modo sin conexión: las funciones online están bloqueadas";
+  }
+  const icon = $("#network-mode-icon");
+  if (icon) icon.textContent = networkModeEnabledState ? "↗" : "🔒";
+  const label = $("#network-mode-label");
+  if (label) label.textContent = networkModeEnabledState ? "Internet" : "Sin conexión";
+  document.body.classList.toggle("network-mode-offline", !networkModeEnabledState);
+  document.body.classList.toggle("network-connectivity-offline", !navigator.onLine);
+
+  const navLock = $("#online-nav-lock");
+  if (navLock) navLock.hidden = !locked;
+  const radioLock = $("#radio-nav-lock");
+  if (radioLock) radioLock.hidden = !locked;
+  const homeButton = $("#home-online-button");
+  if (homeButton) {
+    homeButton.classList.toggle("network-locked", locked);
+    homeButton.title = locked ? "🔒 Activá Modo Internet y conectate para abrir estas funciones" : "Añadir una fuente online";
+  }
+
+  const onlineView = $("#online-view");
+  const note = $("#network-locked-note");
+  if (onlineView) onlineView.classList.toggle("network-locked", locked);
+  if (note) note.hidden = !locked;
+  const title = $("#network-locked-title");
+  if (title) title.textContent = !networkModeEnabledState ? "🔒 Modo sin conexión activo" : "✕ El dispositivo no tiene conexión";
+  const description = $("#network-locked-description");
+  if (description) description.textContent = !networkModeEnabledState
+    ? "Buscadores, radios por internet, YouTube, Spotify y streams externos están bloqueados. Podés importar y escuchar archivos locales. Este modo no apaga el Wi-Fi ni los datos del teléfono."
+    : "Ritmo no detecta conexión de red. Las búsquedas, radios y streams online quedan bloqueados hasta que vuelva internet; tu música local sigue disponible.";
+  const enable = $("#network-enable-internet");
+  if (enable) enable.hidden = networkModeEnabledState;
+
+  if (onlineView) {
+    onlineView.querySelectorAll("a[href]").forEach(link => {
+      link.setAttribute("aria-disabled", String(locked));
+      if (locked) link.setAttribute("tabindex", "-1");
+      else link.removeAttribute("tabindex");
+    });
+  }
+}
+function setNetworkModeEnabled(enabled) {
+  const next = Boolean(enabled);
+  if (next === networkModeEnabledState) { syncNetworkModeControls(); return; }
+  const persisted = persistNetworkModeEnabled(next);
+  networkModeEnabledState = next;
+  if (!next) {
+    youtubeSearchAbortController?.abort();
+    youtubeSearchAbortController = null;
+    youtubeSearchRequestId++;
+    radioSearchAbortController?.abort();
+    radioSearchAbortController = null;
+    radioSearchRequestId++;
+    archiveSearchRequestId++;
+    stopYoutubePlayback();
+    stopSpotifyEmbed({ preserveSaved: true, refresh: false });
+    state.youtubeResults = [];
+    state.youtubeNextPageToken = null;
+    state.youtubeQuery = "";
+    state.archiveResults = [];
+    state.archiveFileCache.clear();
+    $("#youtube-results")?.replaceChildren();
+    $("#youtube-load-more").hidden = true;
+    $("#archive-results")?.replaceChildren();
+    $("#archive-load-more").hidden = true;
+    $("#radio-results")?.replaceChildren();
+    radioStations = [];
+    const activeTrack = currentTrack();
+    if (activeTrack && !isLocal(activeTrack)) void removeCurrent();
+  } else if (navigator.onLine) {
+    let savedSpotifyLink = "";
+    try { savedSpotifyLink = localStorage.getItem(SPOTIFY_EMBED_STORAGE) || ""; } catch {}
+    if (savedSpotifyLink && !spotifyCurrentEmbed) void loadSpotifyEmbed(savedSpotifyLink, { persist: false });
+  }
+  syncYoutubeModeControls();
+  syncNetworkModeControls();
+  updateYoutubeNetworkStatus();
+  if (!persisted) toast(next ? "Modo Internet activo durante esta sesión; no se pudo guardar la preferencia." : "Modo sin conexión activo durante esta sesión; no se pudo guardar la preferencia.");
+  else toast(next ? "Modo Internet activado. Las funciones online vuelven a estar disponibles si hay conexión." : "Modo sin conexión activado. Se detuvo el audio online y se bloquearon sus controles.");
+}
 function updateConnection() {
   const online = navigator.onLine;
   $("#connection-label").textContent = online ? "Conectado" : "Sin conexión";
   $("#connection-dot").classList.toggle("offline", !online);
+  syncYoutubeModeControls();
+  syncNetworkModeControls();
 }
 let youtubePlayer = null;
 let youtubePlayerApiPromise = null;
@@ -1954,6 +2058,7 @@ function showView(view) {
 async function playTrack(trackId, autoplay = true, options = {}) {
   const track = getTrack(trackId);
   if (!track) return;
+  if (!isLocal(track) && !requireInternetMode("reproducir esta fuente online")) return;
   stopSpotifyEmbed({ preserveSaved: true, refresh: false });
   const requestId = ++playbackRequestId;
   cancelPendingPlaybackPositionRestore();
@@ -2158,7 +2263,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
 }
 function nextTrack(direction = 1) {
   const ids = Array.isArray(state.queueIds) ? state.queueIds.filter(trackId => Boolean(getTrack(trackId))) : state.tracks.map(track => track.id);
-  const candidates = ids.map(trackId => getTrack(trackId)).filter(Boolean);
+  const candidates = ids.map(trackId => getTrack(trackId)).filter(track => Boolean(track) && (isLocal(track) || networkModeIsAvailable()));
   if (!candidates.length) { pauseCurrentTrack(); return; }
   const foundIndex = candidates.findIndex(track => track.id === state.currentId);
   const currentIndex = foundIndex >= 0 ? foundIndex : (direction > 0 ? -1 : candidates.length);
@@ -2187,6 +2292,7 @@ async function readMp3Tags(file, filename = file?.name || "") {
   }
 }
 async function downloadStreamOffline(trackId) {
+  if (!requireInternetMode("descargar una fuente online")) return;
   const source = getTrack(trackId);
   if (!source || source.kind !== "url") return;
   if (!confirm("¿El sitio autoriza descargar y guardar este audio para escucharlo sin conexión? Solo se guardará si el servidor permite una descarga directa.")) return;
@@ -2655,6 +2761,7 @@ async function removeCurrent() {
 }
 async function addStream(event) {
   event.preventDefault();
+  if (!requireInternetMode("agregar una fuente online")) return;
   const titleInput = $("#stream-title");
   const urlInput = $("#stream-url");
   const message = $("#url-message");
@@ -2822,6 +2929,7 @@ function createSpotifyFallback(host, descriptor, requestId) {
   updatePlayer();
 }
 async function loadSpotifyEmbed(rawLink, { persist = true } = {}) {
+  if (!requireInternetMode("abrir Spotify")) return false;
   const descriptor = parseSpotifyShareLink(rawLink);
   if (!descriptor) {
     setSpotifyStatus("Pegá un enlace https://open.spotify.com válido de una canción, álbum, lista, artista o podcast. No se admiten webs parecidas ni enlaces acortados.", "error");
@@ -2925,6 +3033,7 @@ function renderRadioStations(stations) {
   }).join("");
 }
 async function searchRadioStations() {
+  if (!requireInternetMode("buscar emisoras")) return;
   const input = $("#radio-query");
   const button = $("#radio-search-button");
   const status = $("#radio-status");
@@ -2975,6 +3084,7 @@ async function searchRadioStations() {
   }
 }
 async function addRadioStation(stationuuid, playNow = false) {
+  if (!requireInternetMode("agregar o reproducir una emisora")) return;
   const station = radioStations.find(item => item.stationuuid === stationuuid);
   if (!station || !station.url) {
     toast("Esta emisora no tiene un stream HTTPS compatible disponible.");
@@ -3038,6 +3148,7 @@ function openExternalWebFallback(url) {
   link.remove();
 }
 function openExternal(url) {
+  if (!requireInternetMode("abrir un servicio externo")) return false;
   const safeUrl = normalizeExternalMediaUrl(url);
   if (!safeUrl) {
     console.warn("Ritmo rechazó un enlace externo que no pertenece a un servicio multimedia permitido.");
@@ -3080,7 +3191,7 @@ function bindOnlineServiceEvents() {
   });
   let savedLink = "";
   try { savedLink = localStorage.getItem(SPOTIFY_EMBED_STORAGE) || ""; } catch {}
-  if (savedLink) void loadSpotifyEmbed(savedLink, { persist: false });
+  if (savedLink && networkModeEnabledState && navigator.onLine) void loadSpotifyEmbed(savedLink, { persist: false });
 }
 
 const ARCHIVE_PAGE_SIZE = 12;
@@ -3134,6 +3245,7 @@ function renderArchiveFiles(identifier, container, entry) {
   container.hidden = false;
 }
 async function inspectArchiveItem(identifier, button) {
+  if (!requireInternetMode("consultar los detalles del catálogo")) return;
   const container = document.querySelector('[data-archive-files="' + identifier + '"]');
   if (!container) return;
   const cached = state.archiveFileCache.get(identifier);
@@ -3186,6 +3298,7 @@ async function inspectArchiveItem(identifier, button) {
   }
 }
 async function addArchiveFile(identifier, index, playNow = false) {
+  if (!requireInternetMode("agregar audio de Internet Archive")) return;
   const entry = state.archiveFileCache.get(identifier);
   const file = entry?.files[index];
   if (!entry || !file) { toast("Volvé a comprobar la licencia y los archivos de este resultado."); return; }
@@ -3215,6 +3328,7 @@ async function addArchiveFile(identifier, index, playNow = false) {
   if (playNow) await playTrack(track.id);
 }
 async function searchArchiveAudio(loadMore = false) {
+  if (!requireInternetMode("buscar en Internet Archive")) return;
   const requestId = ++archiveSearchRequestId;
   const isCurrentArchiveSearch = () => requestId === archiveSearchRequestId;
   const button = $("#archive-search-button");
@@ -3430,6 +3544,10 @@ async function annotateYoutubeVideoStatus(items, key, signal) {
   });
 }
 async function searchYoutube(pageToken = "") {
+  if (!requireInternetMode("buscar en YouTube")) {
+    setYoutubeStatus(networkModeEnabledState ? "No hay conexión. Las búsquedas quedan bloqueadas hasta que vuelva internet." : "🔒 Modo sin conexión activo: la búsqueda de YouTube está bloqueada.", "info");
+    return;
+  }
   if (!youtubeModeEnabledState) {
     setYoutubeStatus("YouTube está apagado. Tocá «Activar YouTube» y confirmá el aviso de consumo para buscar.", "info");
     return;
@@ -3661,6 +3779,30 @@ function updateYoutubeKeyStatus(message = "") {
 
 function bindEvents() {
   bindAudioConverterEvents();
+  $("#network-mode-toggle").addEventListener("click", () => setNetworkModeEnabled(!networkModeEnabledState));
+  $("#network-enable-internet").addEventListener("click", () => setNetworkModeEnabled(true));
+  document.querySelectorAll("[data-go-radio]").forEach(button => button.addEventListener("click", () => {
+    showView("online");
+    const target = networkModeIsAvailable() ? document.querySelector(".radio-directory-section") : $("#network-locked-note");
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
+  $("#online-view").addEventListener("click", event => {
+    if (networkModeIsAvailable()) return;
+    if (event.target.closest("#network-enable-internet")) return;
+    const target = event.target.closest("button, a[href]");
+    if (!target || target.disabled) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    requireInternetMode("usar esta opción online");
+  }, true);
+  document.addEventListener("click", event => {
+    if (networkModeIsAvailable()) return;
+    const link = event.target.closest("a.archive-track-download[href]");
+    if (!link) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    requireInternetMode("abrir o descargar un archivo externo");
+  }, true);
   window.addEventListener("ritmo:voice-preview-start", event => {
     if (event.detail?.pauseMusic !== true || voicePreviewPausedPlayback || playbackIsPaused()) return;
     pauseCurrentTrack();
@@ -4129,6 +4271,8 @@ async function init() {
   bindEvents();
   updateYoutubeKeyStatus();
   syncYoutubeModeControls();
+  syncNetworkModeControls();
+  updateConnection();
   if (!youtubeModeEnabledState) setYoutubeStatus("YouTube está apagado para evitar búsquedas y carga de videos sin tu permiso. Activá el interruptor si querés usarlo.", "info");
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     // The new worker skips waiting and claims existing clients. When a tab that

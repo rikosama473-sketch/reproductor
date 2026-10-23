@@ -25,7 +25,8 @@
         <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> Historial <span class="nav-count" id="history-count">0</span></button>
         <button class="nav-item" data-view="playlists"><span class="nav-icon">☷</span> Mis listas</button>
         <button class="nav-item" data-view="offline"><span class="nav-icon">⇩</span> Disponible sin conexión</button>
-        <button class="nav-item" data-view="online"><span class="nav-icon">⌁</span> Añadir música online</button>
+        <button class="nav-item" data-view="online"><span class="nav-icon">⌁</span> Añadir música online <span class="network-lock-marker" id="online-nav-lock" hidden aria-label="Bloqueado en modo sin conexión">🔒</span></button>
+        <button class="nav-item" type="button" id="radio-mode-nav" data-go-radio="true"><span class="nav-icon">📻</span> Radio por altavoz <span class="network-lock-marker" id="radio-nav-lock" hidden aria-label="Radio bloqueada sin conexión">🔒</span></button>
         <button class="nav-item" data-view="voices"><span class="nav-icon">♫</span> Estudio de voces</button>
         <button class="nav-item" data-view="converter"><span class="nav-icon">⇄</span> Convertir audio</button>
       </nav>
@@ -51,6 +52,7 @@
         </div>
         <div class="topbar-actions">
           <div class="connection-pill"><span class="connection-dot" id="connection-dot"></span><span id="connection-label">Conectado</span></div>
+          <button type="button" class="network-mode-toggle" id="network-mode-toggle" data-mode="online" aria-pressed="true" aria-label="Modo Internet activo" title="Activar o bloquear las funciones online de Ritmo"><span class="network-mode-icon" id="network-mode-icon" aria-hidden="true">↗</span><span id="network-mode-label">Internet</span></button>
           <button class="button button-soft install-button" id="install-button" hidden>↓ Instalar app</button>
           <button class="icon-button" id="settings-button" aria-label="Configuración de sonido y reproducción" title="Sonido y reproducción">⚙</button>
           <button class="avatar-button" id="about-button" aria-label="Acerca de Ritmo">R</button>
@@ -102,7 +104,7 @@
             </div>
           </section>
           <section class="section-block online-promo">
-            <div class="promo-icon">⌁</div><div><span class="section-kicker">MÁS ALLÁ DE TU COLECCIÓN</span><h3>¿Tenés un enlace de audio?</h3><p>Agregá una URL directa de audio o una radio online compatible. Los enlaces transmiten por internet.</p></div><button class="button button-soft" data-go-view="online">Añadir fuente <span>↗</span></button>
+            <div class="promo-icon">⌁</div><div><span class="section-kicker">MÁS ALLÁ DE TU COLECCIÓN</span><h3>¿Tenés un enlace de audio?</h3><p>Agregá una URL directa de audio o una radio online compatible. Los enlaces transmiten por internet.</p></div><button class="button button-soft" id="home-online-button" data-go-view="online">Añadir fuente <span>↗</span></button>
           </section>
         </section>
 
@@ -149,6 +151,8 @@
 
         <section class="view-panel" id="online-view" hidden>
           <div class="page-intro"><div><div class="eyebrow">CONECTÁ CON EL MUNDO</div><h1>Sonidos <em>online.</em></h1><p>Agregá una fuente de audio que ya tengas permiso para escuchar.</p></div><div class="online-globe">⌁</div></div>
+          <div id="network-locked-note" class="network-locked-note" role="status" aria-live="polite" hidden><span class="network-locked-symbol" aria-hidden="true">🔒</span><div class="network-locked-copy"><strong id="network-locked-title">Modo sin conexión activo</strong><p id="network-locked-description">Las búsquedas, radios y fuentes online están bloqueadas. Tu biblioteca local sigue funcionando.</p></div><button type="button" class="button button-soft" id="network-enable-internet">Activar modo Internet</button></div>
+
           <section class="youtube-search-section">
             <div class="youtube-section-heading">
               <div class="youtube-heading-icon">▶</div>
@@ -261,6 +265,7 @@
               </div>
             </form>
             <p id="radio-status" class="online-service-status" role="status" aria-live="polite">El catálogo público no requiere registro ni una API key propia. Se priorizan streams HTTPS para evitar contenido mixto; el funcionamiento depende de cada emisora.</p>
+            <p class="radio-speaker-note"><strong>🔊 Radio por altavoz:</strong> con el teléfono sin auriculares, Android normalmente reproduce por el altavoz integrado. Estas emisoras se transmiten por internet: no necesitan auriculares, pero sí conexión. Esto no es radio FM sin datos.</p>
             <div id="radio-results" class="archive-results radio-results"></div>
           </section>
 
