@@ -9,7 +9,7 @@ import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } fro
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
-import { normalizeSavedAudioLevel } from "./audio-preferences.js";
+import { normalizeSavedAudioLevel, normalizeSavedLimiterPreference } from "./audio-preferences.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { createMusicFinderController } from "./music-finder-ui.js";
@@ -52,7 +52,7 @@ let networkModeEnabledState = readNetworkModeEnabled();
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
-const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: true, userEqProfiles: [], keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: false, limiterOptIn: false, userEqProfiles: [], keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
 function loadAudioPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
@@ -71,7 +71,7 @@ function loadAudioPreferences() {
       mid: Math.max(-12, Math.min(12, Number(saved?.mid) || 0)),
       treble: Math.max(-12, Math.min(12, Number(saved?.treble) || 0)),
       equalizerEnabled: saved?.equalizerEnabled === true,
-      limiter: saved?.limiter !== false,
+      ...normalizeSavedLimiterPreference(saved),
       keepScreenAwake: saved?.keepScreenAwake === true,
       fadeOutAtEnd: saved?.fadeOutAtEnd !== false,
       volume: normalizeSavedAudioLevel(saved?.volume, DEFAULT_AUDIO_PREFS.volume),
@@ -4194,6 +4194,7 @@ function bindEvents() {
   });
   $("#limiter-toggle").addEventListener("change", event => {
     audioPrefs.limiter = event.target.checked;
+    audioPrefs.limiterOptIn = true;
     if (audioPrefs.limiter && audioPrefs.eqPreset === "clean") audioPrefs.eqPreset = "flat";
     saveAudioPreferences();
     syncSettingsUI();
@@ -4203,10 +4204,12 @@ function bindEvents() {
       state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
     $("#eq-status").textContent = nativeTrackActive
       ? "Preferencia guardada. El limitador suave solo se aplica a archivos locales reproducidos por Web Audio; Media3 Android no ofrece este limitador en la integración actual."
-      : "Preferencia guardada. El limitador suave se aplica al procesamiento Web Audio de archivos locales; no cambia el archivo original.";
+      : (audioPrefs.limiter && !audioPrefs.equalizerEnabled)
+        ? "Preferencia guardada. Para aplicarlo, activá también el ecualizador; no se modifica ningún archivo original."
+        : "Preferencia guardada. El limitador suave se aplica al procesamiento Web Audio de archivos locales; no cambia el archivo original.";
   });
   $("#eq-reset").addEventListener("click", () => {
-    audioPrefs.eqPreset = "flat"; audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = true;
+    audioPrefs.eqPreset = "flat"; audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = false; audioPrefs.limiterOptIn = true;
     saveAudioPreferences(); syncSettingsUI();
     $("#eq-status").textContent = "Ecualizador restablecido al perfil Plano.";
   });
