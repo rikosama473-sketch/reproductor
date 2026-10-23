@@ -407,7 +407,7 @@ assert.ok(app.includes("searchRadioBrowser(query, filter"), "Public radio search
 assert.ok(app.includes("radioStationClickUrl(station.stationuuid)"), "Radio Browser playback should signal station starts");
 assert.ok(app.includes("stopSpotifyEmbed({ preserveSaved: true, refresh: false })"), "Starting another source must stop Spotify audio to avoid overlap");
 assert.ok(sw.includes("./src/online-services.js"), "New online-source code must be cached in the offline shell");
-assert.match(sw, /ritmo-shell-v\\d+/, "PWA cache must be refreshed for app-level network mode");
+assert.match(sw, /ritmo-shell-v\d+/, "PWA cache must be refreshed for app-level network mode");
 console.log("Spotify official embed and keyless radio directory integration checks passed.");
 
 assert.ok(html.includes('id="network-mode-toggle"'), "The app must expose a single explicit Internet/offline mode toggle");
