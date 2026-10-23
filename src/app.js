@@ -14,6 +14,7 @@ import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, search
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { createMusicFinderController } from "./music-finder-ui.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
+import { matchesLibrarySearch } from "./library-search.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -615,8 +616,7 @@ function sortedForView(view) {
   if (view === "favorites") tracks = tracks.filter(track => track.favorite);
   if (view === "offline") tracks = tracks.filter(isLocal);
   if (view === "library" && state.query.trim()) {
-    const query = state.query.toLocaleLowerCase();
-    tracks = tracks.filter(track => [track.title, track.artist, track.album, track.name, track.sourcePath].filter(Boolean).join(" ").toLocaleLowerCase().includes(query));
+    tracks = tracks.filter(track => matchesLibrarySearch(track, state.query));
   }
   return tracks;
 }
