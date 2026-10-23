@@ -1612,11 +1612,6 @@ function syncNetworkModeControls() {
   if (enable) enable.hidden = networkModeEnabledState;
 
   if (onlineView) {
-    for (const control of onlineView.querySelectorAll("button, input, select, textarea")) {
-      if (control.id === "network-enable-internet") continue;
-      const youtubeOnlyControl = ["youtube-query", "youtube-search-button", "youtube-open-search", "youtube-load-more"].includes(control.id);
-      control.disabled = locked || (youtubeOnlyControl && !youtubeModeEnabledState);
-    }
     onlineView.querySelectorAll("a[href]").forEach(link => {
       link.setAttribute("aria-disabled", String(locked));
       if (locked) link.setAttribute("tabindex", "-1");
