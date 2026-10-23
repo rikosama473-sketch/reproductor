@@ -16,7 +16,7 @@ assert.equal(normalizeSavedAudioLevel(null, fallback, 0.01), 0.8, "damaged last-
 assert.equal(normalizeSavedAudioLevel(0, fallback, 0.01), 0.01, "last-audible level cannot remain muted");
 assert.equal(normalizeSavedAudioLevel(-2, fallback, 0.01), 0.01);
 assert.equal(normalizeSavedAudioLevel("0.4", fallback, 0.01), 0.4);
-console.log("Audio preference checks passed: damaged-value fallback, explicit mute preservation, numeric compatibility and bounded levels.");
+
 
 assert.deepEqual(normalizeSavedLimiterPreference(null), { limiter: false, limiterOptIn: false },
   "The limiter must be disabled on a fresh installation");
@@ -30,3 +30,5 @@ assert.deepEqual(normalizeSavedLimiterPreference({ limiter: false, limiterOptIn:
   "An explicit opt-out stays off");
 assert.deepEqual(normalizeSavedLimiterPreference({ limiter: 1, limiterOptIn: true }), { limiter: false, limiterOptIn: true },
   "Only an explicit boolean selection can enable compression");
+
+console.log("Audio preference checks passed: damaged-value fallback, explicit mute preservation, numeric compatibility and bounded levels.");
