@@ -7,6 +7,7 @@ import { readableYoutubePlayerError } from "./youtube-player-errors.js";
 import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles, upsertSavedEqualizerProfile, removeSavedEqualizerProfile, MAX_SAVED_EQUALIZER_PROFILES } from "./equalizer-presets.js";
 import { classifyAudioImportFiles, classifyImportDuplicate, importedFileFingerprint, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "./import-fingerprint.js";
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
+import { parseFlacVorbisComments, parseOggVorbisComments, isVorbisMetadataFilename, MAX_VORBIS_METADATA_BYTES } from "./vorbis-comments.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
@@ -162,9 +163,10 @@ function notifySoundTrackContext(track) {
 }
 function backfillTrackGenre(track) {
   if (!track || track.metadataScanned === true || !(track.blob instanceof Blob) ||
-      !/\.mp3$/i.test(track.name || "") || trackGenreReadsInProgress.has(track.id)) return;
+      (!/\.mp3$/i.test(track.name || "") && !isVorbisMetadataFilename(track.name || "")) ||
+      trackGenreReadsInProgress.has(track.id)) return;
   trackGenreReadsInProgress.add(track.id);
-  void readMp3Tags(track.blob, track.name).then(metadata => {
+  void readAudioMetadata(track.blob, track.name).then(metadata => {
     const current = getTrack(track.id);
     if (!current) return;
     let changed = false;
@@ -2321,14 +2323,20 @@ function nextTrack(direction = 1) {
   if (nextIndex < 0) { pauseCurrentTrack(); return; }
   playTrack(candidates[nextIndex].id, true, { keepQueue: true });
 }
-async function readMp3Tags(file, filename = file?.name || "") {
+async function readAudioMetadata(file, filename = file?.name || "") {
   const metadataName = String(filename || file?.name || "audio");
   const fallback = metadataForFile({ name: metadataName });
-  if (!/\.mp3$/i.test(metadataName) || !file || file.size < 10) return fallback;
+  const isMp3 = /\.mp3$/i.test(metadataName);
+  const isVorbis = isVorbisMetadataFilename(metadataName);
+  if (!file || file.size < 10 || (!isMp3 && !isVorbis)) return fallback;
   try {
-    // Only read the bounded ID3 prefix; never load the MP3 payload for metadata.
-    const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer());
-    return parseId3Tags(bytes, fallback);
+    // Read only a bounded prefix; never decode or rewrite the original audio.
+    const scanLimit = isMp3 ? 2 * 1024 * 1024 : MAX_VORBIS_METADATA_BYTES;
+    const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, scanLimit)).arrayBuffer());
+    if (isMp3) return parseId3Tags(bytes, fallback);
+    return /\.flac$/i.test(metadataName)
+      ? parseFlacVorbisComments(bytes, fallback)
+      : parseOggVorbisComments(bytes, fallback);
   } catch {
     return fallback;
   }
@@ -2748,12 +2756,12 @@ async function importFiles(fileList, options = {}) {
     toast("Importando " + Math.min(offset + batch.length, uniqueFiles.length) + " de " + uniqueFiles.length + " archivos…");
     try {
       const tracks = await Promise.all(batch.map(async file => {
-        const meta = await readMp3Tags(file);
+        const meta = await readAudioMetadata(file);
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "", genre: meta.genre || "",
           ...(meta.artwork instanceof Uint8Array && (meta.artworkMimeType === "image/jpeg" || meta.artworkMimeType === "image/png") &&
               meta.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES
             ? { artworkBlob: new Blob([meta.artwork], { type: meta.artworkMimeType }) } : {}),
-          metadataScanned: /\.mp3$/i.test(file.name),
+          metadataScanned: /\.mp3$/i.test(file.name) || isVorbisMetadataFilename(file.name),
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
