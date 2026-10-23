@@ -714,3 +714,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .music-local-match{flex-wrap:wrap}
   .music-local-match .button{margin-left:auto}
 }
+
+.music-finder-network-locked .music-source-link{opacity:.42;filter:grayscale(.7);cursor:not-allowed}
+.music-finder-network-locked .music-external-searches>p{color:#c2b0dc}
