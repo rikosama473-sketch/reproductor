@@ -8,6 +8,7 @@ import { classifyAudioImportFiles, classifyImportDuplicate, importedFileFingerpr
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
+import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
@@ -34,6 +35,7 @@ function setOutputVolume(value) {
 }
 let screenWakeLock = null;
 let playbackRequestId = 0;
+let pendingPlaybackPositionCancel = null;
 // Identifies a play() request that has not reached confirmed playback yet.
 // Pause must cancel intent even while the media element still reports paused.
 let pendingPlaybackRequestId = null;
@@ -906,9 +908,15 @@ function resumeCurrentTrack() {
   const position = Number.isFinite(playbackCurrentTime()) ? playbackCurrentTime() : 0;
   playTrack(track.id, true, { keepQueue: true, resumeAt: position, skipHistory: true });
 }
+function cancelPendingPlaybackPositionRestore() {
+  const cancel = pendingPlaybackPositionCancel;
+  pendingPlaybackPositionCancel = null;
+  cancel?.();
+}
 function cancelPendingPlaybackIntent() {
   playbackRequestId += 1;
   pendingPlaybackRequestId = null;
+  cancelPendingPlaybackPositionRestore();
 }
 function pauseCurrentTrack() {
   if (!currentTrack() && spotifyCurrentEmbed && spotifyControllerReady) {
@@ -1947,6 +1955,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
   if (!track) return;
   stopSpotifyEmbed({ preserveSaved: true, refresh: false });
   const requestId = ++playbackRequestId;
+  cancelPendingPlaybackPositionRestore();
   pendingPlaybackRequestId = autoplay ? requestId : null;
   const isCurrentPlaybackRequest = () => requestId === playbackRequestId;
   // Invalidate pending state reads as soon as a newer play request arrives.
@@ -2097,11 +2106,21 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       releaseUnusedObjectURLs(isLocal(track) ? track.id : null);
       if (Number.isFinite(options.resumeAt) && options.resumeAt > 0) {
         const targetEngine = audio;
-        const restorePosition = () => {
-          try { targetEngine.currentTime = Number.isFinite(targetEngine.duration) && targetEngine.duration > 0 ? Math.min(options.resumeAt, targetEngine.duration) : options.resumeAt; } catch {}
-        };
-        if (targetEngine.readyState >= 1) restorePosition();
-        else targetEngine.addEventListener("loadedmetadata", restorePosition, { once: true });
+        if (targetEngine.readyState >= 1) {
+          if (isCurrentPlaybackRequest() && targetEngine === audio) {
+            setPlaybackPosition(targetEngine, options.resumeAt);
+          }
+        } else {
+          let cancelRestore;
+          cancelRestore = schedulePlaybackPositionRestore(targetEngine, options.resumeAt, {
+            isCurrentRequest: isCurrentPlaybackRequest,
+            isActiveElement: element => element === audio,
+            onSettled: () => {
+              if (pendingPlaybackPositionCancel === cancelRestore) pendingPlaybackPositionCancel = null;
+            }
+          });
+          pendingPlaybackPositionCancel = cancelRestore;
+        }
       }
       if (autoplay) await audio.play();
       if (!isCurrentPlaybackRequest()) return;

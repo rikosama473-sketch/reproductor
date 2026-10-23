@@ -33,13 +33,13 @@ assert.ok(mobileHtml.indexOf(capacitorTag) >= 0 && mobileHtml.indexOf(capacitorT
   "Mobile must load the Capacitor bridge before the app module");
 assert.ok(desktopHtml.includes(appTag), "PC must load the shared real app module");
 assert.ok(!desktopHtml.includes(capacitorTag), "PC must not load Android's native bridge");
-assert.match(mobileWorker, /ritmo-shell-v79/, "Mobile cache version must be independent from PC");
+assert.match(mobileWorker, /ritmo-shell-v80/, "Mobile cache version must be independent from PC");
 assert.match(mobileWorker, /capacitor\.js/, "Mobile offline shell must include the native bridge runtime");
-assert.match(desktopWorker, /ritmo-shell-v78/, "PC must use the refreshed web-only shell version");
+assert.match(desktopWorker, /ritmo-shell-v79/, "PC must use the refreshed web-only shell version");
 assert.doesNotMatch(desktopWorker, /capacitor\.js/, "PC shell must not require an Android-only file");
 assert.notEqual(path.join(mobileRoot, "www"), path.join(desktopRoot, "dist"), "Mobile and desktop build outputs must be separate");
 
-for (const name of ["src/app.js", "src/storage.js", "src/audio-converter.js", "src/equalizer-presets.js"]) {
+for (const name of ["src/app.js", "src/storage.js", "src/audio-converter.js", "src/equalizer-presets.js", "src/playback-position.js"]) {
   const source = await readFile(path.join(root, name), "utf8");
   const mobile = await readFile(path.join(mobileRoot, "www", name), "utf8");
   const desktop = await readFile(path.join(desktopRoot, "dist", name), "utf8");

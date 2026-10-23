@@ -39,7 +39,7 @@ assert.match(engine, /RIFF/);
 assert.match(engine, /WAVE_FORMAT_PCM/);
 assert.match(engine, /MAX_CONVERTER_DURATION_SECONDS = 7 \* 60/);
 assert.match(engine, /MAX_CONVERTER_INPUT_BYTES = 50 \* 1024 \* 1024/);
-assert.match(sw, /ritmo-shell-v78/);
+assert.match(sw, /ritmo-shell-v79/);
 assert.match(sw, /"\.\/src\/audio-converter\.js"/, "Converter engine must be cached for offline startup");
 assert.match(styles, /\.converter-layout/);
 console.log("Audio converter UI tests passed: navigation, limits, real conversion wiring, cancellation, downloads and offline cache.");
