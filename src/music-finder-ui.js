@@ -46,7 +46,8 @@ export function createMusicFinderController({
       status.textContent = "Escribí un título o artista. La búsqueda de la biblioteca funciona sin conexión.";
       return;
     }
-    const tracks = (getTracks() || []).filter(track => matchesLibrarySearch(track, query)).slice(0, 8);
+    const matches = (getTracks() || []).filter(track => matchesLibrarySearch(track, query));
+    const tracks = matches.slice(0, 8);
     const localCards = tracks.map(track => {
       const local = isLocal(track);
       const locked = !local && !networkModeIsAvailable();
@@ -57,12 +58,14 @@ export function createMusicFinderController({
         '">▶ Escuchar</button></article>';
     }).join("");
     const sources = renderSourceLinks(buildMusicSearchSources(query));
-    root.innerHTML = '<section class="music-search-group"><h3>Tu biblioteca <span>' + tracks.length + '</span></h3>' +
+    root.innerHTML = '<section class="music-search-group"><h3>Tu biblioteca <span>' + matches.length + '</span></h3>' +
       (localCards || '<p class="music-empty-note">No encontré una coincidencia local. Los archivos que todavía no importaste no se pueden identificar desde tu biblioteca.</p>') +
       '</section><section class="music-search-group music-external-searches"><h3>Buscar en otras fuentes</h3><p>Estos enlaces abren resultados de cada servicio; no certifican que la edición sea la original.</p><div class="music-source-grid">' +
       sources + '</div></section>';
-    status.textContent = tracks.length
-      ? "Encontré " + tracks.length + " coincidencia(s) en tu biblioteca. Las fuentes externas se abren por separado."
+    status.textContent = matches.length
+      ? (matches.length > tracks.length
+        ? "Encontré " + matches.length + " coincidencias en tu biblioteca; te muestro las primeras " + tracks.length + ". Las fuentes externas se abren por separado."
+        : "Encontré " + matches.length + " coincidencia(s) en tu biblioteca. Las fuentes externas se abren por separado.")
       : (networkModeIsAvailable() ? "No hay coincidencias locales. Probá las búsquedas externas de abajo." : "No hay coincidencias locales. Modo sin conexión: solo se puede buscar en la biblioteca guardada.");
   }
 
