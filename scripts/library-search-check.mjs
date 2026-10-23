@@ -17,7 +17,8 @@ const track = {
 };
 assert.equal(matchesLibrarySearch(track, "musica"), true, "Unaccented queries must match accented song titles");
 assert.equal(matchesLibrarySearch(track, "MÚSICA"), true, "Matching is case insensitive");
-assert.equal(matchesLibrarySearch(track, "nina del"), true, "Accent-insensitive matching should also cover artists");
+assert.equal(matchesLibrarySearch(track, "niña del"), true, "Exact Spanish ñ should remain searchable");
+assert.equal(matchesLibrarySearch(track, "nina del"), false, "Search keeps ñ distinct from n");
 assert.equal(matchesLibrarySearch(track, "raices"), true, "Accent-insensitive matching should cover album metadata");
 assert.equal(matchesLibrarySearch(track, "audio latino"), true, "Multi-word search should span source path metadata");
 assert.equal(matchesLibrarySearch(track, "musica.mp3"), true, "File names remain searchable");
