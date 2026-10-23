@@ -25,6 +25,7 @@
         <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> Historial <span class="nav-count" id="history-count">0</span></button>
         <button class="nav-item" data-view="playlists"><span class="nav-icon">☷</span> Mis listas</button>
         <button class="nav-item" data-view="offline"><span class="nav-icon">⇩</span> Disponible sin conexión</button>
+        <button class="nav-item" data-view="finder"><span class="nav-icon">⌕</span> Encontrar música</button>
         <button class="nav-item" data-view="online"><span class="nav-icon">⌁</span> Añadir música online <span class="network-lock-marker" id="online-nav-lock" hidden aria-label="Bloqueado en modo sin conexión">🔒</span></button>
         <button class="nav-item" type="button" id="radio-mode-nav" data-go-radio="true"><span class="nav-icon">📻</span> Radio por altavoz <span class="network-lock-marker" id="radio-nav-lock" hidden aria-label="Radio bloqueada sin conexión">🔒</span></button>
         <button class="nav-item" data-view="voices"><span class="nav-icon">♫</span> Estudio de voces</button>
@@ -147,6 +148,48 @@
           <div class="format-support-panel"><div><span class="section-kicker">COMPATIBILIDAD DE AUDIO</span><h3>Formatos en este navegador</h3><p>La compatibilidad depende del navegador, del sistema y del códec concreto. Ritmo detecta lo que este dispositivo declara poder reproducir.</p></div><div id="format-capabilities" class="format-capabilities"></div><p class="format-limit-note">Los archivos se guardan sin recodificarlos. Si un códec no está soportado, convertí el archivo a MP3, AAC/M4A, WAV, Ogg/Opus o FLAC compatible con tu navegador.</p></div>
           <div id="offline-tracks" class="track-list"></div>
           <div id="offline-empty" class="empty-state"><div class="empty-visual"><span>⇩</span><i>✦</i></div><h3>Tu música, incluso sin señal</h3><p>Importá archivos de audio para almacenarlos en el navegador y escucharlos offline.</p><button class="button button-primary" id="offline-import">Importar archivos</button></div>
+        </section>
+
+        <section class="view-panel finder-view" id="finder-view" hidden>
+          <div class="page-intro finder-page-intro">
+            <div><div class="eyebrow">BUSCÁ · IDENTIFICÁ · ENCONTRÁ FUENTES</div><h1>Encontrar <em>música.</em></h1><p>Primero revisá tu biblioteca local; después abrí las fuentes. Para reconocer lo que suena cerca tuyo, usá la identificación por micrófono.</p></div>
+            <div class="finder-mascot-shell"><img src="./assets/ritmo-capibara.svg" alt="Mascota musical de Ritmo, en tonos caramelo claros" width="112" height="112" decoding="async"></div>
+          </div>
+
+          <section class="music-finder-card">
+            <div class="music-finder-heading">
+              <div class="music-finder-mark">⌕</div>
+              <div><div class="eyebrow">BÚSQUEDA UNIFICADA</div><h2>Buscar tema y <span>fuentes.</span></h2><p>Coincidencias de tu biblioteca y accesos de búsqueda a cada catálogo. Los accesos externos no garantizan disponibilidad ni una versión original.</p></div>
+            </div>
+            <form id="music-finder-search-form" class="music-finder-search-form">
+              <label for="music-finder-query">Canción, artista, álbum o parte del título</label>
+              <div class="music-finder-search-row"><input id="music-finder-query" class="form-input" type="search" maxlength="180" autocomplete="off" placeholder="Ej. artista · título · banda sonora" required><button class="button button-primary" id="music-finder-search-button" type="submit">Buscar música <span>→</span></button></div>
+            </form>
+            <p id="music-finder-search-status" class="online-service-status" role="status" aria-live="polite">La búsqueda de la biblioteca funciona sin conexión. Los catálogos externos necesitan modo Internet.</p>
+            <div id="music-finder-search-results" class="music-finder-results"></div>
+          </section>
+
+          <section class="music-recognition-card" aria-labelledby="music-recognition-title">
+            <div class="music-recognition-header">
+              <div class="music-recognition-icon" aria-hidden="true">♫</div>
+              <div class="music-recognition-header-copy"><div class="eyebrow">IDENTIFICACIÓN POR AUDIO · ESTILO SHAZAM</div><h2 id="music-recognition-title">¿Qué está sonando?</h2><p>Grabá 8 segundos del sonido que escuchás. Ritmo consultará a AudD para intentar reconocer la grabación y ofrecer enlaces de la canción detectada.</p></div>
+              <span class="music-recognition-badge">Opcional</span>
+            </div>
+            <div id="music-recognition-network-note" class="music-network-note" role="status" aria-live="polite" hidden>🔒 La identificación y los catálogos externos necesitan conexión y Modo Internet. La búsqueda local sigue disponible.</div>
+            <details class="music-recognition-settings" id="music-recognition-settings">
+              <summary>Configurar el servicio de reconocimiento</summary>
+              <p>Necesitás un token personal de AudD. El token se guarda en este navegador y se envía a AudD solo cuando solicitás una identificación. El fragmento de audio también se enviará al servicio para intentar reconocerlo; no se envía a Ritmo ni se conserva como canción local.</p>
+              <p><a href="https://dashboard.audd.io/" target="_blank" rel="noopener noreferrer" data-network-only="true">Obtener token de AudD ↗</a></p>
+              <label for="music-recognition-token">Token de API</label>
+              <div class="music-token-row"><input id="music-recognition-token" class="form-input" type="password" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Pegá aquí tu token personal"><button type="button" class="button button-primary" id="music-recognition-save-token">Guardar en este dispositivo</button><button type="button" class="button button-soft" id="music-recognition-clear-token">Borrar</button></div>
+              <p id="music-recognition-token-status" class="online-service-status" role="status" aria-live="polite">Sin token guardado.</p>
+            </details>
+            <label class="music-recognition-consent"><input type="checkbox" id="music-recognition-consent"><span>Autorizo esta identificación: se enviarán hasta 8 segundos a AudD. El consentimiento se vuelve a pedir para cada grabación.</span></label>
+            <div class="music-recognition-actions"><button type="button" class="button button-primary" id="music-recognition-start">🎙 Identificar con micrófono</button><button type="button" class="button button-soft" id="music-recognition-stop" hidden>Cancelar grabación</button><span id="music-recognition-countdown" class="music-recognition-countdown" aria-live="polite">8 s de audio como máximo</span></div>
+            <progress id="music-recognition-progress" class="music-recognition-progress" max="8" value="0" hidden></progress>
+            <p id="music-recognition-status" class="online-service-status" role="status" aria-live="polite">El micrófono requiere permiso del navegador y un sitio HTTPS o localhost. La identificación necesita Modo Internet y un token válido.</p>
+            <div id="music-recognition-result" class="music-recognition-result"></div>
+          </section>
         </section>
 
         <section class="view-panel" id="online-view" hidden>
@@ -355,7 +398,7 @@
   </nav>
 
   <div class="character-companion" id="character-companion" aria-hidden="true" hidden>
-    <img id="character-companion-image" src="./pngtuber-capibara.png" alt="" width="88" height="88" loading="lazy" decoding="async">
+    <img id="character-companion-image" src="./assets/ritmo-capibara.svg" alt="" width="88" height="88" loading="lazy" decoding="async">
     <span class="character-companion-note" aria-hidden="true">♫</span>
   </div>
 
@@ -425,7 +468,7 @@
       <h3>Tu personaje acompañante</h3>
       <p>Elegí tu personaje en PNG, JPG, GIF animado, WebP o AVIF. Los GIF/WebP/APNG animados conservan sus fotogramas; una imagen fija usa el movimiento ligero de Ritmo. Se guarda solo en este dispositivo.</p>
       <div class="companion-settings-preview">
-        <div class="companion-settings-image"><img id="character-companion-preview" src="./pngtuber-capibara.png" alt="" width="80" height="80" loading="lazy" decoding="async"></div>
+        <div class="companion-settings-image"><img id="character-companion-preview" src="./assets/ritmo-capibara.svg" alt="" width="80" height="80" loading="lazy" decoding="async"></div>
         <div class="companion-settings-copy">
           <strong id="character-companion-file-name">Personaje predeterminado de Ritmo</strong>
           <p id="character-companion-status" role="status" aria-live="polite">Se usa el personaje incluido con Ritmo.</p>

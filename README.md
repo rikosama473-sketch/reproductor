@@ -179,3 +179,15 @@ El botón de la barra superior permite elegir entre **Modo Internet** (naranja) 
 
 La radio del directorio de Ritmo es **radio por internet** y puede salir por el altavoz integrado del teléfono cuando no hay auriculares conectados; no requiere auriculares como condición para reproducir una emisión online, pero sí conexión de red. No se promete radio FM offline: para sintonizar FM sin datos el equipo debe contar con un receptor FM y una antena compatibles, y Android no ofrece una interfaz universal que permita a cualquier aplicación activar ese hardware. Ritmo no fingirá sintonizar FM si el dispositivo no lo soporta.
 
+
+## Encontrar música y reconocimiento por micrófono
+
+La vista **Encontrar música** busca primero entre las pistas que ya están guardadas en la biblioteca y ofrece accesos a YouTube, Spotify, Apple Music, Deezer, MusicBrainz y Bandcamp. La biblioteca local se puede consultar sin conexión; abrir servicios externos requiere conexión y Modo Internet. Los botones de catálogo abren búsquedas, no prometen que exista una edición concreta.
+
+El reconocimiento por micrófono es una función opcional de tipo Shazam que usa **AudD** como proveedor de identificación. No usa el SDK de ShazamKit ni viene activado con una clave incorporada. Para activarlo, pegá tu token personal desde la sección de configuración; el token se guarda únicamente en el almacenamiento local del navegador de este dispositivo. Marcá el consentimiento y tocá «Identificar con micrófono»: Ritmo captura hasta 8 segundos, detiene el micrófono, y envía el fragmento a AudD mediante una petición HTTPS. El clip no se añade a tu biblioteca ni se guarda en el historial de audio. Podés borrar el token desde la misma pantalla. El servicio puede requerir una cuenta, aplicar límites o cobrar según el plan de su proveedor; Ritmo no promete identificación ilimitada o gratuita.
+
+Si hay coincidencia, Ritmo muestra el título y artista informados por el servicio, metadatos disponibles (álbum, fecha, sello, ISRC) y enlaces directos devueltos por los catálogos, junto a búsquedas para contrastar otras ediciones. La coincidencia identifica una grabación y **no demuestra por sí sola que sea la primera edición o la versión original**. Si no hay coincidencia, no inventa un resultado. La grabación requiere un navegador compatible, permiso explícito de micrófono y HTTPS o localhost. La función se cancela al activar el modo sin conexión o perder la red.
+
+## Mascota en tonos caramelo
+
+El acompañante predeterminado ahora usa `assets/ritmo-capibara.svg`, una ilustración vectorial local con tonos marrón claro, crema y caramelo y auriculares violetas. Se incluye en los shells offline de PC y Android y se usa tanto en el reproductor como en la previsualización de ajustes. Sigue disponible el control para sustituirlo por tu propio PNG, GIF animado, WebP o AVIF; las imágenes personalizadas permanecen almacenadas en el dispositivo.
