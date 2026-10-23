@@ -9,6 +9,7 @@ import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } fro
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
+import { normalizeSavedAudioLevel } from "./audio-preferences.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
@@ -70,8 +71,8 @@ function loadAudioPreferences() {
       limiter: saved?.limiter !== false,
       keepScreenAwake: saved?.keepScreenAwake === true,
       fadeOutAtEnd: saved?.fadeOutAtEnd !== false,
-      volume: Number.isFinite(Number(saved?.volume)) ? Math.max(0, Math.min(1, Number(saved.volume))) : 0.8,
-      lastAudibleVolume: Number.isFinite(Number(saved?.lastAudibleVolume)) ? Math.max(0.01, Math.min(1, Number(saved.lastAudibleVolume))) : 0.8
+      volume: normalizeSavedAudioLevel(saved?.volume, DEFAULT_AUDIO_PREFS.volume),
+      lastAudibleVolume: normalizeSavedAudioLevel(saved?.lastAudibleVolume, DEFAULT_AUDIO_PREFS.lastAudibleVolume, 0.01)
     };
   } catch { return { ...DEFAULT_AUDIO_PREFS }; }
 }
