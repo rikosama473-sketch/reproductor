@@ -624,6 +624,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .music-search-group h3 span{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:7px;background:#d3a77a24;color:#eac99f;font-size:10px}
 .music-search-group>p,.music-recognized-sources>p{margin:0;color:#aa9b90;font-size:10px;line-height:1.6}
 .music-local-match{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #a47a562b;border-radius:12px;background:#171412}
+.music-finder-pagination{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;padding:4px 0 2px}
+.music-finder-pagination .button{min-height:34px;padding:7px 12px;font-size:10px}
+.music-finder-pagination .button:disabled{opacity:.42;cursor:not-allowed;transform:none}
+.music-finder-page-count{color:#cdb9a4;font-size:10px;font-variant-numeric:tabular-nums}
 .music-local-match-art{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#ead0a5,#bf8759);color:#4a3222;font-size:19px}
 .music-local-match-copy{display:grid;gap:4px;min-width:0;flex:1}
 .music-local-match-copy strong{overflow:hidden;color:#f0e2d2;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
