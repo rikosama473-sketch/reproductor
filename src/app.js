@@ -4204,7 +4204,9 @@ function bindEvents() {
       state.nativePlayback.trackId === track.id && (track.nativeUri || track.nativePath));
     $("#eq-status").textContent = nativeTrackActive
       ? "Preferencia guardada. El limitador suave solo se aplica a archivos locales reproducidos por Web Audio; Media3 Android no ofrece este limitador en la integración actual."
-      : "Preferencia guardada. El limitador suave se aplica al procesamiento Web Audio de archivos locales; no cambia el archivo original.";
+      : (audioPrefs.limiter && !audioPrefs.equalizerEnabled)
+        ? "Preferencia guardada. Para aplicarlo, activá también el ecualizador; no se modifica ningún archivo original."
+        : "Preferencia guardada. El limitador suave se aplica al procesamiento Web Audio de archivos locales; no cambia el archivo original.";
   });
   $("#eq-reset").addEventListener("click", () => {
     audioPrefs.eqPreset = "flat"; audioPrefs.bass = 0; audioPrefs.mid = 0; audioPrefs.treble = 0; audioPrefs.limiter = false; audioPrefs.limiterOptIn = true;
