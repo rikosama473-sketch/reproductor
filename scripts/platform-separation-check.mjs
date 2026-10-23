@@ -33,9 +33,18 @@ assert.ok(mobileHtml.indexOf(capacitorTag) >= 0 && mobileHtml.indexOf(capacitorT
   "Mobile must load the Capacitor bridge before the app module");
 assert.ok(desktopHtml.includes(appTag), "PC must load the shared real app module");
 assert.ok(!desktopHtml.includes(capacitorTag), "PC must not load Android's native bridge");
-assert.match(mobileWorker, /ritmo-shell-v85/, "Mobile cache version must be independent from PC");
+function readCacheVersion(worker, label) {
+  const match = worker.match(/const CACHE_NAME = ["']ritmo-shell-v(\d+)["'];/);
+  assert.ok(match, label + " must declare an explicit, versioned service-worker cache");
+  const version = Number(match[1]);
+  assert.ok(Number.isSafeInteger(version) && version >= 1, label + " cache version must be a positive integer");
+  return version;
+}
+const desktopCacheVersion = readCacheVersion(desktopWorker, "PC");
+const mobileCacheVersion = readCacheVersion(mobileWorker, "Mobile");
+assert.equal(mobileCacheVersion, desktopCacheVersion + 1,
+  "Mobile shell must use the next cache version after the web shell, independent of the exact number");
 assert.match(mobileWorker, /capacitor\.js/, "Mobile offline shell must include the native bridge runtime");
-assert.match(desktopWorker, /ritmo-shell-v84/, "PC must use the refreshed web-only shell version");
 assert.doesNotMatch(desktopWorker, /capacitor\.js/, "PC shell must not require an Android-only file");
 assert.notEqual(path.join(mobileRoot, "www"), path.join(desktopRoot, "dist"), "Mobile and desktop build outputs must be separate");
 
