@@ -109,7 +109,7 @@ assert.match(nativeMusicPluginSource, /file\.put\("persisted", persisted\)/, "An
 assert.match(app, /if \(item\.persisted === true\)[\s\S]*nativeUri: uri,/, "Persistable Android selections must be stored as native tracks instead of copied into WebView blobs");
 assert.match(app, /function renderFormatCapabilities/, "The app should report device audio format support");
 assert.match(app, /const BATCH_SIZE = 20/, "Bulk imports should be saved in bounded batches");
-assert.match(app, /function readMp3Tags/, "Basic MP3 ID3 tags should be parsed");
+assert.match(app, /function readAudioMetadata/, "Bounded audio-tag reading should preserve the MP3 ID3 path and support local Vorbis tags");
 assert.match(app, /import \{ parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES \}/, "Browser and native cover extraction must share the safe raster-image validator");
 assert.match(app, /function decodeNativeArtworkBase64\(value, mimeType\)/, "Native cover bytes must be decoded under the same size limit");
 assert.match(app, /validateEmbeddedArtwork\(bytes, mimeType\)/, "Native cover bytes must not bypass signature and dimension validation");
@@ -467,3 +467,12 @@ assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
 assert.match(sw, /src\/music-finder-ui\.js/, "The finder controller must be in the offline shell");
 assert.match(sw, /assets\/pibara-avatar\.png/, "Pibara's transparent artwork must be in the offline shell");
+
+const vorbisMetadataApp = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const vorbisMetadataSource = fs.readFileSync(new URL("../src/vorbis-comments.js", import.meta.url), "utf8");
+assert.ok(vorbisMetadataApp.includes('from "./vorbis-comments.js"'), "The app must integrate local Vorbis-comment metadata parsing");
+assert.match(vorbisMetadataApp, /parseFlacVorbisComments/);
+assert.match(vorbisMetadataApp, /parseOggVorbisComments/);
+assert.match(vorbisMetadataApp, /isVorbisMetadataFilename\(file\.name\)/, "Imported FLAC/Ogg/Opus metadata must be marked as scanned");
+assert.match(vorbisMetadataSource, /MAX_VORBIS_METADATA_BYTES/, "Vorbis metadata parsing must stay bounded");
+console.log("Vorbis metadata integration checks passed.");
