@@ -56,7 +56,7 @@ assert.match(storage, /createObjectStore\(APP_SETTINGS, \{ keyPath: "key" \}\)/)
 assert.match(storage, /export async function getAppSetting\(key\)/);
 assert.match(storage, /export async function saveAppSetting\(key, value\)/);
 assert.match(storage, /export async function deleteAppSetting\(key\)/);
-assert.match(serviceWorker, /ritmo-shell-v84/);
+assert.match(serviceWorker, /ritmo-shell-v\d+/);
 assert.match(serviceWorker, /\.\/src\/character-companion\.js/);
 assert.match(prepareMobile, /src\/character-companion\.js/);
 assert.match(smoke, /const DB_VERSION = 3/);

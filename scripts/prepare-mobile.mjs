@@ -73,10 +73,17 @@ for (const name of requiredFiles) {
 }
 
 let sw = await readFile(path.join(webDir, "sw.js"), "utf8");
-if (!/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/.test(sw)) {
-  throw new Error("No se encontró una versión explícita del caché móvil en sw.js.");
+const cachePattern = /const CACHE_NAME = ["']ritmo-shell-v(\d+)["'];/;
+const cacheMatch = sw.match(cachePattern);
+if (!cacheMatch) {
+  throw new Error("No se encontró una versión explícita del caché web en sw.js.");
 }
-sw = sw.replace(/const CACHE_NAME = ["']ritmo-shell-v\d+["'];/, 'const CACHE_NAME = "ritmo-shell-v85";');
+const desktopCacheVersion = Number(cacheMatch[1]);
+if (!Number.isSafeInteger(desktopCacheVersion) || desktopCacheVersion < 1 ||
+    desktopCacheVersion >= Number.MAX_SAFE_INTEGER) {
+  throw new Error("La versión del caché web no es válida para preparar el paquete Android.");
+}
+sw = sw.replace(cachePattern, 'const CACHE_NAME = "ritmo-shell-v' + (desktopCacheVersion + 1) + '";');
 if (!sw.includes('"./capacitor.js"') && !sw.includes("'./capacitor.js'")) {
   const indexEntry = '  "./index.html",';
   if (sw.split(indexEntry).length - 1 !== 1) {
