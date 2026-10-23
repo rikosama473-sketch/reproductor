@@ -48,6 +48,8 @@ const syntaxChecks = [
   "scripts/youtube-player-errors-check.mjs",
   "scripts/online-services-check.mjs",
   "scripts/music-recognition-check.mjs",
+  "scripts/music-finder-pagination-check.mjs",
+  "scripts/music-finder-pagination-check.mjs",
   "scripts/prepare-mobile.mjs",
   "scripts/mobile-package-check.mjs",
   "scripts/platform-separation-check.mjs",
