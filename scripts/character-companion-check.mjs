@@ -34,6 +34,7 @@ const [html, app, storage, serviceWorker, prepareMobile, smoke] = await Promise.
   readFile(new URL("./smoke-check.mjs", import.meta.url), "utf8")
 ]);
 assert.match(html, /id="character-companion-image"/);
+assert.match(html, /src="\.\/assets\/pibara-avatar\.png"/, "The default companion must be Pibara");
 assert.match(html, /id="character-companion-preview"/);
 assert.match(html, /id="character-companion-file"[^>]*accept="[^"]*image\/gif/);
 assert.match(html, /id="character-companion-choose"/);
@@ -53,7 +54,7 @@ assert.match(storage, /createObjectStore\(APP_SETTINGS, \{ keyPath: "key" \}\)/)
 assert.match(storage, /export async function getAppSetting\(key\)/);
 assert.match(storage, /export async function saveAppSetting\(key, value\)/);
 assert.match(storage, /export async function deleteAppSetting\(key\)/);
-assert.match(serviceWorker, /ritmo-shell-v82/);
+assert.match(serviceWorker, /ritmo-shell-v83/);
 assert.match(serviceWorker, /\.\/src\/character-companion\.js/);
 assert.match(prepareMobile, /src\/character-companion\.js/);
 assert.match(smoke, /const DB_VERSION = 3/);
