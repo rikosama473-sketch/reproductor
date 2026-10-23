@@ -12,6 +12,7 @@ import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback
 import { normalizeSavedAudioLevel } from "./audio-preferences.js";
 import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
+import { createMusicFinderController } from "./music-finder-ui.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
 
 const $ = selector => document.querySelector(selector);
@@ -90,7 +91,7 @@ let libraryMode = (() => {
 })();
 
 
-const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
+const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", finder: "Encontrar música", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
 let voicePreviewPausedPlayback = null;
 let converterFiles = [];
 let converterRunning = false;
@@ -1349,7 +1350,7 @@ function render() {
   updateConnection();
 }
 const CHARACTER_COMPANION_SETTING_KEY = "character-companion-image";
-const DEFAULT_CHARACTER_COMPANION_SRC = "./pngtuber-capibara.png";
+const DEFAULT_CHARACTER_COMPANION_SRC = "./assets/ritmo-capibara.svg";
 let customCharacterCompanionUrl = null;
 let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC;
 
@@ -1603,6 +1604,7 @@ function syncNetworkModeControls() {
   const onlineView = $("#online-view");
   const note = $("#network-locked-note");
   if (onlineView) onlineView.classList.toggle("network-locked", locked);
+  if (musicFinderController) musicFinderController.syncNetworkState(locked);
   if (note) note.hidden = !locked;
   const title = $("#network-locked-title");
   if (title) title.textContent = !networkModeEnabledState ? "🔒 Modo sin conexión activo" : "✕ El dispositivo no tiene conexión";
@@ -1627,6 +1629,7 @@ function setNetworkModeEnabled(enabled) {
   const persisted = persistNetworkModeEnabled(next);
   networkModeEnabledState = next;
   if (!next) {
+    musicFinderController?.cancelCapture("La identificación se canceló porque activaste el modo sin conexión.");
     youtubeSearchAbortController?.abort();
     youtubeSearchAbortController = null;
     youtubeSearchRequestId++;
@@ -3779,6 +3782,7 @@ function updateYoutubeKeyStatus(message = "") {
 
 function bindEvents() {
   bindAudioConverterEvents();
+  musicFinderController.bindEvents();
   $("#network-mode-toggle").addEventListener("click", () => setNetworkModeEnabled(!networkModeEnabledState));
   $("#network-enable-internet").addEventListener("click", () => setNetworkModeEnabled(true));
   document.querySelectorAll("[data-go-radio]").forEach(button => button.addEventListener("click", () => {
@@ -4267,6 +4271,18 @@ function bindEvents() {
     if (event.key === "ArrowLeft" && currentTrack()) seekPlayback(Math.max(0, playbackCurrentTime() - 5));
   });
 }
+const musicFinderController = createMusicFinderController({
+  $,
+  escapeHTML,
+  toast,
+  getTracks: () => state.tracks,
+  getTrack,
+  isLocal,
+  playTrack,
+  requireInternetMode,
+  networkModeIsAvailable
+});
+
 async function init() {
   bindEvents();
   updateYoutubeKeyStatus();
