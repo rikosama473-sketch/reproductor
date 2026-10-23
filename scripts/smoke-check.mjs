@@ -433,6 +433,11 @@ assert.match(app, /matchesLibrarySearch\(track, state\.query\)/, "Library search
 assert.match(musicFinder, /import \{ matchesLibrarySearch \} from "\.\/library-search\.js"/, "The music finder must reuse the canonical library-search module");
 assert.match(musicFinder, /\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder results must support accent-insensitive and normalized path matching");
 assert.match(librarySearch, /function normalizeLibrarySearchText/, "Library search normalization must exist in the canonical module");
+assert.match(app, /limiter: false, limiterOptIn: false/, "Audio compression must default off");
+assert.match(app, /normalizeSavedLimiterPreference\(saved\)/, "Saved limiter state must require a recorded user choice");
+assert.match(app, /audioPrefs\.limiterOptIn = true/, "The settings toggle must persist explicit limiter choice");
+assert.doesNotMatch(html, /<input type="checkbox" id="limiter-toggle" checked/, "Markup must not pre-enable compression before settings sync");
+
 assert.match(sw, /src\/library-search\.js/, "The library search module must be available offline");
 assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered");
 assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as multipart form data");
