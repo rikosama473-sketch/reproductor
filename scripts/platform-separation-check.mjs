@@ -39,7 +39,7 @@ assert.match(desktopWorker, /ritmo-shell-v82/, "PC must use the refreshed web-on
 assert.doesNotMatch(desktopWorker, /capacitor\.js/, "PC shell must not require an Android-only file");
 assert.notEqual(path.join(mobileRoot, "www"), path.join(desktopRoot, "dist"), "Mobile and desktop build outputs must be separate");
 
-for (const name of ["src/app.js", "src/storage.js", "src/audio-converter.js", "src/equalizer-presets.js", "src/playback-position.js", "src/audio-preferences.js"]) {
+for (const name of ["src/app.js", "src/storage.js", "src/audio-converter.js", "src/equalizer-presets.js", "src/playback-position.js", "src/audio-preferences.js", "src/music-recognition.js", "src/music-finder-ui.js"]) {
   const source = await readFile(path.join(root, name), "utf8");
   const mobile = await readFile(path.join(mobileRoot, "www", name), "utf8");
   const desktop = await readFile(path.join(desktopRoot, "dist", name), "utf8");
