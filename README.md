@@ -162,3 +162,7 @@ Detalles y fuentes del empaquetado: [docs/android-apk-packaging.md](docs/android
 El conversor incorpora una ruta de memoria reducida para WAV RIFF/PCM16 mono o estéreo cuando la frecuencia de salida coincide con la de origen. Lee y transforma los datos en fragmentos de hasta 256 KiB; si no cambia el número de canales, reutiliza un segmento del Blob de entrada sin decodificarlo a un AudioBuffer. El WAV de salida sigue teniendo que quedar representado como Blob completo para poder escucharlo/descargarlo.
 
 Los MP3 y otros formatos, los WAV con otro códec/distribución de canales y los casos que requieren remuestreo siguen utilizando `decodeAudioData()` y, por tanto, todavía pueden cargar el archivo completo y el AudioBuffer en memoria. Esto no es streaming universal ni sustituye pruebas en dispositivos físicos.
+
+### Safe playback resume
+
+When a saved position has to wait for audio metadata, Ritmo binds that seek to the active playback request and media engine. A rapid track switch or pause cancels the pending listener, so a late `loadedmetadata` event cannot move a different song. The regression suite covers stale queued events, cancellation, inactive engines, and position clamping to a known duration.
