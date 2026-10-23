@@ -21,6 +21,7 @@ const syntaxChecks = [
   "src/youtube-player-errors.js",
   "src/online-services.js",
   "src/storage.js",
+  "src/playlist-editing.js",
   "src/character-companion.js",
   "src/music-recognition.js",
   "src/music-finder-ui.js",
@@ -66,6 +67,7 @@ const syntaxChecks = [
 const regressionSuites = [
   "scripts/smoke-check.mjs",
   "scripts/library-search-check.mjs",
+  "scripts/playlist-editing-check.mjs",
   "scripts/character-companion-check.mjs",
   "scripts/external-navigation-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",

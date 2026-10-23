@@ -1,4 +1,5 @@
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage, getAppSetting, saveAppSetting, deleteAppSetting } from "./storage.js";
+import { normalizePlaylistName, renamePlaylist, movePlaylistTrack, removePlaylistTrack } from "./playlist-editing.js";
 import { createYoutubeHistoryController } from "./youtube-history.js";
 import { createAudioOutputVolumeController } from "./audio-output-volume.js";
 import { clearMediaSession, clearMediaSessionPositionState } from "./media-session-state.js";
@@ -759,11 +760,35 @@ function renderHistory() {
     } else openExternal(youtubeVideoURL(button.dataset.historyYoutube));
   }));
 }
+async function renamePlaylistById(playlistId) {
+  const list = state.playlists.find(item => item.id === playlistId);
+  if (!list) return;
+  const answer = prompt("Nuevo nombre para la lista:", list.name);
+  if (answer === null) return;
+  try {
+    await savePlaylist(renamePlaylist(list, answer));
+    state.playlists = await getPlaylists();
+    renderPlaylists();
+    toast("Lista renombrada.");
+  } catch (error) { toast(error.message || "No se pudo renombrar la lista."); }
+}
+async function movePlaylistTrackById(playlistId, trackId, direction) {
+  const list = state.playlists.find(item => item.id === playlistId);
+  if (!list) return;
+  try {
+    const updated = movePlaylistTrack(list, trackId, direction);
+    if (!updated) return;
+    await savePlaylist(updated);
+    state.playlists = await getPlaylists();
+    renderPlaylists();
+  } catch (error) { toast(error.message || "No se pudo reordenar la lista."); }
+}
 function renderPlaylists() {
   const root = $("#playlists-list");
   const activeId = state.currentPlaylistId;
-  root.innerHTML = state.playlists.map(list => '<article class="playlist-card"><div class="playlist-cover"><span>♫</span><i>✦</i></div><div class="playlist-card-copy"><strong>' + escapeHTML(list.name) + '</strong><small>' + list.trackIds.length + (list.trackIds.length === 1 ? ' canción' : ' canciones') + '</small></div><div class="playlist-card-actions"><button class="button button-soft" data-open-playlist="' + escapeHTML(list.id) + '">Abrir</button><button class="row-icon delete-track" data-delete-playlist="' + escapeHTML(list.id) + '" aria-label="Eliminar lista ' + escapeHTML(list.name) + '" title="Eliminar lista">×</button></div></article>').join("");
+  root.innerHTML = state.playlists.map(list => '<article class="playlist-card"><div class="playlist-cover"><span>♫</span><i>✦</i></div><div class="playlist-card-copy"><strong>' + escapeHTML(list.name) + '</strong><small>' + list.trackIds.length + (list.trackIds.length === 1 ? ' canción' : ' canciones') + '</small></div><div class="playlist-card-actions"><button class="button button-soft" data-open-playlist="' + escapeHTML(list.id) + '">Abrir</button><button class="button button-soft" data-rename-playlist="' + escapeHTML(list.id) + '" aria-label="Renombrar lista ' + escapeHTML(list.name) + '" title="Renombrar lista">Renombrar</button><button class="row-icon delete-track" data-delete-playlist="' + escapeHTML(list.id) + '" aria-label="Eliminar lista ' + escapeHTML(list.name) + '" title="Eliminar lista">×</button></div></article>').join("");
   root.querySelectorAll("[data-open-playlist]").forEach(button => button.addEventListener("click", () => { state.currentPlaylistId = button.dataset.openPlaylist; renderPlaylists(); }));
+  root.querySelectorAll("[data-rename-playlist]").forEach(button => button.addEventListener("click", () => { void renamePlaylistById(button.dataset.renamePlaylist); }));
   root.querySelectorAll("[data-delete-playlist]").forEach(button => button.addEventListener("click", async () => {
     const list = state.playlists.find(item => item.id === button.dataset.deletePlaylist);
     if (!list || !confirm("¿Eliminar la lista «" + list.name + "»? Las canciones seguirán en tu biblioteca.")) return;
@@ -790,32 +815,47 @@ function renderPlaylists() {
   tracksRoot.querySelectorAll("[data-track-row]").forEach(row => {
     const actions = row.querySelector(".track-actions");
     if (!actions) return;
+    const editActions = document.createElement("span");
+    editActions.className = "playlist-track-edit-actions";
+    for (const direction of [-1, 1]) {
+      const moveButton = document.createElement("button");
+      moveButton.type = "button";
+      moveButton.className = "row-icon";
+      moveButton.textContent = direction < 0 ? "↑" : "↓";
+      moveButton.title = direction < 0 ? "Subir canción en la lista" : "Bajar canción en la lista";
+      moveButton.setAttribute("aria-label", (direction < 0 ? "Subir " : "Bajar ") + (getTrack(row.dataset.trackRow)?.title || "canción"));
+      moveButton.dataset.playlistTrackMove = direction < 0 ? "up" : "down";
+      moveButton.disabled = direction < 0 ? index === 0 : index === tracks.length - 1;
+      moveButton.addEventListener("click", event => {
+        event.stopPropagation();
+        void movePlaylistTrackById(selected.id, row.dataset.trackRow, direction);
+      });
+      editActions.append(moveButton);
+    }
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "row-icon delete-track";
     removeButton.textContent = "−";
     removeButton.title = "Quitar de esta lista";
-    removeButton.setAttribute("aria-label", "Quitar canción de esta lista");
+    removeButton.setAttribute("aria-label", "Quitar " + (getTrack(row.dataset.trackRow)?.title || "canción") + " de esta lista");
+    removeButton.dataset.playlistTrackRemove = "true";
     removeButton.addEventListener("click", async event => {
       event.stopPropagation();
-      const list = state.playlists.find(item => item.id === state.currentPlaylistId);
+      const list = state.playlists.find(item => item.id === selected.id);
       if (!list) return;
-      const previousTrackIds = [...list.trackIds];
-      const previousUpdatedAt = list.updatedAt;
-      list.trackIds = list.trackIds.filter(trackId => trackId !== row.dataset.trackRow);
-      list.updatedAt = Date.now();
       try {
-        await savePlaylist(list);
+        const updated = removePlaylistTrack(list, row.dataset.trackRow);
+        if (!updated) return;
+        await savePlaylist(updated);
         state.playlists = await getPlaylists();
         renderPlaylists();
         toast("Canción quitada de la lista.");
       } catch (error) {
-        list.trackIds = previousTrackIds;
-        list.updatedAt = previousUpdatedAt;
         renderPlaylists();
         toast(error.message || "No se pudo actualizar la lista.");
       }
     });
+    actions.prepend(editActions);
     actions.prepend(removeButton);
   });
   bindRenderedActions(tracksRoot);
@@ -1227,10 +1267,9 @@ function renderFormatCapabilities() {
 }
 async function createPlaylist(event) {
   event.preventDefault();
-  const name = $("#playlist-name").value.trim();
-  if (!name) return;
-  const list = { id: id(), name, trackIds: [], createdAt: Date.now(), updatedAt: Date.now() };
   try {
+    const name = normalizePlaylistName($("#playlist-name").value);
+    const list = { id: id(), name, trackIds: [], createdAt: Date.now(), updatedAt: Date.now() };
     await savePlaylist(list);
     state.playlists = await getPlaylists();
     state.currentPlaylistId = list.id;
@@ -3919,6 +3958,7 @@ function bindEvents() {
   $("#playlist-create-form").addEventListener("submit", createPlaylist);
   $("#clear-history-button").addEventListener("click", clearPlaybackHistory);
   $("#playlist-back-button").addEventListener("click", () => { state.currentPlaylistId = null; renderPlaylists(); });
+  $("#playlist-rename-button").addEventListener("click", () => { if (state.currentPlaylistId) void renamePlaylistById(state.currentPlaylistId); });
   $("#playlist-play-all").addEventListener("click", () => {
     const list = state.playlists.find(item => item.id === state.currentPlaylistId);
     if (!list) return;
