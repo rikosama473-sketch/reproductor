@@ -194,6 +194,8 @@ export function createMusicFinderController({
       return;
     }
 
+    // Consent applies to one capture; require a fresh explicit choice each time.
+    $("#music-recognition-consent").checked = false;
     cancelCapture("");
     const currentRequestId = ++requestId;
     $("#music-recognition-result").replaceChildren();
