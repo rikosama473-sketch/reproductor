@@ -5,6 +5,7 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const musicFinder = fs.readFileSync(new URL("../src/music-finder-ui.js", import.meta.url), "utf8");
 const musicRecognition = fs.readFileSync(new URL("../src/music-recognition.js", import.meta.url), "utf8");
+const librarySearch = fs.readFileSync(new URL("../src/library-search.js", import.meta.url), "utf8");
 const storage = fs.readFileSync(new URL("../src/storage.js", import.meta.url), "utf8");
 const audioVolume = fs.readFileSync(new URL("../src/audio-output-volume.js", import.meta.url), "utf8");
 const youtubePlayerErrors = fs.readFileSync(new URL("../src/youtube-player-errors.js", import.meta.url), "utf8");
@@ -428,6 +429,9 @@ assert.ok(html.includes('id="music-recognition-start"'), "The app must expose mi
 assert.ok(html.includes('id="music-recognition-consent"'), "The app must require explicit consent before sending an audio clip");
 assert.ok(html.includes('id="music-finder-search-results"'), "Manual song search must have a results area");
 assert.match(app, /createMusicFinderController/, "The music finder controller must be wired into Ritmo");
+assert.match(app, /matchesLibrarySearch\(track, state\.query\)/, "Library searches must use the shared accent-aware matcher");
+assert.match(librarySearch, /function normalizeLibrarySearchText/, "Library search normalization must exist in the canonical module");
+assert.match(sw, /src\/library-search\.js/, "The library search module must be available offline");
 assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered");
 assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as multipart form data");
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");

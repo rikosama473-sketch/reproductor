@@ -65,7 +65,7 @@ const requiredFiles = [
   "src/app.js", "src/storage.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js", "src/audio-preferences.js",
   "src/import-fingerprint.js", "src/id3-tags.js", "src/audio-converter.js", "src/external-navigation.js",
-  "src/youtube-player-errors.js", "src/async-generation-gate.js", "src/playback-position.js", "src/online-services.js", "src/character-companion.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "assets/pibara-avatar.png"
+  "src/youtube-player-errors.js", "src/async-generation-gate.js", "src/playback-position.js", "src/online-services.js", "src/character-companion.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/library-search.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "assets/pibara-avatar.png"
 ];
 for (const name of requiredFiles) {
   const info = await stat(path.join(webDir, name)).catch(() => null);
