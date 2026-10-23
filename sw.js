@@ -4,6 +4,7 @@ const APP_SHELL = [
   "./index.html",
   "./styles.css",
   "./src/app.js",
+  "./src/library-search.js",
   "./src/storage.js",
   "./src/youtube-history.js",
   "./src/audio-output-volume.js",
