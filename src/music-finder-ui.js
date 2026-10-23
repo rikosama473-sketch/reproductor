@@ -10,6 +10,34 @@ import { matchesLibrarySearch } from "./library-search.js";
 
 const MAX_RECOGNITION_CLIP_BYTES = 2 * 1024 * 1024;
 
+/**
+ * Pure pagination math shared by the UI and regression tests.
+ * It never exposes more than one bounded page and clamps requests on both ends.
+ */
+export function paginateMusicFinderResults(results, requestedPage = 0, pageSize = 8) {
+  const rows = Array.isArray(results) ? results : [];
+  const size = Number.isSafeInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 50) : 8;
+  const numericPage = (typeof requestedPage === "number" || typeof requestedPage === "string")
+    ? Number(requestedPage)
+    : 0;
+  const requested = Number.isFinite(numericPage) ? Math.trunc(numericPage) : 0;
+  const pageCount = Math.max(1, Math.ceil(rows.length / size));
+  const page = Math.max(0, Math.min(requested, pageCount - 1));
+  const start = page * size;
+  const end = Math.min(rows.length, start + size);
+  return {
+    items: rows.slice(start, end),
+    page,
+    pageCount,
+    pageSize: size,
+    total: rows.length,
+    start,
+    end,
+    hasPrevious: page > 0,
+    hasNext: page < pageCount - 1
+  };
+}
+
 export function createMusicFinderController({
   $, escapeHTML, toast, getTracks, getTrack, isLocal, playTrack,
   requireInternetMode, networkModeIsAvailable
@@ -54,10 +82,10 @@ export function createMusicFinderController({
     if (resetPage || query !== lastSearchQuery) searchPage = 0;
     lastSearchQuery = query;
     const matches = (getTracks() || []).filter(track => matchesLibrarySearch(track, query));
-    const pageCount = Math.max(1, Math.ceil(matches.length / SEARCH_PAGE_SIZE));
-    searchPage = Math.min(searchPage, pageCount - 1);
-    const firstIndex = searchPage * SEARCH_PAGE_SIZE;
-    const tracks = matches.slice(firstIndex, firstIndex + SEARCH_PAGE_SIZE);
+    const pageData = paginateMusicFinderResults(matches, searchPage, SEARCH_PAGE_SIZE);
+    searchPage = pageData.page;
+    const pageCount = pageData.pageCount;
+    const tracks = pageData.items;
     const localCards = tracks.map(track => {
       const local = isLocal(track);
       const locked = !local && !networkModeIsAvailable();
@@ -70,10 +98,10 @@ export function createMusicFinderController({
     const pagination = pageCount > 1
       ? '<nav class="music-finder-pagination" aria-label="Páginas de coincidencias locales">' +
         '<button type="button" class="button button-soft" data-music-finder-page="previous"' +
-        (searchPage === 0 ? " disabled" : "") + ' aria-label="Página anterior">← Anterior</button>' +
+        (!pageData.hasPrevious ? " disabled" : "") + ' aria-label="Página anterior">← Anterior</button>' +
         '<span class="music-finder-page-count" aria-live="polite">Página ' + (searchPage + 1) + ' de ' + pageCount + '</span>' +
         '<button type="button" class="button button-soft" data-music-finder-page="next"' +
-        (searchPage >= pageCount - 1 ? " disabled" : "") + ' aria-label="Página siguiente">Siguiente →</button></nav>'
+        (!pageData.hasNext ? " disabled" : "") + ' aria-label="Página siguiente">Siguiente →</button></nav>'
       : "";
     const sources = renderSourceLinks(buildMusicSearchSources(query));
     root.innerHTML = '<section class="music-search-group"><h3>Tu biblioteca <span>' + matches.length + '</span></h3>' +
