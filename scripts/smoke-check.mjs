@@ -434,8 +434,14 @@ assert.match(app, /matchesLibrarySearch\(track, state\.query\)/, "Library search
 assert.match(musicFinder, /import \{ matchesLibrarySearch \} from "\.\/library-search\.js"/, "The music finder must reuse the canonical library-search module");
 assert.match(musicFinder, /\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder results must support accent-insensitive and normalized path matching");
 assert.match(musicFinder, /const matches = \(getTracks\(\) \|\| \[\]\)\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder must retain the full result count before applying the display cap");
-assert.match(musicFinder, /const tracks = matches\.slice\(0, 8\)/, "Finder rendering should stay bounded to eight local results");
-assert.match(musicFinder, /matches\.length > tracks\.length/, "Finder status must disclose when additional local matches are hidden");
+assert.match(musicFinder, /const tracks = matches\.slice\(firstIndex, firstIndex \+ SEARCH_PAGE_SIZE\)/, "Finder rendering should stay bounded to eight local results per page");
+assert.match(musicFinder, /pageCount > 1/, "Finder must disclose and enable navigation when local matches span multiple pages");
+assert.match(musicFinder, /const SEARCH_PAGE_SIZE = 8/, "Finder pagination must stay bounded to eight visible local tracks");
+assert.match(musicFinder, /Math\.ceil\(matches\.length \/ SEARCH_PAGE_SIZE\)/, "Finder must calculate the number of result pages");
+assert.match(musicFinder, /matches\.slice\(firstIndex, firstIndex \+ SEARCH_PAGE_SIZE\)/, "Finder page changes must render only the requested slice");
+assert.match(musicFinder, /data-music-finder-page="next"/, "Finder must expose a next page when results overflow");
+assert.match(musicFinder, /searchPage \+= pageButton\.dataset\.musicFinderPage === "next" \? 1 : -1/, "Finder page controls must be wired to navigation state");
+assert.match(css, /\.music-finder-pagination/, "Finder pagination controls must have responsive styling");
 assert.match(musicFinder, /Tu biblioteca <span>\x27 \+ matches\.length/, "Finder count label must show the total, not only the displayed subset");
 assert.match(librarySearch, /function normalizeLibrarySearchText/, "Library search normalization must exist in the canonical module");
 assert.match(app, /limiter: false, limiterOptIn: false/, "Audio compression must default off");

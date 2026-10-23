@@ -20,6 +20,9 @@ export function createMusicFinderController({
   let requestId = 0;
   let requestController = null;
   let bound = false;
+  let searchPage = 0;
+  let lastSearchQuery = "";
+  const SEARCH_PAGE_SIZE = 8;
 
   function tokenStatus(message = "") {
     const status = $("#music-recognition-token-status");
@@ -36,18 +39,25 @@ export function createMusicFinderController({
     ).join("");
   }
 
-  function renderSearch(rawQuery) {
+  function renderSearch(rawQuery, resetPage = false) {
     const query = String(rawQuery || "").trim().slice(0, 180);
     const root = $("#music-finder-search-results");
     const status = $("#music-finder-search-status");
     if (!root || !status) return;
     if (!query) {
+      searchPage = 0;
+      lastSearchQuery = "";
       root.replaceChildren();
       status.textContent = "Escribí un título o artista. La búsqueda de la biblioteca funciona sin conexión.";
       return;
     }
+    if (resetPage || query !== lastSearchQuery) searchPage = 0;
+    lastSearchQuery = query;
     const matches = (getTracks() || []).filter(track => matchesLibrarySearch(track, query));
-    const tracks = matches.slice(0, 8);
+    const pageCount = Math.max(1, Math.ceil(matches.length / SEARCH_PAGE_SIZE));
+    searchPage = Math.min(searchPage, pageCount - 1);
+    const firstIndex = searchPage * SEARCH_PAGE_SIZE;
+    const tracks = matches.slice(firstIndex, firstIndex + SEARCH_PAGE_SIZE);
     const localCards = tracks.map(track => {
       const local = isLocal(track);
       const locked = !local && !networkModeIsAvailable();
@@ -57,14 +67,22 @@ export function createMusicFinderController({
         '</small></div><button type="button" class="button button-soft" data-music-finder-play="' + escapeHTML(track.id) +
         '">▶ Escuchar</button></article>';
     }).join("");
+    const pagination = pageCount > 1
+      ? '<nav class="music-finder-pagination" aria-label="Páginas de coincidencias locales">' +
+        '<button type="button" class="button button-soft" data-music-finder-page="previous"' +
+        (searchPage === 0 ? " disabled" : "") + ' aria-label="Página anterior">← Anterior</button>' +
+        '<span class="music-finder-page-count" aria-live="polite">Página ' + (searchPage + 1) + ' de ' + pageCount + '</span>' +
+        '<button type="button" class="button button-soft" data-music-finder-page="next"' +
+        (searchPage >= pageCount - 1 ? " disabled" : "") + ' aria-label="Página siguiente">Siguiente →</button></nav>'
+      : "";
     const sources = renderSourceLinks(buildMusicSearchSources(query));
     root.innerHTML = '<section class="music-search-group"><h3>Tu biblioteca <span>' + matches.length + '</span></h3>' +
       (localCards || '<p class="music-empty-note">No encontré una coincidencia local. Los archivos que todavía no importaste no se pueden identificar desde tu biblioteca.</p>') +
-      '</section><section class="music-search-group music-external-searches"><h3>Buscar en otras fuentes</h3><p>Estos enlaces abren resultados de cada servicio; no certifican que la edición sea la original.</p><div class="music-source-grid">' +
+      pagination + '</section><section class="music-search-group music-external-searches"><h3>Buscar en otras fuentes</h3><p>Estos enlaces abren resultados de cada servicio; no certifican que la edición sea la original.</p><div class="music-source-grid">' +
       sources + '</div></section>';
     status.textContent = matches.length
-      ? (matches.length > tracks.length
-        ? "Encontré " + matches.length + " coincidencias en tu biblioteca; te muestro las primeras " + tracks.length + ". Las fuentes externas se abren por separado."
+      ? (pageCount > 1
+        ? "Página " + (searchPage + 1) + " de " + pageCount + ". " + matches.length + " coincidencias en tu biblioteca; se muestran " + tracks.length + " por página."
         : "Encontré " + matches.length + " coincidencia(s) en tu biblioteca. Las fuentes externas se abren por separado.")
       : (networkModeIsAvailable() ? "No hay coincidencias locales. Probá las búsquedas externas de abajo." : "No hay coincidencias locales. Modo sin conexión: solo se puede buscar en la biblioteca guardada.");
   }
@@ -290,9 +308,15 @@ export function createMusicFinderController({
     bound = true;
     $("#music-finder-search-form").addEventListener("submit", event => {
       event.preventDefault();
-      renderSearch($("#music-finder-query").value);
+      renderSearch($("#music-finder-query").value, true);
     });
     $("#music-finder-search-results").addEventListener("click", event => {
+      const pageButton = event.target.closest("[data-music-finder-page]");
+      if (pageButton) {
+        searchPage += pageButton.dataset.musicFinderPage === "next" ? 1 : -1;
+        renderSearch($("#music-finder-query").value);
+        return;
+      }
       const button = event.target.closest("[data-music-finder-play]");
       if (button) {
         const track = getTrack(button.dataset.musicFinderPlay);
