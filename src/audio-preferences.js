@@ -18,3 +18,18 @@ export function normalizeSavedAudioLevel(value, fallback = 0.8, minimum = 0) {
   if (!Number.isFinite(parsed)) return defaultValue;
   return Math.max(floor, Math.min(1, parsed));
 }
+
+
+/**
+ * Enable dynamic compression only after an explicit user choice.
+ * Older saved preferences used limiter=true as a default, not proof of consent,
+ * so they must not silently enable compression after this migration.
+ */
+export function normalizeSavedLimiterPreference(value) {
+  const saved = value && typeof value === "object" ? value : null;
+  const optedIn = saved?.limiterOptIn === true;
+  return {
+    limiter: optedIn && saved?.limiter === true,
+    limiterOptIn: optedIn
+  };
+}
