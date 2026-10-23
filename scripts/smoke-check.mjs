@@ -409,6 +409,9 @@ console.log("Spotify official embed and keyless radio directory integration chec
 assert.ok(html.includes('id="network-mode-toggle"'), "The app must expose a single explicit Internet/offline mode toggle");
 assert.ok(html.includes('id="network-locked-note"'), "Unavailable online features must explain their lock state");
 assert.ok(html.includes('id="online-nav-lock"'), "The online navigation entry must show a lock when network features are unavailable");
+assert.ok(html.includes('data-go-radio="true"'), "Radio must have a dedicated sidebar entry");
+assert.ok(html.includes('id="radio-nav-lock"'), "Radio navigation must mark the feature locked when unavailable");
+assert.match(app, /document\.querySelectorAll\("\[data-go-radio\]"\)/, "The radio menu entry must navigate to the radio directory");
 assert.ok(html.includes("Radio por altavoz"), "The radio screen must explain speaker playback and its internet requirement");
 assert.match(app, /function setNetworkModeEnabled\(enabled\)/, "The network mode must be controlled by one persisted state transition");
 assert.match(app, /if \(!isLocal\(track\) && !requireInternetMode\("reproducir esta fuente online"\)\) return;/, "A saved streaming URL must not bypass offline mode");
