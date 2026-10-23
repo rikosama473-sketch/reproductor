@@ -1592,6 +1592,8 @@ function syncNetworkModeControls() {
 
   const navLock = $("#online-nav-lock");
   if (navLock) navLock.hidden = !locked;
+  const radioLock = $("#radio-nav-lock");
+  if (radioLock) radioLock.hidden = !locked;
   const homeButton = $("#home-online-button");
   if (homeButton) {
     homeButton.classList.toggle("network-locked", locked);
@@ -3779,6 +3781,11 @@ function bindEvents() {
   bindAudioConverterEvents();
   $("#network-mode-toggle").addEventListener("click", () => setNetworkModeEnabled(!networkModeEnabledState));
   $("#network-enable-internet").addEventListener("click", () => setNetworkModeEnabled(true));
+  document.querySelectorAll("[data-go-radio]").forEach(button => button.addEventListener("click", () => {
+    showView("online");
+    const target = networkModeIsAvailable() ? document.querySelector(".radio-directory-section") : $("#network-locked-note");
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   $("#online-view").addEventListener("click", event => {
     if (networkModeIsAvailable()) return;
     if (event.target.closest("#network-enable-internet")) return;
