@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const syntaxChecks = [
   "src/app.js",
+  "src/library-search.js",
   "src/ui-sounds.js",
   "src/voice-studio.js",
   "src/youtube-history.js",
@@ -29,6 +30,7 @@ const syntaxChecks = [
   "scripts/ui-sounds-check.mjs",
   "scripts/voice-studio-check.mjs",
   "scripts/smoke-check.mjs",
+  "scripts/library-search-check.mjs",
   "scripts/character-companion-check.mjs",
   "scripts/external-navigation-check.mjs",
   "scripts/indexeddb-recovery-check.mjs",
