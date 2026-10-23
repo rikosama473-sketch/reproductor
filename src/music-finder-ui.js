@@ -6,6 +6,7 @@ import {
   buildMusicSearchSources,
   normalizeMusicRecognitionResult
 } from "./music-recognition.js";
+import { matchesLibrarySearch } from "./library-search.js";
 
 const MAX_RECOGNITION_CLIP_BYTES = 2 * 1024 * 1024;
 
@@ -45,11 +46,7 @@ export function createMusicFinderController({
       status.textContent = "Escribí un título o artista. La búsqueda de la biblioteca funciona sin conexión.";
       return;
     }
-    const key = query.toLocaleLowerCase();
-    const tracks = (getTracks() || []).filter(track =>
-      [track.title, track.artist, track.album, track.name, track.sourcePath]
-        .filter(Boolean).join(" ").toLocaleLowerCase().includes(key)
-    ).slice(0, 8);
+    const tracks = (getTracks() || []).filter(track => matchesLibrarySearch(track, query)).slice(0, 8);
     const localCards = tracks.map(track => {
       const local = isLocal(track);
       const locked = !local && !networkModeIsAvailable();
