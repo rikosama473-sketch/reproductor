@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(desktopRoot, "..");
 const outputDir = path.join(desktopRoot, "dist");
-const files = ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "pngtuber-capibara.png"];
+const files = ["index.html", "styles.css", "sw.js", "manifest.webmanifest"];
 const directories = ["src", "assets"];
 
 await rm(outputDir, { recursive: true, force: true });
