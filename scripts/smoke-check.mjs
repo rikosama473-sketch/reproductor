@@ -430,6 +430,8 @@ assert.ok(html.includes('id="music-recognition-consent"'), "The app must require
 assert.ok(html.includes('id="music-finder-search-results"'), "Manual song search must have a results area");
 assert.match(app, /createMusicFinderController/, "The music finder controller must be wired into Ritmo");
 assert.match(app, /matchesLibrarySearch\(track, state\.query\)/, "Library searches must use the shared accent-aware matcher");
+assert.match(musicFinder, /import \{ matchesLibrarySearch \} from "\.\/library-search\.js"/, "The music finder must reuse the canonical library-search module");
+assert.match(musicFinder, /\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder results must support accent-insensitive and normalized path matching");
 assert.match(librarySearch, /function normalizeLibrarySearchText/, "Library search normalization must exist in the canonical module");
 assert.match(sw, /src\/library-search\.js/, "The library search module must be available offline");
 assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered");
