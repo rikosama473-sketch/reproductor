@@ -1267,9 +1267,9 @@ function renderFormatCapabilities() {
 }
 async function createPlaylist(event) {
   event.preventDefault();
-  const name = normalizePlaylistName($("#playlist-name").value);
-  const list = { id: id(), name, trackIds: [], createdAt: Date.now(), updatedAt: Date.now() };
   try {
+    const name = normalizePlaylistName($("#playlist-name").value);
+    const list = { id: id(), name, trackIds: [], createdAt: Date.now(), updatedAt: Date.now() };
     await savePlaylist(list);
     state.playlists = await getPlaylists();
     state.currentPlaylistId = list.id;

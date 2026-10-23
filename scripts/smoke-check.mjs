@@ -85,8 +85,8 @@ assert.match(app, /function renderPlaylists/, "The app should render named playl
 assert.ok(app.includes('import { normalizePlaylistName, renamePlaylist, movePlaylistTrack, removePlaylistTrack } from "./playlist-editing.js"'), "Playlist edits must use shared validated helpers");
 assert.match(app, /data-rename-playlist/, "Saved playlists must expose rename actions");
 assert.match(html, /id="playlist-rename-button"/, "Opened playlists must be renamable too");
-assert.match(app, /data-playlist-track-move/, "Playlist songs must be reorderable");
-assert.match(app, /data-playlist-track-remove/, "Playlist-only removal must be separate from library deletion");
+assert.match(app, /dataset\.playlistTrackMove/, "Playlist songs must be reorderable");
+assert.match(app, /dataset\.playlistTrackRemove/, "Playlist-only removal must be separate from library deletion");
 assert.match(playlistEditing, /function normalizePlaylistName/);
 assert.match(playlistEditing, /function movePlaylistTrack/);
 assert.match(playlistEditing, /function removePlaylistTrack/);

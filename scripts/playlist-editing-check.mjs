@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { MAX_PLAYLIST_NAME_LENGTH, normalizePlaylistName, renamePlaylist, movePlaylistTrack, removePlaylistTrack } from "../src/playlist-editing.js";
 const source = { id: "list-1", name: "Mi lista", trackIds: ["a", "b", "c"], createdAt: 100, updatedAt: 200, customMetadata: "preserved" };
 assert.equal(MAX_PLAYLIST_NAME_LENGTH, 80);
-assert.equal(normalizePlaylistName("  Mi   lista\\t favorita  "), "Mi lista favorita");
+assert.equal(normalizePlaylistName("  Mi   lista " + String.fromCharCode(9) + " favorita  "), "Mi lista favorita");
 assert.equal(normalizePlaylistName("Café"), "Café");
 assert.throws(() => normalizePlaylistName("  "), /nombre/i);
 assert.throws(() => normalizePlaylistName(null), /nombre/i);
