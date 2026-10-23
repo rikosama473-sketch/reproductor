@@ -437,6 +437,8 @@ assert.match(librarySearch, /function normalizeLibrarySearchText/, "Library sear
 assert.match(app, /limiter: false, limiterOptIn: false/, "Audio compression must default off");
 assert.match(app, /normalizeSavedLimiterPreference\(saved\)/, "Saved limiter state must require a recorded user choice");
 assert.match(app, /audioPrefs\.limiterOptIn = true/, "The settings toggle must persist explicit limiter choice");
+assert.match(app, /audioPrefs\.limiter && !audioPrefs\.equalizerEnabled/, "The limiter status must disclose when Web Audio processing is off");
+assert.match(app, /Para aplicarlo, activá también el ecualizador/, "The UI must explain how to activate limiter processing");
 assert.doesNotMatch(html, /<input type="checkbox" id="limiter-toggle" checked/, "Markup must not pre-enable compression before settings sync");
 
 assert.match(sw, /src\/library-search\.js/, "The library search module must be available offline");
