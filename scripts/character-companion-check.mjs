@@ -45,6 +45,8 @@ assert.match(app, /getAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /deleteAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /URL\.revokeObjectURL\(oldUrl\)/);
 assert.match(app, /let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC/);
+assert.match(app, /const DEFAULT_CHARACTER_COMPANION_SRC = "\.\/assets\/pibara-avatar\.png"/, "Pibara must be the real default companion in playback and settings");
+assert.doesNotMatch(app, /ritmo-capibara\.svg/, "The invented animal must not remain the default companion");
 assert.match(app, /if \(companion && !companion\.hidden\) image\.src = characterCompanionSource/);
 assert.match(app, /image\.removeAttribute\("src"\)/, "The mini-player must detach the animated asset while paused");
 assert.match(app, /if \(isPlaying\) \{[\s\S]*?image\.src = characterCompanionSource;[\s\S]*?companion\.hidden = false;[\s\S]*?image\.removeAttribute\("src"\)/,
@@ -54,7 +56,7 @@ assert.match(storage, /createObjectStore\(APP_SETTINGS, \{ keyPath: "key" \}\)/)
 assert.match(storage, /export async function getAppSetting\(key\)/);
 assert.match(storage, /export async function saveAppSetting\(key, value\)/);
 assert.match(storage, /export async function deleteAppSetting\(key\)/);
-assert.match(serviceWorker, /ritmo-shell-v83/);
+assert.match(serviceWorker, /ritmo-shell-v84/);
 assert.match(serviceWorker, /\.\/src\/character-companion\.js/);
 assert.match(prepareMobile, /src\/character-companion\.js/);
 assert.match(smoke, /const DB_VERSION = 3/);
