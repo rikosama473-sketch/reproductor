@@ -433,6 +433,10 @@ assert.match(app, /createMusicFinderController/, "The music finder controller mu
 assert.match(app, /matchesLibrarySearch\(track, state\.query\)/, "Library searches must use the shared accent-aware matcher");
 assert.match(musicFinder, /import \{ matchesLibrarySearch \} from "\.\/library-search\.js"/, "The music finder must reuse the canonical library-search module");
 assert.match(musicFinder, /\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder results must support accent-insensitive and normalized path matching");
+assert.match(musicFinder, /const matches = \(getTracks\(\) \|\| \[\]\)\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder must retain the full result count before applying the display cap");
+assert.match(musicFinder, /const tracks = matches\.slice\(0, 8\)/, "Finder rendering should stay bounded to eight local results");
+assert.match(musicFinder, /matches\.length > tracks\.length/, "Finder status must disclose when additional local matches are hidden");
+assert.match(musicFinder, /Tu biblioteca <span>\x27 \+ matches\.length/, "Finder count label must show the total, not only the displayed subset");
 assert.match(librarySearch, /function normalizeLibrarySearchText/, "Library search normalization must exist in the canonical module");
 assert.match(app, /limiter: false, limiterOptIn: false/, "Audio compression must default off");
 assert.match(app, /normalizeSavedLimiterPreference\(saved\)/, "Saved limiter state must require a recorded user choice");
