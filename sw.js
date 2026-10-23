@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v82";
+const CACHE_NAME = "ritmo-shell-v83";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -26,7 +26,7 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./assets/icon.svg",
   "./assets/ritmo-capibara.svg",
-  "./pngtuber-capibara.png"
+  "./assets/pibara-avatar.png"
 ];
 
 self.addEventListener("install", event => {
