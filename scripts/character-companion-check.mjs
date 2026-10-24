@@ -25,13 +25,14 @@ assert.throws(() => validateCompanionImageDimensions(2049, 100), /2048/i);
 assert.throws(() => validateCompanionImageDimensions(2000, 2100), /2048/i);
 assert.throws(() => validateCompanionImageDimensions(0, 10), /dimensiones/i);
 
-const [html, app, storage, serviceWorker, prepareMobile, smoke] = await Promise.all([
+const [html, app, storage, serviceWorker, prepareMobile, smoke, styles] = await Promise.all([
   readFile(new URL("../index.html", import.meta.url), "utf8"),
   readFile(new URL("../src/app.js", import.meta.url), "utf8"),
   readFile(new URL("../src/storage.js", import.meta.url), "utf8"),
   readFile(new URL("../sw.js", import.meta.url), "utf8"),
   readFile(new URL("./prepare-mobile.mjs", import.meta.url), "utf8"),
-  readFile(new URL("./smoke-check.mjs", import.meta.url), "utf8")
+  readFile(new URL("./smoke-check.mjs", import.meta.url), "utf8"),
+  readFile(new URL("../styles.css", import.meta.url), "utf8")
 ]);
 assert.match(html, /id="character-companion-image"/);
 assert.match(html, /src="\.\/assets\/pibara-avatar\.png"/, "The default companion must be Pibara");
@@ -47,6 +48,7 @@ assert.match(app, /URL\.revokeObjectURL\(oldUrl\)/);
 assert.match(app, /let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC/);
 assert.match(app, /const DEFAULT_CHARACTER_COMPANION_SRC = "\.\/assets\/pibara-avatar\.png"/, "Pibara must be the real default companion in playback and settings");
 assert.doesNotMatch(app, /ritmo-capibara\.svg/, "The invented animal must not remain the default companion");
+assert.doesNotMatch(styles, /ritmo-capibara\.svg/, "No stale styling may refer to the invented animal");
 assert.match(app, /if \(companion && !companion\.hidden\) image\.src = characterCompanionSource/);
 assert.match(app, /image\.removeAttribute\("src"\)/, "The mini-player must detach the animated asset while paused");
 assert.match(app, /if \(isPlaying\) \{[\s\S]*?image\.src = characterCompanionSource;[\s\S]*?companion\.hidden = false;[\s\S]*?image\.removeAttribute\("src"\)/,
