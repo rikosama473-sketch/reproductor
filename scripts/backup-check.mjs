@@ -81,7 +81,7 @@ await assert.rejects(() => parseRitmoBackup(JSON.stringify({
 })), /sin identificador válido/);
 await assert.rejects(() => parseRitmoBackup(JSON.stringify({
   format: RITMO_BACKUP_FORMAT, version: 1, data: {
-    tracks: [{ id: "bad-blob", kind: "file", blob: { __ritmoBackupBlobV1: true, type: "audio/mpeg", size: 1, data: "AA==" } }]
+    tracks: [{ id: "bad-blob", kind: "file", blob: { __ritmoBackupBlobV1: true, type: "audio/mpeg", size: 1, data: "A?" } }]
   }
 })), /demasiados registros|adjunto|incompleto|inválido/);
 
