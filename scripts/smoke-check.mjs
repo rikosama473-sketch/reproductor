@@ -447,8 +447,10 @@ assert.match(musicFinder, /const matches = \(getTracks\(\) \|\| \[\]\)\.filter\(
 assert.match(musicFinder, /const tracks = matches\.slice\(firstIndex, firstIndex \+ SEARCH_PAGE_SIZE\)/, "Finder rendering should stay bounded to eight local results per page");
 assert.match(musicFinder, /pageCount > 1/, "Finder must disclose and enable navigation when local matches span multiple pages");
 assert.match(musicFinder, /const SEARCH_PAGE_SIZE = 8/, "Finder pagination must stay bounded to eight visible local tracks");
-assert.match(musicFinder, /Math\.ceil\(matches\.length \/ SEARCH_PAGE_SIZE\)/, "Finder must calculate the number of result pages");
-assert.match(musicFinder, /matches\.slice\(firstIndex, firstIndex \+ SEARCH_PAGE_SIZE\)/, "Finder page changes must render only the requested slice");
+assert.match(musicFinder, /Math\.ceil\(rows\.length \/ size\)/, "Finder pagination helper must calculate page count");
+assert.match(musicFinder, /rows\.slice\(start, end\)/, "Finder pagination helper must render only the requested slice");
+assert.match(musicFinder, /paginateMusicFinderResults\(matches, searchPage, SEARCH_PAGE_SIZE\)/, "Finder UI must use the runtime-tested pagination helper");
+assert.match(musicFinder, /const tracks = pageData\.items/, "Only the active page should be rendered");
 assert.match(musicFinder, /data-music-finder-page="next"/, "Finder must expose a next page when results overflow");
 assert.match(musicFinder, /searchPage \+= pageButton\.dataset\.musicFinderPage === "next" \? 1 : -1/, "Finder page controls must be wired to navigation state");
 assert.match(css, /\.music-finder-pagination/, "Finder pagination controls must have responsive styling");
