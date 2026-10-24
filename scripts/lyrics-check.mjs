@@ -25,5 +25,5 @@ assert.equal(formatLrcTimestamp(65_678), "[01:05.67]");
 assert.deepEqual(parseLrcLyrics("[ar:X]\n[ti:No timecodes]"), []);
 assert.deepEqual(parseLrcLyrics("x".repeat(200_001)), []);
 assert.deepEqual(parseLrcLyrics(null), []);
-assert.deepEqual(parseLrcLyrics("[00:05.00]texto\n[offset:-600000]"), []);
+assert.deepEqual(parseLrcLyrics("[00:05.00]texto\n[offset:-1000]"), [{ timeMs: 4000, text: "texto" }]);
 console.log("LRC parser, timestamp offset, validation and active-line checks passed.");
