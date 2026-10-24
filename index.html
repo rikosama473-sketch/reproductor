@@ -433,7 +433,7 @@
       </div>
       <div class="timeline"><span id="current-time">0:00</span><input type="range" id="seek-bar" min="0" max="1000" value="0" aria-label="Posición de reproducción" disabled><span id="duration-time">0:00</span></div>
     </div>
-    <div class="player-extra"><button class="volume-icon volume-mute-button" id="volume-mute-button" type="button" aria-label="Silenciar" title="Silenciar / activar sonido">◖))</button><input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen"><button class="icon-button queue-button" id="queue-button" aria-label="Ver cola" title="Mostrar cola">☷</button></div>
+    <div class="player-extra"><button class="icon-button playback-speed-button" id="playback-speed-button" type="button" aria-label="Cambiar velocidad de reproducción: 1×" title="Velocidad de reproducción">1×</button><button class="icon-button" id="lyrics-edit-button" type="button" aria-label="Añadir o editar letra LRC" title="Añadir o editar letra LRC" disabled>♫</button><button class="volume-icon volume-mute-button" id="volume-mute-button" type="button" aria-label="Silenciar" title="Silenciar / activar sonido">◖))</button><input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volumen"><button class="icon-button queue-button" id="queue-button" aria-label="Ver cola" title="Mostrar cola">☷</button></div>
   </div>
 
     <dialog id="now-playing-dialog" class="app-dialog now-playing-dialog" aria-labelledby="expanded-title">
@@ -442,7 +442,7 @@
       <header class="expanded-player-header">
         <button class="icon-button" id="close-now-playing" type="button" aria-label="Cerrar reproductor expandido" title="Volver a la biblioteca">⌄</button>
         <div class="expanded-header-label"><span class="expanded-live-dot"></span><span>REPRODUCIENDO AHORA</span><small>RITMO · TU ESPACIO</small></div>
-        <button class="button button-soft expanded-queue-button" id="expanded-queue-button" type="button">☷ <span>Cola</span></button>
+        <button class="button button-soft playback-speed-button" id="expanded-playback-speed-button" type="button" aria-label="Cambiar velocidad de reproducción: 1×" title="Cambiar velocidad">1×</button><button class="button button-soft expanded-queue-button" id="expanded-queue-button" type="button">☷ <span>Cola</span></button>
       </header>
       <div class="expanded-player-content">
         <div class="expanded-cover-stage">
@@ -454,6 +454,7 @@
           <h2 id="expanded-title">Todavía no suena nada</h2>
           <div class="expanded-track-bottom"><p id="expanded-artist">Elegí una canción de tu biblioteca</p><button class="heart-button expanded-favorite" id="expanded-favorite-button" type="button" aria-label="Marcar favorito" title="Marcar favorito" disabled>♡</button></div>
           <div class="expanded-progress"><div class="expanded-timeline"><span id="expanded-current-time">0:00</span><span id="expanded-duration-time">0:00</span></div><input type="range" id="expanded-seek-bar" min="0" max="1000" value="0" aria-label="Posición de reproducción" disabled></div>
+          <section class="expanded-lyrics" id="expanded-lyrics-panel" data-has-lyrics="false" aria-label="Letra sincronizada"><div class="expanded-lyrics-caption">LETRAS SINCRONIZADAS · LRC</div><p class="expanded-lyrics-current" id="expanded-lyrics-current">Elegí una canción para ver o añadir su letra LRC.</p><p class="expanded-lyrics-next" id="expanded-lyrics-next"></p><button class="button button-soft" id="expanded-lyrics-edit" type="button" disabled>Añadir / editar LRC</button></section>
           <div class="expanded-controls">
             <button class="expanded-side-control" id="expanded-shuffle-button" type="button" aria-label="Aleatorio" title="Aleatorio">⤨</button>
             <button class="expanded-side-control" id="expanded-previous-button" type="button" aria-label="Anterior" title="Anterior">|‹</button>
@@ -614,7 +615,21 @@
     <button class="button button-primary dialog-close" id="close-settings-bottom" type="button">Listo</button>
   </dialog>
 
-    <dialog id="metadata-dialog" class="app-dialog metadata-dialog" aria-labelledby="metadata-dialog-title">
+    <dialog id="lyrics-dialog" class="app-dialog lyrics-dialog" aria-labelledby="lyrics-dialog-title">
+    <div class="dialog-top"><div class="brand-mark"><span>♫</span></div><button class="icon-button" id="lyrics-close" type="button" aria-label="Cerrar editor de letras">✕</button></div>
+    <div class="eyebrow">LETRAS DE TU BIBLIOTECA · OFFLINE</div><h2 id="lyrics-dialog-title">Letra <span>sincronizada.</span></h2>
+    <p class="dialog-muted" id="lyrics-track-label">Seleccioná una canción de la biblioteca.</p>
+    <p class="dialog-muted">Importá un archivo .lrc o escribí una línea por marca de tiempo, por ejemplo <code>[00:12.30]Primera línea</code>. Se guarda en este dispositivo y no cambia el archivo original.</p>
+    <form id="lyrics-form">
+      <textarea id="lyrics-lrc-text" class="lyrics-lrc-text" rows="12" maxlength="200000" spellcheck="false" aria-label="Texto LRC con marcas de tiempo" placeholder="[00:12.30]Primera línea&#10;[00:15.80]Segunda línea"></textarea>
+      <input id="lyrics-lrc-file" type="file" accept=".lrc,.txt,text/plain" hidden>
+      <div class="lyrics-editor-tools"><button class="button button-soft" id="lyrics-import-trigger" type="button">Importar .LRC</button><button class="button button-soft" id="lyrics-insert-timestamp" type="button">＋ Marca del momento</button><button class="button button-soft" id="lyrics-clear-text" type="button">Vaciar</button></div>
+      <p id="lyrics-editor-status" class="settings-note" role="status" aria-live="polite"></p>
+      <div class="settings-actions"><button class="button button-primary" id="lyrics-save" type="submit">Guardar letra</button><button class="button button-soft" id="lyrics-cancel" type="button">Cancelar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="metadata-dialog" class="app-dialog metadata-dialog" aria-labelledby="metadata-dialog-title">
     <div class="dialog-top"><div><div class="eyebrow">TU COLECCIÓN · METADATOS</div><h2 id="metadata-dialog-title">Editar canción.</h2></div><button class="icon-button" id="metadata-close" type="button" aria-label="Cerrar editor">✕</button></div>
     <p id="metadata-editor-note" class="dialog-muted">Los cambios se guardan solo en la biblioteca de Ritmo; el archivo original no se modifica.</p>
     <form id="track-metadata-form">
