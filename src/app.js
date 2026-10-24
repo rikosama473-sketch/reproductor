@@ -17,6 +17,7 @@ import { validateCompanionImage, validateCompanionImageDimensions } from "./char
 import { createMusicFinderController } from "./music-finder-ui.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
 import { matchesLibrarySearch } from "./library-search.js";
+import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -88,10 +89,30 @@ const state = { tracks: [], history: [], playlists: [], currentId: null, current
   nativePlayback: { active: false, isPlaying: false, currentTime: 0, duration: 0, playbackState: "idle", trackId: null, endedHandled: false } };
  
 const LIBRARY_VIEW_KEY = "ritmo.library-view.v1";
+const LIBRARY_FILTERS_KEY = "ritmo.library-filters.v1";
 let libraryMode = (() => {
   try { return localStorage.getItem(LIBRARY_VIEW_KEY) === "list" ? "list" : "grid"; }
   catch { return "grid"; }
 })();
+function readSavedLibraryFilters() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LIBRARY_FILTERS_KEY) || "{}");
+    const allowedSorts = new Set(LIBRARY_SORT_OPTIONS.map(option => option.value));
+    return {
+      artist: typeof saved.artist === "string" ? saved.artist : "",
+      album: typeof saved.album === "string" ? saved.album : "",
+      genre: typeof saved.genre === "string" ? saved.genre : "",
+      folder: typeof saved.folder === "string" ? saved.folder : "",
+      sort: allowedSorts.has(saved.sort) ? saved.sort : "added"
+    };
+  } catch {
+    return { artist: "", album: "", genre: "", folder: "", sort: "added" };
+  }
+}
+let libraryFilters = readSavedLibraryFilters();
+const selectedLibraryTrackIds = new Set();
+let metadataEditingTrackIds = [];
+let metadataTouchedFields = new Set();
 
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", finder: "Encontrar música", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
