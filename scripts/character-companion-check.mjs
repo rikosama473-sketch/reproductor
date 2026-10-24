@@ -40,7 +40,7 @@ assert.equal(companionAsset.toString("ascii", 0, 4), "RIFF", "The real character
 assert.equal(companionAsset.toString("ascii", 8, 12), "WEBP", "The character asset must use the WebP image built from the user-provided art");
 assert.match(serviceWorker, /assets\/pibara-avatar\.webp/, "The character art must be cached for offline startup");
 assert.match(prepareMobile, /assets\/pibara-avatar\.webp/, "The same character art must be packaged for Android");
-assert.match(html, /src="\.\/assets\/pibara-avatar\.png"/, "The default companion must use the user's actual character art");
+assert.match(html, /src="\.\/assets\/pibara-avatar\.webp"/, "The default companion must use the user's actual character art");
 assert.match(html, /id="character-companion-preview"/);
 assert.match(html, /id="character-companion-file"[^>]*accept="[^"]*image\/gif/);
 assert.match(html, /id="character-companion-choose"/);
@@ -51,7 +51,7 @@ assert.match(app, /getAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /deleteAppSetting\(CHARACTER_COMPANION_SETTING_KEY/);
 assert.match(app, /URL\.revokeObjectURL\(oldUrl\)/);
 assert.match(app, /let characterCompanionSource = DEFAULT_CHARACTER_COMPANION_SRC/);
-assert.match(app, /const DEFAULT_CHARACTER_COMPANION_SRC = "\.\/assets\/pibara-avatar\.png"/, "The user-provided character must be the default companion in playback and settings");
+assert.match(app, /const DEFAULT_CHARACTER_COMPANION_SRC = "\.\/assets\/pibara-avatar\.webp"/, "The user-provided character must be the default companion in playback and settings");
 assert.doesNotMatch(app, /ritmo-capibara\.svg/, "The invented animal must not remain the default companion");
 assert.doesNotMatch(styles, /ritmo-capibara\.svg/, "No stale styling may refer to the invented animal");
 assert.match(app, /if \(companion && !companion\.hidden\) image\.src = characterCompanionSource/);
