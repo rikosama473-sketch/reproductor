@@ -8,6 +8,7 @@ const musicRecognition = fs.readFileSync(new URL("../src/music-recognition.js", 
 const backup = fs.readFileSync(new URL("../src/backup.js", import.meta.url), "utf8");
 const backupUi = fs.readFileSync(new URL("../src/backup-ui.js", import.meta.url), "utf8");
 const librarySearch = fs.readFileSync(new URL("../src/library-search.js", import.meta.url), "utf8");
+const libraryFilters = fs.readFileSync(new URL("../src/library-filters.js", import.meta.url), "utf8");
 const storage = fs.readFileSync(new URL("../src/storage.js", import.meta.url), "utf8");
 const playlistEditing = fs.readFileSync(new URL("../src/playlist-editing.js", import.meta.url), "utf8");
 const audioVolume = fs.readFileSync(new URL("../src/audio-output-volume.js", import.meta.url), "utf8");
@@ -442,7 +443,10 @@ assert.ok(html.includes('id="music-recognition-start"'), "The app must expose mi
 assert.ok(html.includes('id="music-recognition-consent"'), "The app must require explicit consent before sending an audio clip");
 assert.ok(html.includes('id="music-finder-search-results"'), "Manual song search must have a results area");
 assert.match(app, /createMusicFinderController/, "The music finder controller must be wired into Ritmo");
-assert.match(app, /matchesLibrarySearch\(track, state\.query\)/, "Library searches must use the shared accent-aware matcher");
+assert.match(app, /filterAndSortLibraryTracks\(state\.tracks, \{ query: state\.query/, "Library search, facets and sort must share one canonical result pipeline");
+assert.match(libraryFilters, /matchesLibrarySearch\(track, filters\.query\)/, "Library facets must preserve accent-aware text search");
+assert.match(libraryFilters, /function getLibraryFacetOptions/, "Library facet values must be derived from real library metadata");
+assert.match(libraryFilters, /duration-asc/, "Library sorting must include duration ordering");
 assert.match(musicFinder, /import \{ matchesLibrarySearch \} from "\.\/library-search\.js"/, "The music finder must reuse the canonical library-search module");
 assert.match(musicFinder, /\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder results must support accent-insensitive and normalized path matching");
 assert.match(musicFinder, /const matches = \(getTracks\(\) \|\| \[\]\)\.filter\(track => matchesLibrarySearch\(track, query\)\)/, "Finder must retain the full result count before applying the display cap");
@@ -465,6 +469,16 @@ assert.match(app, /Para aplicarlo, activá también el ecualizador/, "The UI mus
 assert.doesNotMatch(html, /<input type="checkbox" id="limiter-toggle" checked/, "Markup must not pre-enable compression before settings sync");
 
 assert.match(sw, /src\/library-search\.js/, "The library search module must be available offline");
+assert.match(sw, /src\/library-filters\.js/, "Library facets must be available offline");
+assert.match(html, /id="library-filter-artist"/, "Library UI must expose artist filtering");
+assert.match(html, /id="library-filter-album"/, "Library UI must expose album filtering");
+assert.match(html, /id="library-filter-genre"/, "Library UI must expose genre filtering");
+assert.match(html, /id="library-filter-folder"/, "Library UI must expose folder filtering");
+assert.match(html, /id="library-sort"/, "Library UI must expose sorting");
+assert.match(html, /id="library-select-visible"/, "Library UI must expose multi-selection");
+assert.match(html, /id="metadata-dialog"/, "Library must provide a metadata editor");
+assert.match(app, /await saveManyTracks\(tracks\)/, "Bulk metadata edits must persist through a database batch");
+assert.match(app, /El archivo original no se modifica/, "Metadata edits must be explicit about not rewriting audio files");
 assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered");
 assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as multipart form data");
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
