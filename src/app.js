@@ -1712,6 +1712,144 @@ function syncCharacterCompanion(playing) {
   }
   companion.classList.toggle("is-playing", isPlaying);
 }
+function lyricsCuesForTrack(track) {
+  if (!track || typeof track !== "object") return [];
+  const source = String(track.lyricsLrc || "");
+  const cached = lyricsCueCache.get(track);
+  if (cached?.source === source) return cached.cues;
+  const cues = parseLrcLyrics(source);
+  lyricsCueCache.set(track, { source, cues });
+  return cues;
+}
+function renderLyricsForCurrentTrack(track = currentTrack()) {
+  const current = $("#expanded-lyrics-current");
+  const next = $("#expanded-lyrics-next");
+  const panel = $("#expanded-lyrics-panel");
+  const edit = $("#lyrics-edit-button");
+  const expandedEdit = $("#expanded-lyrics-edit");
+  for (const button of [edit, expandedEdit]) if (button) button.disabled = !track;
+  if (!track) {
+    if (current) current.textContent = "Elegí una canción para ver o añadir su letra LRC.";
+    if (next) next.textContent = "";
+    if (panel) panel.dataset.hasLyrics = "false";
+    return;
+  }
+  const cues = lyricsCuesForTrack(track);
+  const active = findActiveLyricIndex(cues, playbackCurrentTime());
+  const upcoming = active >= 0 ? cues[active + 1] : cues[0];
+  if (current) current.textContent = active >= 0
+    ? (cues[active]?.text || "♪")
+    : (cues.length ? "♪" : "Todavía no hay una letra sincronizada para esta canción.");
+  if (next) next.textContent = upcoming && (active < 0 || upcoming !== cues[active])
+    ? upcoming.text
+    : (cues.length ? "Fin de las líneas guardadas." : "Podés importar un archivo .lrc o escribirlo.");
+  if (panel) panel.dataset.hasLyrics = String(cues.length > 0);
+}
+async function setPlaybackRate(value) {
+  if (!currentTrack()) {
+    toast("La velocidad se puede cambiar desde la reproducción de la biblioteca.");
+    return false;
+  }
+  const rate = normalizePlaybackRate(value);
+  const previous = audioPrefs.playbackRate;
+  if (rate === previous) { updatePlayer(); return true; }
+  try {
+    if (state.nativePlayback.active) {
+      const plugin = nativePlaybackPlugin();
+      if (!plugin?.setPlaybackSpeed) throw new Error("El control de velocidad nativo no está disponible.");
+      await plugin.setPlaybackSpeed({ speed: rate });
+    }
+    audioPrefs.playbackRate = rate;
+    saveAudioPreferences();
+    for (const engine of [defaultAudio, equalizedAudio]) {
+      try { engine.defaultPlaybackRate = rate; engine.playbackRate = rate; } catch {}
+    }
+    updatePlayer();
+    updateMediaSession();
+    toast("Velocidad de reproducción: " + formatPlaybackRate(rate));
+    return true;
+  } catch (error) {
+    audioPrefs.playbackRate = previous;
+    saveAudioPreferences();
+    updatePlayer();
+    toast(error?.message || "No se pudo cambiar la velocidad.");
+    return false;
+  }
+}
+function openLyricsEditor() {
+  const track = currentTrack();
+  if (!track) { toast("Primero seleccioná una canción de la biblioteca."); return; }
+  $("#lyrics-track-label").textContent = (track.title || track.name || "Audio") + " · " + (track.artist || "Artista desconocido");
+  $("#lyrics-lrc-text").value = String(track.lyricsLrc || "");
+  $("#lyrics-editor-status").textContent = "";
+  $("#lyrics-dialog")?.showModal();
+}
+async function saveLyricsEditor(event) {
+  event.preventDefault();
+  const track = currentTrack();
+  if (!track) { $("#lyrics-editor-status").textContent = "No hay una canción seleccionada."; return; }
+  const source = String($("#lyrics-lrc-text").value || "").replace(/^\uFEFF/, "");
+  if (source.length > 200_000) {
+    $("#lyrics-editor-status").textContent = "La letra supera el límite de 200 KB.";
+    return;
+  }
+  if (source.trim() && !parseLrcLyrics(source).length) {
+    $("#lyrics-editor-status").textContent = "No encontré marcas de tiempo LRC válidas. Usá marcas como [00:12.30] antes de cada línea.";
+    return;
+  }
+  const previous = track.lyricsLrc;
+  track.lyricsLrc = source.trim() ? source : "";
+  try {
+    await saveTrack(track);
+    lyricsCueCache.delete(track);
+    $("#lyrics-dialog").close();
+    renderLyricsForCurrentTrack(track);
+    toast(track.lyricsLrc ? "Letra LRC guardada en esta biblioteca." : "Letra LRC quitada de esta canción.");
+  } catch (error) {
+    if (previous === undefined) delete track.lyricsLrc;
+    else track.lyricsLrc = previous;
+    lyricsCueCache.delete(track);
+    $("#lyrics-editor-status").textContent = error?.message || "No se pudo guardar la letra.";
+  }
+}
+function bindLyricsEvents() {
+  $("#playback-speed-button")?.addEventListener("click", () => void setPlaybackRate(nextPlaybackRate(audioPrefs.playbackRate)));
+  $("#expanded-playback-speed-button")?.addEventListener("click", () => void setPlaybackRate(nextPlaybackRate(audioPrefs.playbackRate)));
+  for (const selector of ["#lyrics-edit-button", "#expanded-lyrics-edit"]) {
+    $(selector)?.addEventListener("click", openLyricsEditor);
+  }
+  $("#lyrics-form")?.addEventListener("submit", saveLyricsEditor);
+  $("#lyrics-import-trigger")?.addEventListener("click", () => $("#lyrics-lrc-file")?.click());
+  $("#lyrics-lrc-file")?.addEventListener("change", async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 200_000) throw new Error("El archivo LRC supera el límite de 200 KB.");
+      const source = await file.text();
+      if (!parseLrcLyrics(source).length) throw new Error("El archivo no contiene marcas de tiempo LRC reconocibles.");
+      $("#lyrics-lrc-text").value = source.replace(/^\uFEFF/, "");
+      $("#lyrics-editor-status").textContent = "Archivo cargado: " + file.name + ". Guardá para asociarlo con esta canción.";
+    } catch (error) {
+      $("#lyrics-editor-status").textContent = error?.message || "No se pudo leer el archivo LRC.";
+    } finally {
+      event.target.value = "";
+    }
+  });
+  $("#lyrics-insert-timestamp")?.addEventListener("click", () => {
+    const area = $("#lyrics-lrc-text");
+    if (!area) return;
+    const timestamp = formatLrcTimestamp(playbackCurrentTime() * 1000) + " ";
+    const start = Number.isInteger(area.selectionStart) ? area.selectionStart : area.value.length;
+    const end = Number.isInteger(area.selectionEnd) ? area.selectionEnd : start;
+    area.setRangeText(timestamp, start, end, "end");
+    area.focus();
+    $("#lyrics-editor-status").textContent = "Marca insertada en " + formatTime(playbackCurrentTime()) + ".";
+  });
+  $("#lyrics-clear-text")?.addEventListener("click", () => { $("#lyrics-lrc-text").value = ""; });
+  for (const selector of ["#lyrics-cancel", "#lyrics-close"]) {
+    $(selector)?.addEventListener("click", () => $("#lyrics-dialog")?.close());
+  }
+}
 function updatePlayer() {
   const track = currentTrack();
   const youtubeSession = track ? null : youtubeHistory.getCurrentSession();
@@ -1788,7 +1926,15 @@ function updatePlayer() {
     $("#expanded-repeat-button").disabled = Boolean(spotifySession);
     $("#expanded-source-label").textContent = track ? (isLocal(track) ? "Archivo local · disponible sin conexión" : "Fuente online · requiere conexión") : youtubeSession ? "YouTube · requiere conexión" : spotifySession ? "Spotify · widget oficial; volumen dentro del reproductor" : "Listo cuando vos quieras";
   }
-  $("#volume-bar").disabled = Boolean(spotifySession);
+  for (const button of [$("#playback-speed-button"), $("#expanded-playback-speed-button")]) {
+    if (!button) continue;
+    button.textContent = formatPlaybackRate(audioPrefs.playbackRate);
+    button.title = "Velocidad de reproducción: " + formatPlaybackRate(audioPrefs.playbackRate);
+    button.setAttribute("aria-label", "Cambiar velocidad de reproducción: " + formatPlaybackRate(audioPrefs.playbackRate));
+    button.disabled = !track || Boolean(spotifySession);
+  }
+  renderLyricsForCurrentTrack(track);
+    $("#volume-bar").disabled = Boolean(spotifySession);
   $("#expanded-volume-bar").disabled = Boolean(spotifySession);
   $("#volume-mute-button").disabled = Boolean(spotifySession);
   updateMuteButton();
@@ -4028,6 +4174,7 @@ function bindEvents() {
   bindAudioConverterEvents();
   musicFinderController.bindEvents();
   bindLibraryManagementEvents();
+  bindLyricsEvents();
   $("#network-mode-toggle").addEventListener("click", () => setNetworkModeEnabled(!networkModeEnabledState));
   $("#network-enable-internet").addEventListener("click", () => setNetworkModeEnabled(true));
   document.querySelectorAll("[data-go-radio]").forEach(button => button.addEventListener("click", () => {
