@@ -483,7 +483,7 @@ assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered"
 assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as multipart form data");
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
 assert.match(sw, /src\/music-finder-ui\.js/, "The finder controller must be in the offline shell");
-assert.match(sw, /assets\/pibara-avatar\.png/, "Pibara's transparent artwork must be in the offline shell");
+assert.match(sw, /assets\/pibara-avatar\.png/, "The user's transparent character art must be in the offline shell");
 
 assert.match(sw, /src\/backup\.js/, "The backup codec must be available in the offline shell");
 assert.match(sw, /src\/backup-ui\.js/, "Backup controls must work without an external runtime");
