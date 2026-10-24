@@ -577,6 +577,19 @@
       <p class="settings-note" id="sleep-status" role="status">Temporizador desactivado.</p>
     </section>
 
+    <section class="settings-section backup-settings-section">
+      <h3>Copias de seguridad y recuperación</h3>
+      <p>Guardá o recuperá listas, historial, biblioteca, preferencias y tu personaje. El respaldo se genera localmente; no se sube a un servidor.</p>
+      <label class="settings-check"><input type="checkbox" id="backup-include-audio"><span><strong>Incluir archivos de audio locales</strong><small>Opcional. Para proteger la memoria del teléfono, la copia completa admite hasta 18 MiB de audio por archivo de respaldo. Sin esta opción se guardan metadatos, listas, historial, ajustes, carátulas permitidas y tu personaje; no la música original.</small></span></label>
+      <div class="settings-actions backup-actions">
+        <button class="button button-primary" id="backup-export" type="button">↓ Crear respaldo</button>
+        <button class="button button-soft" id="backup-import-trigger" type="button">↑ Restaurar respaldo</button>
+      </div>
+      <input id="backup-file" type="file" accept=".json,application/json" hidden>
+      <p class="settings-note">La restauración combina los datos por identificador, no borra registros existentes y conserva el audio local si ya está en este dispositivo. Las referencias a audio ausente quedan marcadas para reimportar el original. Las claves API y tokens se excluyen del respaldo y deben volver a configurarse manualmente.</p>
+      <p id="backup-status" class="settings-note backup-status" role="status" aria-live="polite">Todavía no se creó ni restauró una copia.</p>
+    </section>
+
     <section class="settings-section">
       <h3>Permisos y diagnóstico</h3>
       <p class="settings-note">Ritmo no necesita micrófono, contactos ni ubicación para reproducir música. El almacenamiento persistente depende de la decisión del navegador.</p>
@@ -628,6 +641,7 @@
   </script>
   <script type="module" src="./src/ui-sounds.js"></script>
   <script type="module" src="./src/voice-studio.js"></script>
+  <script type="module" src="./src/backup-ui.js"></script>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
