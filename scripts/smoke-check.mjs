@@ -478,7 +478,7 @@ assert.match(html, /id="library-sort"/, "Library UI must expose sorting");
 assert.match(html, /id="library-select-visible"/, "Library UI must expose multi-selection");
 assert.match(html, /id="metadata-dialog"/, "Library must provide a metadata editor");
 assert.match(app, /await saveManyTracks\(tracks\)/, "Bulk metadata edits must persist through a database batch");
-assert.match(app, /El archivo original no se modifica/, "Metadata edits must be explicit about not rewriting audio files");
+assert.match(app, /archivo original no se modifica/, "Metadata edits must be explicit about not rewriting audio files");
 assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered");
 assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as multipart form data");
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
