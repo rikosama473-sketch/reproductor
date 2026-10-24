@@ -18,6 +18,8 @@ import { createMusicFinderController } from "./music-finder-ui.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
 import { matchesLibrarySearch } from "./library-search.js";
 import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
+import { parseLrcLyrics, findActiveLyricIndex, formatLrcTimestamp } from "./lyrics.js";
+import { PLAYBACK_RATES, normalizePlaybackRate, nextPlaybackRate, formatPlaybackRate } from "./playback-rate.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -55,7 +57,7 @@ let networkModeEnabledState = readNetworkModeEnabled();
 let archiveSearchRequestId = 0;
 let serviceWorkerStatus = "No comprobado";
 const AUDIO_PREFS_KEY = "ritmo.audio-preferences.v1";
-const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: false, limiterOptIn: false, userEqProfiles: [], keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8 };
+const DEFAULT_AUDIO_PREFS = { equalizerEnabled: false, eqPreset: "custom", bass: 0, mid: 0, treble: 0, limiter: false, limiterOptIn: false, userEqProfiles: [], keepScreenAwake: false, fadeOutAtEnd: true, volume: 0.8, lastAudibleVolume: 0.8, playbackRate: 1 };
 function loadAudioPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || "null");
@@ -78,11 +80,15 @@ function loadAudioPreferences() {
       keepScreenAwake: saved?.keepScreenAwake === true,
       fadeOutAtEnd: saved?.fadeOutAtEnd !== false,
       volume: normalizeSavedAudioLevel(saved?.volume, DEFAULT_AUDIO_PREFS.volume),
-      lastAudibleVolume: normalizeSavedAudioLevel(saved?.lastAudibleVolume, DEFAULT_AUDIO_PREFS.lastAudibleVolume, 0.01)
+      lastAudibleVolume: normalizeSavedAudioLevel(saved?.lastAudibleVolume, DEFAULT_AUDIO_PREFS.lastAudibleVolume, 0.01),
+      playbackRate: normalizePlaybackRate(saved?.playbackRate)
     };
   } catch { return { ...DEFAULT_AUDIO_PREFS }; }
 }
 const audioPrefs = loadAudioPreferences();
+const lyricsCueCache = new WeakMap();
+for (const engine of [defaultAudio, equalizedAudio]) {
+  try { engine.defaultPlaybackRate = audioPrefs.playbackRate; engine.playbackRate = audioPrefs.playbackRate; } catch {}}
 const filePicker = $("#file-picker");
 const folderPicker = $("#folder-picker");
 const state = { tracks: [], history: [], playlists: [], currentId: null, currentPlaylistId: null, queueIds: null, view: "home", shuffle: false, repeat: "off", query: "", objectUrls: new Map(), installPrompt: null, toastTimer: null, sleepTimer: null, sleepEndsAt: null, sleepFadeTimer: null, youtubeResults: [], youtubeNextPageToken: null, youtubeQuery: "", archiveQuery: "", archiveOffset: 0, archiveTotal: 0, archiveResults: [], archiveFileCache: new Map(), mediaSessionTrackId: null, mediaSessionArtworkUrl: "", nativeMusicPlugin: null, nativePlayerPlugin: null,
@@ -318,7 +324,7 @@ function nativePlaybackPlugin() {
     const invoke = method => options => bridge.nativePromise("RitmoPlayback", method, options || {});
     state.nativePlayerPlugin = {
       play: invoke("play"), pause: invoke("pause"), resume: invoke("resume"),
-      seekTo: invoke("seekTo"), setVolume: invoke("setVolume"),
+      seekTo: invoke("seekTo"), setVolume: invoke("setVolume"), setPlaybackSpeed: invoke("setPlaybackSpeed"),
       setEqualizer: invoke("setEqualizer"),
       openExternal: invoke("openExternal"),
       getState: invoke("getState"), stop: invoke("stop")
@@ -2360,7 +2366,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
         await nativePlayer.play({
           uri: nativeUri || "", path: nativeUri ? "" : track.nativePath, title: track.title || track.name || "Audio sin título",
           artist: track.artist || "Artista desconocido", album: track.album || "Ritmo",
-          autoplay: Boolean(autoplay),
+          autoplay: Boolean(autoplay), speed: audioPrefs.playbackRate,
           positionMs: Math.max(0, Math.round((Number(options.resumeAt) || 0) * 1000)),
           volume: Math.max(0, Math.min(1, Number($("#volume-bar").value) || 0)),
           ...nativeEqualizerPayload()
@@ -2438,6 +2444,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
       }
       setOutputVolume(Number($("#volume-bar").value));
       const url = trackURL(track);
+      try { audio.defaultPlaybackRate = audioPrefs.playbackRate; audio.playbackRate = audioPrefs.playbackRate; } catch {}
       const resolvedURL = new URL(url, location.href).href;
       if (audio.src !== resolvedURL || options.forceReload) {
         audio.src = url;
