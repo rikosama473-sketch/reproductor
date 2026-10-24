@@ -726,3 +726,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media(max-width:680px){.playlist-detail-heading{grid-template-columns:1fr auto;gap:9px}.playlist-detail-heading #playlist-back-button{grid-column:1/-1;justify-self:start}.playlist-detail-heading>div{grid-column:1/-1}.playlist-detail-heading .button{min-height:34px}.playlist-card-actions{gap:3px}.playlist-card-actions .button{padding-inline:8px}}
 .music-finder-network-locked .music-source-link{opacity:.42;filter:grayscale(.7);cursor:not-allowed}
 .music-finder-network-locked .music-external-searches>p{color:#c2b0dc}
+
+.backup-actions{display:flex;gap:8px;flex-wrap:wrap}
+.backup-settings-section .settings-check{margin:14px 0}
+.backup-settings-section .backup-status{border:1px solid #3a302b;border-radius:10px;padding:11px 12px;background:#221c19;color:#d8cac3;overflow-wrap:anywhere}
+.backup-settings-section .backup-status[data-state="success"]{border-color:#436a50;color:#c3f2cf}
+.backup-settings-section .backup-status[data-state="error"]{border-color:#864c4c;color:#ffc5c5}
+@media(max-width:520px){.backup-actions{display:grid;grid-template-columns:1fr}.backup-actions .button{width:100%}}

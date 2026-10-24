@@ -41,7 +41,7 @@ assert.match(nativePlugin, /listAudioFromTree/, "Native plugin must recursively 
 assert.match(sw, /ritmo-shell-v\d+/, "Mobile bundle should use its independent refreshed offline shell");
 assert.match(sw, /capacitor\.js/, "Offline mobile shell must precache the Capacitor runtime");
 assert.match(sw, /\.\/src\/external-navigation\.js/, "The safe media-link validator must be available offline");
-for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "src/playlist-editing.js", "src/vorbis-comments.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/library-search.js", "src/external-navigation.js", "src/import-fingerprint.js", "src/id3-tags.js", "src/audio-converter.js", "src/playback-position.js", "src/audio-preferences.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "assets/pibara-avatar.png"]) {
+for (const name of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js", "src/app.js", "src/storage.js", "src/playlist-editing.js", "src/vorbis-comments.js", "src/async-generation-gate.js", "src/online-services.js", "src/character-companion.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/backup.js", "src/backup-ui.js", "src/library-search.js", "src/external-navigation.js", "src/import-fingerprint.js", "src/id3-tags.js", "src/audio-converter.js", "src/playback-position.js", "src/audio-preferences.js", "src/ui-sounds.js", "src/voice-studio.js", "assets/icon.svg", "assets/pibara-avatar.png"]) {
   const info = await stat(path.join(webDir, name)).catch(() => null);
   assert.ok(info?.isFile(), "Missing mobile asset: " + name);
 }

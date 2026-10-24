@@ -5,6 +5,8 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const musicFinder = fs.readFileSync(new URL("../src/music-finder-ui.js", import.meta.url), "utf8");
 const musicRecognition = fs.readFileSync(new URL("../src/music-recognition.js", import.meta.url), "utf8");
+const backup = fs.readFileSync(new URL("../src/backup.js", import.meta.url), "utf8");
+const backupUi = fs.readFileSync(new URL("../src/backup-ui.js", import.meta.url), "utf8");
 const librarySearch = fs.readFileSync(new URL("../src/library-search.js", import.meta.url), "utf8");
 const storage = fs.readFileSync(new URL("../src/storage.js", import.meta.url), "utf8");
 const playlistEditing = fs.readFileSync(new URL("../src/playlist-editing.js", import.meta.url), "utf8");
@@ -468,6 +470,20 @@ assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
 assert.match(sw, /src\/music-finder-ui\.js/, "The finder controller must be in the offline shell");
 assert.match(sw, /assets\/pibara-avatar\.png/, "Pibara's transparent artwork must be in the offline shell");
+
+assert.match(sw, /src\/backup\.js/, "The backup codec must be available in the offline shell");
+assert.match(sw, /src\/backup-ui\.js/, "Backup controls must work without an external runtime");
+assert.match(html, /id="backup-export"/, "Settings must expose local backup export");
+assert.match(html, /id="backup-import-trigger"/, "Settings must expose safe backup restoration");
+assert.match(html, /id="backup-include-audio"/, "Audio bytes must be opt-in for backup export");
+assert.match(html, /Las claves API y tokens se excluyen/, "Backup UI must disclose credential exclusion");
+assert.match(backup, /MAX_BACKUP_AUDIO_BYTES/, "Optional audio backup must have a size bound");
+assert.match(backup, /nativePath|nativeUri/, "Portable backups must redact device-specific paths");
+assert.match(backup, /SENSITIVE_KEY/, "Backup creation must filter tokens and API keys");
+assert.match(backupUi, /mergeBackupRecords/, "Restore must use the safe database merge path");
+assert.match(storage, /getAllAppSettings/, "The user's saved character/settings must be included in backups");
+assert.match(storage, /audioMissingInBackup/, "Metadata-only restores must preserve audio already on this device");
+
 
 const vorbisMetadataApp = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const vorbisMetadataSource = fs.readFileSync(new URL("../src/vorbis-comments.js", import.meta.url), "utf8");
