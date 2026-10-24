@@ -687,7 +687,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .character-companion{border-color:#d6ac764d!important;background:radial-gradient(circle at 35% 25%,#ffe5bc,#c9915b 76%)!important;box-shadow:0 9px 26px #a16e382e,inset 0 1px #fff1d0!important}
 .character-companion img{filter:drop-shadow(0 3px 5px #5d392e35)}
 .companion-settings-image{background:linear-gradient(140deg,#f3d7ae,#c99566)!important}
-.companion-settings-image img[src$="ritmo-capibara.svg"]{padding:3px;filter:drop-shadow(0 2px 3px #5e382a24)}
 @media(max-width:760px){
   .finder-page-intro{align-items:flex-start}
   .finder-mascot-shell{flex-basis:86px;width:86px;height:86px;border-radius:20px}
