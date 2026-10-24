@@ -232,6 +232,96 @@ export async function getPlaylists() { return getAllFromStore(PLAYLISTS, "update
 export async function savePlaylist(playlist) { return storeTransaction(PLAYLISTS, "readwrite", store => store.put(playlist)); }
 export async function deletePlaylist(playlistId) { return storeTransaction(PLAYLISTS, "readwrite", store => store.delete(playlistId)); }
 
+export async function getAllAppSettings() {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction(APP_SETTINGS, "readonly");
+      const request = tx.objectStore(APP_SETTINGS).getAll();
+      request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+      request.onerror = () => reject(request.error || new Error("No se pudieron leer los ajustes guardados."));
+      tx.onerror = () => reject(tx.error || new Error("No se pudieron leer los ajustes guardados."));
+      tx.onabort = () => reject(tx.error || new Error("Se canceló la lectura de los ajustes."));
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Merge a validated backup in one IndexedDB transaction. A metadata-only
+// backup must never replace an audio Blob already present on this device.
+export async function mergeBackupRecords({ tracks = [], history = [], playlists = [], settings = [] } = {}) {
+  if (![tracks, history, playlists, settings].every(Array.isArray)) {
+    throw new TypeError("El respaldo tiene colecciones inválidas.");
+  }
+  if (tracks.length > 25000 || history.length > 5000 || playlists.length > 5000 || settings.length > 500) {
+    throw new RangeError("El respaldo supera el límite de registros permitido.");
+  }
+  const db = await openDatabase();
+  const stores = [TRACKS, HISTORY, PLAYLISTS, APP_SETTINGS];
+  return new Promise((resolve, reject) => {
+    let tx;
+    let finished = false;
+    const result = { tracks: tracks.length, history: history.length, playlists: playlists.length, settings: settings.length };
+    const fail = error => {
+      if (finished) return;
+      finished = true;
+      reject(error || new Error("No se pudo importar el respaldo."));
+    };
+    try {
+      tx = db.transaction(stores, "readwrite");
+      tx.oncomplete = () => {
+        if (finished) return;
+        finished = true;
+        resolve(result);
+      };
+      tx.onerror = () => fail(tx.error || new Error("No se pudo importar el respaldo."));
+      tx.onabort = () => fail(tx.error || new Error("Se canceló la importación del respaldo."));
+      const tracksStore = tx.objectStore(TRACKS);
+      for (const track of tracks) {
+        if (!track || (typeof track.id !== "string" && typeof track.id !== "number")) {
+          throw new TypeError("Una pista del respaldo no tiene identificador válido.");
+        }
+        if (track.audioMissingInBackup === true) {
+          const request = tracksStore.get(track.id);
+          request.onsuccess = () => {
+            const existing = request.result;
+            const existingAudio = existing && (
+              existing.blob instanceof Blob ||
+              (typeof existing.nativePath === "string" && existing.nativePath) ||
+              (typeof existing.nativeUri === "string" && existing.nativeUri)
+            );
+            const merged = existingAudio ? {
+              ...track,
+              ...(existing.blob instanceof Blob ? { blob: existing.blob } : {}),
+              ...(existing.artworkBlob instanceof Blob && !(track.artworkBlob instanceof Blob)
+                ? { artworkBlob: existing.artworkBlob } : {}),
+              ...(existing.nativePath ? { nativePath: existing.nativePath } : {}),
+              ...(existing.nativeUri ? { nativeUri: existing.nativeUri } : {}),
+              audioMissingInBackup: false
+            } : track;
+            tracksStore.put(merged);
+          };
+          request.onerror = () => {
+            try { tx.abort(); } catch {}
+          };
+        } else {
+          tracksStore.put(track);
+        }
+      }
+      const historyStore = tx.objectStore(HISTORY);
+      for (const entry of history) historyStore.put(entry);
+      const playlistsStore = tx.objectStore(PLAYLISTS);
+      for (const playlist of playlists) playlistsStore.put(playlist);
+      const settingsStore = tx.objectStore(APP_SETTINGS);
+      for (const setting of settings) settingsStore.put(setting);
+    } catch (error) {
+      try { tx?.abort(); } catch {}
+      fail(error);
+    }
+  });
+}
+
 export async function getAppSetting(key) {
   const settingKey = String(key ?? "").trim();
   if (!settingKey) throw new TypeError("La clave de configuración no puede estar vacía.");
