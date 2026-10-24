@@ -36,8 +36,8 @@ const missingIds = [...usedIds].filter(id => !ids.has(id));
 assert.deepEqual(missingIds, [], "App selectors refer to IDs missing from index.html");
 assert.match(html, /<audio id="audio-engine"/, "HTML must include the audio engine");
 assert.match(html, /id="character-companion"/, "The player's animated character companion must exist");
-assert.match(html, /src="\.\/assets\/pibara-avatar\.png"/, "The default companion must use Pibara's bundled character art");
-assert.match(app, /const DEFAULT_CHARACTER_COMPANION_SRC = "\.\/assets\/pibara-avatar\.png"/, "Playback must use the same Pibara art as the UI");
+assert.match(html, /src="\.\/assets\/pibara-avatar\.webp"/, "The default companion must use Pibara's bundled character art");
+assert.match(app, /const DEFAULT_CHARACTER_COMPANION_SRC = "\.\/assets\/pibara-avatar\.webp"/, "Playback must use the same Pibara art as the UI");
 assert.doesNotMatch(app, /ritmo-capibara\.svg/, "No invented animal should be loaded as the default character");
 assert.match(app, /function syncCharacterCompanion\(playing\)/, "Companion visibility must be synchronized by playback state");
 assert.match(app, /syncCharacterCompanion\(hasMedia && !playbackIsPaused\(\)\)/, "The companion must appear only while media is playing");
@@ -483,7 +483,7 @@ assert.match(musicFinder, /getUserMedia/, "Mic recording must be user-triggered"
 assert.match(musicFinder, /new FormData\(/, "The recorded clip must be posted as multipart form data");
 assert.match(musicRecognition, /normalizeMusicRecognitionResult/, "Recognition metadata must be normalized before rendering");
 assert.match(sw, /src\/music-finder-ui\.js/, "The finder controller must be in the offline shell");
-assert.match(sw, /assets\/pibara-avatar\.png/, "Pibara's transparent artwork must be in the offline shell");
+assert.match(sw, /assets\/pibara-avatar\.webp/, "The user's transparent character art must be in the offline shell");
 
 assert.match(sw, /src\/backup\.js/, "The backup codec must be available in the offline shell");
 assert.match(sw, /src\/backup-ui\.js/, "Backup controls must work without an external runtime");

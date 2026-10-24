@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v94";
+const CACHE_NAME = "ritmo-shell-v95";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,7 +31,7 @@ const APP_SHELL = [
   "./src/voice-studio.js",
   "./manifest.webmanifest",
   "./assets/icon.svg",
-  "./assets/pibara-avatar.png"
+  "./assets/pibara-avatar.webp"
 ];
 
 self.addEventListener("install", event => {

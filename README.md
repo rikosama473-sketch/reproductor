@@ -190,4 +190,4 @@ Si hay coincidencia, Ritmo muestra el título y artista informados por el servic
 
 ## Mascota en tonos caramelo
 
-El acompañante predeterminado usa `assets/pibara-avatar.png`: la imagen PNG del personaje original Pibara, con su diseño propio y paleta cálida. No se reemplaza por una mascota genérica. Se incluye en los shells offline de PC y Android y se usa tanto en el mini reproductor como en la previsualización de ajustes. Sigue disponible el control para elegir otra imagen o GIF; la elección personal se guarda en el dispositivo.
+El acompañante predeterminado usa `assets/pibara-avatar.webp`: el recorte WebP transparente del personaje original Pibara, con su diseño propio y paleta cálida. No se reemplaza por una mascota genérica. Se incluye en los shells offline de PC y Android y se usa tanto en el mini reproductor como en la previsualización de ajustes. Sigue disponible el control para elegir otra imagen o GIF; la elección personal se guarda en el dispositivo.
