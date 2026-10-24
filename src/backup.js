@@ -1,6 +1,6 @@
 export const RITMO_BACKUP_FORMAT = "ritmo-library-backup";
 export const RITMO_BACKUP_VERSION = 1;
-export const MAX_BACKUP_FILE_CHARS = 40 * 1024 * 1024;
+export const MAX_BACKUP_FILE_BYTES = 40 * 1024 * 1024;
 export const MAX_BACKUP_AUDIO_BYTES = 18 * 1024 * 1024;
 export const MAX_BACKUP_AUXILIARY_BYTES = 10 * 1024 * 1024;
 export const MAX_BACKUP_TRACKS = 25000;
@@ -42,7 +42,7 @@ function bytesToBase64(bytes) {
 }
 
 function base64ToBytes(value) {
-  if (typeof value !== "string" || value.length > Math.ceil(MAX_BACKUP_FILE_CHARS / 4) * 4 ||
+  if (typeof value !== "string" || value.length > Math.ceil(MAX_BACKUP_FILE_BYTES / 4) * 4 ||
       !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
     throw new Error("La copia contiene un archivo adjunto inválido.");
   }
@@ -177,11 +177,12 @@ export async function createRitmoBackup({
   if (settings.length > MAX_BACKUP_SETTINGS) throw new Error("Hay demasiados ajustes guardados para una sola copia.");
   const safeSettings = asArray(settings).filter(item => typeof item?.key === "string" && !SENSITIVE_KEY.test(item.key));
   const budget = { audioBytes: 0, auxiliaryBytes: 0, omittedArtwork: 0 };
+  // Encode settings first so Pibara's custom image is reserved before optional artwork.
   const source = {
+    settings: safeSettings,
     tracks: asArray(tracks).map(track => safeTrackForBackup(track, includeAudio)),
     history: asArray(history).slice(0, MAX_BACKUP_HISTORY),
     playlists: asArray(playlists),
-    settings: safeSettings,
     preferences: safePreferenceEntries(preferences)
   };
   const encoded = await encodeValue(source, [], budget, Boolean(includeAudio));
@@ -209,7 +210,8 @@ export async function createRitmoBackup({
     data: encoded
   };
   const json = JSON.stringify(document);
-  if (json.length > MAX_BACKUP_FILE_CHARS) {
+  const outputBytes = new Blob([json]).size;
+  if (outputBytes > MAX_BACKUP_FILE_BYTES) {
     throw new Error("El archivo de respaldo superaría 40 MiB. Exportá sin incluir audio para generar una copia más liviana.");
   }
   const day = document.createdAt.slice(0, 10);
@@ -221,14 +223,14 @@ export async function createRitmoBackup({
       includesAudio: document.includesAudio,
       audioBytes: budget.audioBytes,
       auxiliaryBytes: budget.auxiliaryBytes,
-      bytes: new Blob([json]).size
+      bytes: outputBytes
     }
   };
 }
 
 export async function parseRitmoBackup(json) {
   if (typeof json !== "string" || !json.trim()) throw new Error("El archivo de respaldo está vacío.");
-  if (json.length > MAX_BACKUP_FILE_CHARS) throw new Error("El archivo de respaldo supera 40 MiB y fue rechazado antes de importarse.");
+  if (json.length > MAX_BACKUP_FILE_BYTES) throw new Error("El archivo de respaldo supera 40 MiB y fue rechazado antes de importarse.");
   let document;
   try { document = JSON.parse(json); }
   catch { throw new Error("El archivo no contiene JSON válido. No se modificó la biblioteca."); }
