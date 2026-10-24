@@ -278,9 +278,9 @@ assert.match(app, /catch \(error\) \{\s*track\.favorite = previousFavorite;\s*re
 assert.match(app, /list\.trackIds = previousTrackIds;\s*list\.updatedAt = previousUpdatedAt;\s*renderPlaylists\(\);/, "Failed playlist writes must restore both membership and modification timestamp");
 assert.match(app, /const currentVolume = Number\(\$\("#volume-bar"\)\.value\);\s*const fadedVolume = currentVolume \* Math\.max\(0, 1 - step \/ steps\)/, "The sleep fade must use the current slider value instead of a stale volume captured when the timer started");
 assert.match(app, /const restoredVolume = Number\(\$\("#volume-bar"\)\.value\);\s*setOutputVolume\(restoredVolume\);/, "Sleep-timer completion must restore any volume change made while it was running through both output engines");
-assert.match(app, /const visibleLibraryTracks = sortedForView\("library"\);/, "Library rendering should reuse the filtered track list when deciding empty-state visibility");
+assert.match(app, /const visible = sortedForView\("library"\);/, "Library rendering should reuse the filtered track list when deciding empty-state visibility");
 assert.match(app, /library-no-results/, "The app should show a distinct empty state when the library search has no matches");
-assert.match(app, /visibleLibraryTracks\.length === 0/, "No-match state should only appear when a non-empty library query has zero results");
+assert.match(app, /hasActiveLibraryFilters\(\{ query: state\.query, \.\.\.libraryFilters \}\) && visible\.length === 0/, "No-match state should reflect the full set of active filters");
 console.log("Third-pass regressions passed: failed-storage rollback, live sleep-timer volume, and empty library search state.");
 
 assert.match(app, /let playbackRequestId = 0;[\s\S]*let youtubeSearchRequestId = 0;[\s\S]*let archiveSearchRequestId = 0;/, "Async playback and both online searches must track the latest request");
