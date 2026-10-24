@@ -761,3 +761,22 @@ button.track-index:hover{color:#f2c4a7}
 .metadata-dialog .settings-actions{margin-top:17px}
 @media(max-width:900px){.library-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.library-filters{gap:9px;padding:11px}.library-filters select{min-height:38px;font-size:10px}.library-selection-tools{align-items:stretch}.library-selection-tools .button{flex:1}.library-selection-tools #library-selection-status{width:100%;margin-left:0}.metadata-fields{grid-template-columns:1fr}.metadata-fields label,#metadata-title-row{grid-column:auto}}
+
+/* Playback speed and local LRC lyrics */
+.playback-speed-button{font-size:11px;font-weight:800;min-width:42px;padding-inline:8px;font-variant-numeric:tabular-nums}
+.player-extra #lyrics-edit-button{font-size:14px;min-width:32px}
+.expanded-player-header .playback-speed-button{min-width:46px;padding-inline:10px}
+.expanded-lyrics{width:100%;max-width:480px;margin:13px auto 5px;padding:13px 15px;border:1px solid #443543;border-radius:13px;background:linear-gradient(140deg,#1e1925,#211e25);text-align:left}
+.expanded-lyrics-caption{font-size:9px;font-weight:800;letter-spacing:1.15px;color:#bd9bbd}
+.expanded-lyrics-current{margin:10px 0 5px;font-size:clamp(14px,1.5vw,18px);line-height:1.5;font-weight:700;color:#fff2eb}
+.expanded-lyrics-next{margin:0 0 9px;min-height:1.4em;font-size:11px;line-height:1.5;color:#a99eae}
+.expanded-lyrics[data-has-lyrics="false"] .expanded-lyrics-current{font-size:12px;font-weight:500;color:#c8bacb}
+.expanded-lyrics .button{padding:7px 11px;font-size:10px}
+.lyrics-dialog{width:min(660px,calc(100% - 24px));max-height:min(90dvh,820px);overflow:auto}
+.lyrics-dialog .dialog-muted{line-height:1.5}
+.lyrics-lrc-text{display:block;width:100%;min-height:245px;resize:vertical;padding:12px;border:1px solid #4b4052;border-radius:10px;background:#15141a;color:#f7f0ed;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2}
+.lyrics-lrc-text:focus-visible{outline:2px solid #bc92c6;outline-offset:2px}
+.lyrics-editor-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.lyrics-editor-tools .button{padding:8px 11px;font-size:10px}
+#lyrics-editor-status:empty{display:none}
+@media(max-width:680px){.expanded-lyrics{margin-top:10px;padding:11px}.lyrics-editor-tools .button{flex:1}.lyrics-lrc-text{min-height:210px}.player-extra .playback-speed-button{min-width:38px;padding:0 6px}}
