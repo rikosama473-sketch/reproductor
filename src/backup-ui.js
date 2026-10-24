@@ -1,7 +1,7 @@
 import {
   createRitmoBackup,
   parseRitmoBackup,
-  MAX_BACKUP_FILE_CHARS
+  MAX_BACKUP_FILE_BYTES
 } from "./backup.js";
 import {
   getAllTracks,
@@ -122,7 +122,7 @@ async function importBackup(file) {
   setBusy(true);
   setStatus("Validando el respaldo. La biblioteca actual no se va a borrar…");
   try {
-    if (file.size > MAX_BACKUP_FILE_CHARS) {
+    if (file.size > MAX_BACKUP_FILE_BYTES) {
       throw new Error("El archivo supera 40 MiB. Elegí un respaldo más pequeño.");
     }
     if (file.size === 0) throw new Error("El archivo está vacío.");
