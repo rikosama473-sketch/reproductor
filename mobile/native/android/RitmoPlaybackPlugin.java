@@ -10,6 +10,7 @@ import android.os.Looper;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 
 import java.io.File;
@@ -117,12 +118,14 @@ public class RitmoPlaybackPlugin extends Plugin {
         String album = call.getString("album");
         Long requestedPosition = call.getLong("positionMs");
         Boolean requestedAutoplay = call.getBoolean("autoplay");
+        Double requestedSpeed = call.getDouble("speed");
         Double requestedVolume = call.getDouble("volume");
         Boolean requestedEqualizer = call.getBoolean("equalizerEnabled");
         Integer requestedBass = call.getInt("bass");
         Integer requestedMid = call.getInt("mid");
         Integer requestedTreble = call.getInt("treble");
         long positionMs = Math.max(0L, requestedPosition == null ? 0L : requestedPosition);
+        float playbackSpeed = (float)Math.max(0.5d, Math.min(2d, requestedSpeed == null ? 1d : requestedSpeed.doubleValue()));
         boolean autoplay = requestedAutoplay == null || requestedAutoplay;
         boolean equalizerEnabled = requestedEqualizer != null && requestedEqualizer;
         int bass = clampEq(requestedBass == null ? 0 : requestedBass);
@@ -141,6 +144,7 @@ public class RitmoPlaybackPlugin extends Plugin {
         withController(call, controller -> {
             RitmoPlaybackService.configureEqualizer(equalizerEnabled, bass, mid, treble);
             if (requestedVolume != null) controller.setVolume((float)Math.max(0d, Math.min(1d, requestedVolume.doubleValue())));
+            controller.setPlaybackParameters(new PlaybackParameters(playbackSpeed));
             controller.setMediaItem(item, positionMs);
             controller.prepare();
             if (autoplay) controller.play();
@@ -187,6 +191,16 @@ public class RitmoPlaybackPlugin extends Plugin {
         Long position = call.getLong("positionMs");
         long target = Math.max(0L, position == null ? 0L : position);
         withController(call, controller -> { controller.seekTo(target); call.resolve(playerState(controller)); });
+    }
+
+    @PluginMethod
+    public void setPlaybackSpeed(PluginCall call) {
+        Double requestedSpeed = call.getDouble("speed");
+        float speed = (float)Math.max(0.5d, Math.min(2d, requestedSpeed == null ? 1d : requestedSpeed.doubleValue()));
+        withController(call, controller -> {
+            controller.setPlaybackParameters(new PlaybackParameters(speed));
+            call.resolve(playerState(controller));
+        });
     }
 
     @PluginMethod
