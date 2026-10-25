@@ -2252,6 +2252,11 @@ async function runAudioConversion() {
     renderConverterSelection();
     return;
   }
+  // Starting another batch revokes the prior result URLs. Confirm first so
+  // users don't accidentally lose converted WAVs they haven't downloaded yet.
+  if (converterOutputUrls.length && !window.confirm(
+    "Iniciar otra tanda quitará del conversor los WAV de la tanda anterior y sus vistas previas. Descargá los archivos que quieras conservar. ¿Continuar?"
+  )) return;
   clearConverterOutputUrls();
   $("#converter-results").replaceChildren();
   converterRunning = true;

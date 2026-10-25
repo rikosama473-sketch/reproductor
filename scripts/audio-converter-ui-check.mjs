@@ -50,6 +50,14 @@ assert.match(app, /return \{ saved, bytesSaved, skippedByIdentity, skippedByCont
 assert.match(app, /options\.navigateToLibrary !== false/, "Normal imports must retain navigation while converter imports stay on the converter page.");
 assert.match(app, /Agregar a biblioteca/, "Each verified WAV result must expose the library action.");
 assert.match(app, /converterLibraryImportInProgress/, "Converted outputs must not race concurrent library-save attempts.");
+const runConverterStart = app.indexOf("async function runAudioConversion()");
+const existingOutputGuard = app.indexOf("if (converterOutputUrls.length && !window.confirm(", runConverterStart);
+const outputCleanup = app.indexOf("clearConverterOutputUrls();", runConverterStart);
+assert.ok(runConverterStart >= 0 && existingOutputGuard > runConverterStart && outputCleanup > existingOutputGuard,
+  "A new conversion batch must ask before revoking existing result URLs.");
+assert.match(app, /if \(converterOutputUrls\.length && !window\.confirm\([\s\S]*?\)\) return;/,
+  "Cancelling the discard confirmation must leave existing converted outputs untouched.");
+
 assert.match(app, /appendConverterResult\(file\.name,[\s\S]*?result\.blob, "success", file\)/, "The successful conversion result must retain a reference to its original source file for on-demand metadata extraction.");
 assert.match(app, /async function addConvertedWavToLibrary\(blob, filename, button, description, detail, sourceFile = null\)/, "Library save should accept the source whose tags and artwork may be copied to track metadata.");
 assert.match(app, /sourceMetadata = await readAudioMetadata\(sourceFile\)/, "Saving converted WAV should attempt to read source metadata only on explicit user action.");
