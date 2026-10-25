@@ -230,6 +230,17 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         call.resolve(response);
     }
 
+    private static String safeMimeType(ContentResolver resolver, Uri uri, String filename) {
+        String mime = null;
+        try {
+            mime = resolver.getType(uri);
+        } catch (Exception ignored) {
+            // Some document providers throw while describing a readable URI.
+            // Keep the import alive and infer a useful type from the filename.
+        }
+        return mime == null || mime.trim().isEmpty() ? guessMimeType(filename) : mime;
+    }
+
     private JSObject describePickedUri(Uri uri, ContentResolver resolver) {
         String name = uri.getLastPathSegment() == null ? "audio" : uri.getLastPathSegment();
         long size = 0;
@@ -241,7 +252,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                 if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) size = cursor.getLong(sizeColumn);
             }
         } catch (Exception ignored) {}
-        String mime = resolver.getType(uri);
+        String mime = safeMimeType(resolver, uri, name);
         JSObject file = new JSObject();
         file.put("id", uri.toString());
         file.put("uri", uri.toString());
@@ -251,7 +262,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         file.put("album", "");
         file.put("duration", 0);
         file.put("size", size);
-        file.put("mimeType", mime == null ? guessMimeType(name) : mime);
+        file.put("mimeType", mime);
         file.put("lastModified", System.currentTimeMillis());
         return file;
     }

@@ -47,6 +47,8 @@ assert.match(java, /synchronized \(RitmoMusicLibraryPlugin\.this\)/, "Cache prun
 
 assert.match(java, /MessageDigest\.getInstance\("SHA-256"\)/, "La clave de caché de URI debe evitar colisiones de hash de 32 bits");
 assert.match(app, /result\?\.truncated[\s\S]*Encontré los primeros[\s\S]*elegí Música o una subcarpeta/i, "La interfaz debe explicar por qué una búsqueda masiva puede mostrar resultados parciales");
+assert.match(java, /private static String safeMimeType\(ContentResolver resolver, Uri uri, String filename\)[\s\S]*?catch \(Exception ignored\)[\s\S]*?guessMimeType\(filename\)/, "A failing MIME lookup must fall back to filename inference instead of aborting an Android picker import");
+assert.match(java, /String mime = safeMimeType\(resolver, uri, name\)/, "Picked files must use the guarded MIME lookup");
 assert.match(java, /ACTION_OPEN_DOCUMENT/, "La importación debe abrir el selector de archivos");
 assert.match(java, /ACTION_OPEN_DOCUMENT_TREE/, "La app debe permitir elegir una carpeta completa");
 assert.match(java, /listAudioFromTree/, "La app debe explorar la carpeta seleccionada");
