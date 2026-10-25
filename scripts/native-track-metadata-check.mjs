@@ -65,4 +65,37 @@ import { mergeNativeTrackMetadata } from "../src/native-track-metadata.js";
   });
 }
 
+// MediaStore may return the literal "<unknown>" title token. It must not replace
+// a useful title or leak into the visible library when a filename fallback exists.
+{
+  const kept = mergeNativeTrackMetadata(
+    { title: "Título que ya servía", artist: "Artista" },
+    { title: "<unknown>", artist: "Artista", album: "" },
+    "cancion"
+  );
+  assert.equal(kept.title, "Título que ya servía",
+    "A generic MediaStore title must not overwrite the saved title.");
+
+  const fallback = mergeNativeTrackMetadata(
+    { title: "<unknown>", artist: "Artista" },
+    { title: "<unknown>", artist: "Artista desconocido" },
+    "cancion"
+  );
+  assert.equal(fallback.title, "cancion",
+    "When no useful title exists, use the filename fallback instead of the provider placeholder.");
+  assert.equal(fallback.artist, "Artista",
+    "The existing artist should still survive a generic provider response.");
+}
+
+// An explicit title override wins even if its text happens to match the generic token.
+{
+  const result = mergeNativeTrackMetadata(
+    { title: "<unknown>", userMetadataOverrides: { title: true } },
+    { title: "Título real" },
+    "archivo"
+  );
+  assert.equal(result.title, "<unknown>",
+    "A user override is authoritative, including an intentionally unusual or blank value.");
+}
+
 console.log("Native metadata merge checks passed: legacy fallback preservation, real tag refresh, and per-field user overrides.");

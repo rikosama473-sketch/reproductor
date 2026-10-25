@@ -18,13 +18,18 @@ export function mergeNativeTrackMetadata(existingTrack, discoveredTrack, fallbac
   const existingTitle = String(existing.title ?? "");
   const discoveredTitle = String(discovered.title ?? "").trim();
   const fallback = String(fallbackTitle ?? "").trim();
+  const discoveredTitleIsGeneric = discoveredTitle.toLowerCase() === "<unknown>";
+  const existingTitleIsGeneric = existingTitle.trim().toLowerCase() === "<unknown>";
   let title;
   if (overrides.title === true) {
     title = existingTitle;
-  } else if (discoveredTitle && discoveredTitle !== fallback) {
+  } else if (discoveredTitle && !discoveredTitleIsGeneric && discoveredTitle !== fallback) {
     title = discoveredTitle;
   } else {
-    title = existingTitle || discoveredTitle || fallback;
+    // MediaStore can expose the literal "<unknown>" placeholder. Prefer a
+    // previous useful title, then the filename-derived fallback, over that token.
+    title = (existingTitle && !existingTitleIsGeneric ? existingTitle : "") ||
+      fallback || discoveredTitle || "";
   }
 
   const existingArtist = String(existing.artist ?? "");
