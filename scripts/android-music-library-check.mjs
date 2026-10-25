@@ -20,6 +20,8 @@ assert.match(java, /READ_MEDIA_AUDIO/, "Android 13+ debe usar el permiso de audi
 assert.match(java, /READ_EXTERNAL_STORAGE/, "Android 12 y anteriores deben usar el permiso heredado");
 assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo debe consultar MediaStore");
 assert.match(java, /MAX_MEDIASTORE_RESULTS = 10000/, "MediaStore debe limitar la cantidad de registros para evitar una respuesta nativa enorme");
+assert.match(java, /MAX_AUDIO_CACHE_NAME_CHARS = 120/, "The native cache must cap the original filename to leave room for its hash prefix");
+assert.match(java, /safeName\.length\(\) > MAX_AUDIO_CACHE_NAME_CHARS[\s\S]*?safeName = safeName\.substring\(0, MAX_AUDIO_CACHE_NAME_CHARS\)/, "Long provider filenames must be truncated before prefixing the SHA-256 key");
 assert.match(java, /public void getEmbeddedArtwork\(PluginCall call\)/, "Android must expose a lazy embedded-artwork reader for native tracks");
 assert.match(java, /MediaMetadataRetriever/, "Native artwork extraction must use Android media metadata APIs");
 assert.match(java, /MAX_ARTWORK_RAW_BYTES = 8 \* 1024 \* 1024/, "Native art reader must reject unbounded embedded payloads before decode");
