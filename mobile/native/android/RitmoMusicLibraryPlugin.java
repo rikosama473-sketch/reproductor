@@ -325,6 +325,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             int documentsScanned = 0;
             boolean folderDiscoveryTruncated = false;
             boolean depthLimitReached = false;
+            boolean folderQueryUnavailable = false;
             while (!pending.isEmpty() && files.length() < 10000 &&
                    foldersVisited < MAX_TREE_FOLDERS_DISCOVERED &&
                    documentsScanned < MAX_TREE_DOCUMENTS_SCANNED) {
@@ -336,7 +337,10 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                 }
                 Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folder.documentId);
                 try (Cursor cursor = queryTreeChildren(resolver, childrenUri, projection)) {
-                    if (cursor == null) continue;
+                    if (cursor == null) {
+                        folderQueryUnavailable = true;
+                        continue;
+                    }
                     int idColumn = cursor.getColumnIndex(Document.COLUMN_DOCUMENT_ID);
                     int nameColumn = cursor.getColumnIndex(Document.COLUMN_DISPLAY_NAME);
                     int mimeColumn = cursor.getColumnIndex(Document.COLUMN_MIME_TYPE);
@@ -380,7 +384,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("files", files);
             response.put("treeUri", treeUri.toString());
-            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= MAX_TREE_FOLDERS_DISCOVERED || documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED || folderDiscoveryTruncated || depthLimitReached);
+            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= MAX_TREE_FOLDERS_DISCOVERED || documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED || folderDiscoveryTruncated || depthLimitReached || folderQueryUnavailable);
             call.resolve(response);
         } catch (SecurityException error) {
             call.reject("Android no permitió leer la carpeta. Volvé a elegirla y concedé acceso.", error);
