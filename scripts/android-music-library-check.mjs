@@ -22,6 +22,9 @@ assert.match(java, /public void listAudio\(PluginCall call\)[\s\S]*?if \(cursor 
 assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo debe consultar MediaStore");
 assert.match(java, /MAX_MEDIASTORE_RESULTS = 10000/, "MediaStore debe limitar la cantidad de registros para evitar una respuesta nativa enorme");
 assert.match(java, /MAX_AUDIO_CACHE_NAME_CHARS = 120/, "The native cache must cap the original filename to leave room for its hash prefix");
+assert.match(java, /MAX_PRIVATE_AUDIO_CACHE_BYTES = 1L \* 1024L \* 1024L \* 1024L/, "Private provider copies must have a total byte ceiling to avoid filling app storage");
+assert.match(java, /long copiedBytes = 0;[\s\S]*?if \(copiedBytes \+ count > MAX_PRIVATE_AUDIO_CACHE_BYTES\)[\s\S]*?throw new IllegalStateException\("El archivo supera el límite de 1 GiB[\s\S]*?copiedBytes \+= count;[\s\S]*?stream\.write\(buffer, 0, count\)/, "The cache byte budget must be checked before writing each provider chunk");
+
 assert.match(java, /safeName\.length\(\) > MAX_AUDIO_CACHE_NAME_CHARS[\s\S]*?safeName = safeName\.substring\(0, MAX_AUDIO_CACHE_NAME_CHARS\)/, "Long provider filenames must be truncated before prefixing the SHA-256 key");
 assert.match(java, /public void getEmbeddedArtwork\(PluginCall call\)/, "Android must expose a lazy embedded-artwork reader for native tracks");
 assert.match(java, /MediaMetadataRetriever/, "Native artwork extraction must use Android media metadata APIs");
