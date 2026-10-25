@@ -557,10 +557,11 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         }
         Uri uri = Uri.parse(rawUri);
         final String filename = name == null || name.trim().isEmpty() ? "audio" : name;
+        final boolean forceRefresh = Boolean.TRUE.equals(call.getBoolean("forceRefresh"));
         Thread worker = new Thread(() -> {
             try {
                 String path = findReadableFilesystemPath(uri);
-                if (path == null) path = copyToPrivateCache(uri, filename);
+                if (path == null) path = copyToPrivateCache(uri, filename, forceRefresh);
                 JSObject result = new JSObject();
                 result.put("path", path);
                 call.resolve(result);
@@ -590,15 +591,16 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         return null;
     }
 
-    private synchronized String copyToPrivateCache(Uri uri, String originalName) throws Exception {
+    private synchronized String copyToPrivateCache(Uri uri, String originalName, boolean forceRefresh) throws Exception {
         File folder = new File(getContext().getCacheDir(), "ritmo-audio");
         if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("No se pudo crear la caché de audio.");
         String safeName = originalName.replaceAll("[^A-Za-z0-9._-]", "_");
         if (safeName.isEmpty()) safeName = "audio";
         String key = sha256Hex(uri.toString());
         File output = new File(folder, key + "-" + safeName);
-        if (output.isFile() && output.length() > 0) {
-            // A file reused for a new import must not look stale to concurrent cache cleanup.
+        if (!forceRefresh && output.isFile() && output.length() > 0) {
+            // Ordinary resolutions may reuse a complete cache entry. Playback fallback
+            // can force a refresh because the provider may have changed the same URI.
             output.setLastModified(System.currentTimeMillis());
             return output.getAbsolutePath();
         }
