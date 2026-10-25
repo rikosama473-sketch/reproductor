@@ -75,12 +75,17 @@ const syntaxChecks = [
   "mobile/scripts/prepare-native.mjs",
   "desktop/scripts/prepare.mjs",
   "desktop/scripts/serve.mjs",
+  "desktop/scripts/static-server.mjs",
+  "desktop/electron/main.mjs",
+  "desktop/scripts/desktop-package-check.mjs",
+  "desktop/scripts/verify-release.mjs",
   "scripts/mobile-touch-check.mjs",
   "scripts/configure-android.mjs",
   "scripts/prepare-android-native.mjs",
   "scripts/android-music-library-check.mjs",
   "scripts/service-worker-fetch-check.mjs",
-  "scripts/history-limit-check.mjs"
+  "scripts/history-limit-check.mjs",
+  "desktop/scripts/desktop-package-check.mjs"
 ];
 const regressionSuites = [
   "scripts/smoke-check.mjs",
