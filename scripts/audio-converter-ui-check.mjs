@@ -42,7 +42,7 @@ assert.match(engine, /MAX_CONVERTER_INPUT_BYTES = 50 \* 1024 \* 1024/);
 assert.match(sw, /ritmo-shell-v\d+/);
 assert.match(sw, /"\.\/src\/audio-converter\.js"/, "Converter engine must be cached for offline startup");
 assert.match(styles, /\.converter-layout/);
-assert.match(app, /function addConvertedWavToLibrary\(blob, filename, button, description, detail\)/, "Every verified conversion should be addable to the local library.");
+assert.match(app, /function addConvertedWavToLibrary\(blob, filename, button, description, detail, sourceFile = null\)/, "Every verified conversion should be addable to the local library.");
 assert.match(app, /new File\(\[blob\], filename, \{ type: "audio\/wav", lastModified: Date\.now\(\) \}\)/, "Save-to-library must wrap the verified WAV in a real local File.");
 assert.match(app, /importFiles\(\[outputFile\], \{ navigateToLibrary: false \}\)/, "Saving a conversion must reuse safe import/deduplication without navigating away from the converter.");
 assert.match(app, /button\.dataset\.librarySaved = "true"/, "Successful saves and verified duplicates must not be submitted twice from the same result.");
