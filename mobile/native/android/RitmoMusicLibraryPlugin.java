@@ -379,6 +379,12 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                         item.put("lastModified", columnLong(cursor, modifiedColumn));
                         files.put(item);
                     }
+                } catch (SecurityException error) {
+                    throw error;
+                } catch (RuntimeException error) {
+                    // One broken document provider/subfolder should not discard files
+                    // already found in other folders; return them as partial results.
+                    folderQueryUnavailable = true;
                 }
             }
             JSObject response = new JSObject();
