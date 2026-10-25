@@ -57,6 +57,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
     private static final int MAX_TREE_DOCUMENTS_SCANNED = 100000;
     // Leave room for the 64-character SHA-256 key and separator in the cache filename.
     private static final int MAX_AUDIO_CACHE_NAME_CHARS = 120;
+    private static final long MAX_PRIVATE_AUDIO_CACHE_BYTES = 1L * 1024L * 1024L * 1024L;
     private static final int MAX_ARTWORK_RAW_BYTES = 8 * 1024 * 1024;
     private static final int MAX_ARTWORK_OUTPUT_BYTES = 512 * 1024;
     private static final int MAX_ARTWORK_DIMENSION = 4096;
@@ -663,7 +664,14 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             if (input == null) throw new IllegalStateException("El proveedor no pudo abrir el audio.");
             byte[] buffer = new byte[64 * 1024];
             int count;
-            while ((count = input.read(buffer)) != -1) stream.write(buffer, 0, count);
+            long copiedBytes = 0;
+            while ((count = input.read(buffer)) != -1) {
+                if (copiedBytes + count > MAX_PRIVATE_AUDIO_CACHE_BYTES) {
+                    throw new IllegalStateException("El archivo supera el límite de 1 GiB para la copia privada de respaldo de Ritmo. Usá una fuente que Android pueda reproducir directamente o elegí un archivo más pequeño.");
+                }
+                copiedBytes += count;
+                stream.write(buffer, 0, count);
+            }
             stream.getFD().sync();
         } catch (Exception error) {
             temporary.delete();
