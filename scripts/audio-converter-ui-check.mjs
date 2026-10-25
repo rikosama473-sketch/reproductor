@@ -46,7 +46,7 @@ assert.match(app, /function addConvertedWavToLibrary\(blob, filename, button, de
 assert.match(app, /new File\(\[blob\], filename, \{ type: "audio\/wav", lastModified: Date\.now\(\) \}\)/, "Save-to-library must wrap the verified WAV in a real local File.");
 assert.match(app, /importFiles\(\[outputFile\], \{ navigateToLibrary: false, metadataOverridesByFile \}\)/, "Saving a conversion must reuse safe import/deduplication without navigating away from the converter.");
 assert.match(app, /button\.dataset\.librarySaved = "true"/, "Successful saves and verified duplicates must not be submitted twice from the same result.");
-assert.match(app, /return \{ saved, bytesSaved, skippedByIdentity, skippedByContent, comparisonWarnings, skippedEmptyFiles, failure \}/, "The import pipeline must return its outcome for conversion-button feedback.");
+assert.match(app, /return \{ saved, bytesSaved, skippedByIdentity, skippedByContent, comparisonWarnings, skippedEmptyFiles, skippedUnsupportedFiles, failure \}/, "The import pipeline must return its outcome for conversion-button feedback, including skipped unsupported inputs.");
 assert.match(app, /options\.navigateToLibrary !== false/, "Normal imports must retain navigation while converter imports stay on the converter page.");
 assert.match(app, /Agregar a biblioteca/, "Each verified WAV result must expose the library action.");
 assert.match(app, /converterLibraryImportInProgress/, "Converted outputs must not race concurrent library-save attempts.");
