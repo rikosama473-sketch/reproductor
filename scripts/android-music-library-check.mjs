@@ -13,6 +13,11 @@ const workflow = await readFile(new URL("../.github/workflows/android-apk.yml", 
 
 assert.match(html, /data-scan-device-music/, "Falta el botón para buscar música en Android");
 assert.match(app, /function scanDeviceMusic/, "Falta el flujo de escaneo MediaStore");
+assert.equal((app.match(/mergeNativeTrackMetadata\(old, item, titleFromFilename\(name\)\)/g) || []).length, 2,
+  "Both MediaStore and SAF rescans must use the metadata-preserving merge helper.");
+assert.match(app, /userMetadataOverrides = \{[\s\S]*?Object\.fromEntries\(updates\.map\(field => \[field, true\]\)\)/,
+  "Explicit metadata edits must persist per-field override markers for future Android rescans.");
+
 assert.match(app, /requestAudioPermission\(\)/, "El escaneo debe pedir permiso de audio");
 assert.match(app, /pickAudioFiles\(\)/, "La importación debe abrir el selector nativo");
 assert.match(app, /convertFileSrc\(track\.nativePath\)/, "El camino WebView de respaldo debe seguir disponible");
