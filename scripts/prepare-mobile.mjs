@@ -62,7 +62,7 @@ await writeFile(path.join(webDir, "index.html"), html, "utf8");
 
 const requiredFiles = [
   "index.html", "styles.css", "sw.js", "manifest.webmanifest", "capacitor.js",
-  "src/app.js", "src/storage.js", "src/playlist-editing.js", "src/youtube-history.js",
+  "src/app.js", "src/concurrent-map.js", "src/storage.js", "src/playlist-editing.js", "src/youtube-history.js",
   "src/audio-output-volume.js", "src/media-session-state.js", "src/equalizer-presets.js", "src/audio-preferences.js",
   "src/import-fingerprint.js", "src/id3-tags.js", "src/vorbis-comments.js", "src/wav-info-tags.js", "src/audio-converter.js", "src/external-navigation.js",
   "src/youtube-player-errors.js", "src/async-generation-gate.js", "src/playback-position.js", "src/online-services.js", "src/character-companion.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/backup.js", "src/backup-ui.js", "src/library-search.js",
