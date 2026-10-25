@@ -99,6 +99,26 @@ assert.ok(MAX_WAV_INFO_CHUNKS >= 1024);
   assert.ok(!requested.some(request => request.start >= 20 && request.start < 20 + data.length && request.size > 8),
     "Raw sample bytes must not be read to inspect metadata.");
 }
+// The total byte budget includes RIFF headers as well as LIST payloads.
+{
+  const nearLimitPayload = join([
+    ascii("adtl"),
+    new Uint8Array(MAX_WAV_METADATA_BYTES - 24)
+  ]);
+  const backing = new Blob([wav([
+    chunk("LIST", nearLimitPayload),
+    infoList([infoField("INAM", "No debe leerse fuera del presupuesto")])
+  ])]);
+  const requested = [];
+  const tracked = {
+    size: backing.size,
+    slice(start, end) { requested.push({ start, end, size: end - start }); return backing.slice(start, end); }
+  };
+  const metadata = await readWavInfoMetadata(tracked, { title: "Fallback" });
+  assert.equal(metadata.title, "Fallback", "Metadata beyond the read budget must not be scanned.");
+  assert.ok(requested.reduce((sum, range) => sum + range.size, 0) <= MAX_WAV_METADATA_BYTES,
+    "The reader's aggregate Blob reads must never exceed the metadata budget.");
+}
 {
   assert.deepEqual(await readWavInfoMetadata(new Blob(["not a WAV file"]), { title: "Fallback" }), { title: "Fallback" });
   assert.deepEqual(await readWavInfoMetadata(null, { title: "Fallback" }), { title: "Fallback" });
