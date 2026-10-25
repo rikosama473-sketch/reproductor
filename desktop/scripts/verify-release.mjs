@@ -8,6 +8,11 @@ const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const releaseDir = path.join(desktopRoot, "release");
 const packageJson = JSON.parse(await readFile(path.join(desktopRoot, "package.json"), "utf8"));
 const entries = await readdir(releaseDir, { withFileTypes: true });
+const leakedWorkspacePackage = path.join(releaseDir, "win-unpacked", "resources", "app.asar.unpacked", "node_modules", "ritmo-workspace");
+const leakedWorkspaceInfo = await stat(leakedWorkspacePackage).catch(() => null);
+if (leakedWorkspaceInfo) {
+  throw new Error("Se detectó el workspace de desarrollo empaquetado dentro de Ritmo: " + leakedWorkspacePackage + ". El ejecutable debe excluir dependencias recursivas y salidas de compilación.");
+}
 const executables = [];
 for (const entry of entries) {
   if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".exe")) continue;
