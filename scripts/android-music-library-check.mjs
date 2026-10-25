@@ -13,6 +13,13 @@ const workflow = await readFile(new URL("../.github/workflows/android-apk.yml", 
 
 assert.match(html, /data-scan-device-music/, "Falta el botón para buscar música en Android");
 assert.match(app, /function scanDeviceMusic/, "Falta el flujo de escaneo MediaStore");
+assert.match(app, /import \{ preserveKnownScanNumber \} from "\.\/native-track-scan\.js"/, "Android scans must share a tested helper for partial numeric metadata");
+assert.equal((app.match(/size: preserveKnownScanNumber\(old\?\.size, item\.size\)/g) || []).length, 2,
+  "MediaStore and SAF scans must preserve a known file size if the provider omits it.");
+assert.equal((app.match(/lastModified: preserveKnownScanNumber\(old\?\.lastModified, item\.lastModified\)/g) || []).length, 2,
+  "MediaStore and SAF scans must preserve a known modification time if the provider omits it.");
+assert.equal((app.match(/duration: preserveKnownScanNumber\(old\?\.duration, item\.duration, 1000\)/g) || []).length, 2,
+  "Both Android scan paths must preserve a known duration if the provider reports an unavailable value.");
 assert.equal((app.match(/mergeNativeTrackMetadata\(old, item, titleFromFilename\(name\)\)/g) || []).length, 2,
   "Both MediaStore and SAF rescans must use the metadata-preserving merge helper.");
 assert.match(app, /userMetadataOverrides = \{[\s\S]*?Object\.fromEntries\(updates\.map\(field => \[field, true\]\)\)/,
