@@ -20,6 +20,7 @@ import { normalizeExternalMediaUrl } from "./external-navigation.js";
 import { matchesLibrarySearch } from "./library-search.js";
 import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
 import { mergeNativeTrackMetadata } from "./native-track-metadata.js";
+import { preserveKnownScanNumber } from "./native-track-scan.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -2822,12 +2823,12 @@ async function scanDeviceMusic() {
         nativePath: old?.nativePath || "",
         nativeUri: uri || old?.nativeUri || "",
         ...mergeNativeTrackMetadata(old, item, titleFromFilename(name)),
-        size: Number(item.size) || 0,
+        size: preserveKnownScanNumber(old?.size, item.size),
         mimeType: String(item.mimeType || "application/octet-stream"),
-        lastModified: Number(item.lastModified) || 0,
+        lastModified: preserveKnownScanNumber(old?.lastModified, item.lastModified),
         favorite: Boolean(old?.favorite),
         addedAt: Number(old?.addedAt) || Date.now() + index,
-        duration: Math.max(0, Number(item.duration) || 0) / 1000,
+        duration: preserveKnownScanNumber(old?.duration, item.duration, 1000),
         lastPlayedAt: Number(old?.lastPlayedAt) || 0
       };
     });
@@ -2887,12 +2888,12 @@ async function browseAudioFolder() {
         nativePath: "",
         nativeUri: uri,
         ...mergeNativeTrackMetadata(old, item, titleFromFilename(name)),
-        size: Number(item.size) || 0,
+        size: preserveKnownScanNumber(old?.size, item.size),
         mimeType: String(item.mimeType || "application/octet-stream"),
-        lastModified: Number(item.lastModified) || 0,
+        lastModified: preserveKnownScanNumber(old?.lastModified, item.lastModified),
         favorite: Boolean(old?.favorite),
         addedAt: Number(old?.addedAt) || Date.now() + index,
-        duration: Math.max(0, Number(item.duration) || 0) / 1000,
+        duration: preserveKnownScanNumber(old?.duration, item.duration, 1000),
         lastPlayedAt: Number(old?.lastPlayedAt) || 0
       };
     });
