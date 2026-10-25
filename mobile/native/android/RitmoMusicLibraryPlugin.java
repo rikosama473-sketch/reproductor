@@ -131,43 +131,45 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             projection, selection, selectionArgs,
             MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
         )) {
-            if (cursor != null) {
-                int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
-                int titleCol = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
-                int artistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
-                int albumCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM);
-                int durationCol = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION);
-                int sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE);
-                int nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME);
-                int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
-                int modifiedCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED);
-                while (cursor.moveToNext()) {
-                    if (files.length() >= MAX_MEDIASTORE_RESULTS) {
-                        truncated = true;
-                        break;
-                    }
-                    long mediaId = cursor.getLong(idCol);
-                    String name = columnString(cursor, nameCol);
-                    if (name == null || name.trim().isEmpty()) name = "audio-" + mediaId;
-                    String title = columnString(cursor, titleCol);
-                    if (title == null || title.trim().isEmpty()) title = stripExtension(name);
-                    String artist = columnString(cursor, artistCol);
-                    String album = columnString(cursor, albumCol);
-                    String mime = columnString(cursor, mimeCol);
-                    Uri uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId);
-                    JSObject item = new JSObject();
-                    item.put("id", String.valueOf(mediaId));
-                    item.put("uri", uri.toString());
-                    item.put("name", name);
-                    item.put("title", title);
-                    item.put("artist", artist == null || artist.trim().isEmpty() || "<unknown>".equalsIgnoreCase(artist) ? "Artista desconocido" : artist);
-                    item.put("album", album == null || "<unknown>".equalsIgnoreCase(album) ? "" : album);
-                    item.put("duration", columnLong(cursor, durationCol));
-                    item.put("size", columnLong(cursor, sizeCol));
-                    item.put("mimeType", mime == null ? guessMimeType(name) : mime);
-                    item.put("lastModified", columnLong(cursor, modifiedCol) * 1000L);
-                    files.put(item);
+            if (cursor == null) {
+                call.reject("Android no pudo consultar la biblioteca de audio del dispositivo.");
+                return;
+            }
+            int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
+            int titleCol = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
+            int artistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
+            int albumCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM);
+            int durationCol = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION);
+            int sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE);
+            int nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME);
+            int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
+            int modifiedCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED);
+            while (cursor.moveToNext()) {
+                if (files.length() >= MAX_MEDIASTORE_RESULTS) {
+                    truncated = true;
+                    break;
                 }
+                long mediaId = cursor.getLong(idCol);
+                String name = columnString(cursor, nameCol);
+                if (name == null || name.trim().isEmpty()) name = "audio-" + mediaId;
+                String title = columnString(cursor, titleCol);
+                if (title == null || title.trim().isEmpty()) title = stripExtension(name);
+                String artist = columnString(cursor, artistCol);
+                String album = columnString(cursor, albumCol);
+                String mime = columnString(cursor, mimeCol);
+                Uri uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId);
+                JSObject item = new JSObject();
+                item.put("id", String.valueOf(mediaId));
+                item.put("uri", uri.toString());
+                item.put("name", name);
+                item.put("title", title);
+                item.put("artist", artist == null || artist.trim().isEmpty() || "<unknown>".equalsIgnoreCase(artist) ? "Artista desconocido" : artist);
+                item.put("album", album == null || "<unknown>".equalsIgnoreCase(album) ? "" : album);
+                item.put("duration", columnLong(cursor, durationCol));
+                item.put("size", columnLong(cursor, sizeCol));
+                item.put("mimeType", mime == null ? guessMimeType(name) : mime);
+                item.put("lastModified", columnLong(cursor, modifiedCol) * 1000L);
+                files.put(item);
             }
             JSObject result = new JSObject();
             result.put("files", files);

@@ -18,6 +18,7 @@ assert.match(app, /pickAudioFiles\(\)/, "La importación debe abrir el selector 
 assert.match(app, /convertFileSrc\(track\.nativePath\)/, "El camino WebView de respaldo debe seguir disponible");
 assert.match(java, /READ_MEDIA_AUDIO/, "Android 13+ debe usar el permiso de audio");
 assert.match(java, /READ_EXTERNAL_STORAGE/, "Android 12 y anteriores deben usar el permiso heredado");
+assert.match(java, /public void listAudio\(PluginCall call\)[\s\S]*?if \(cursor == null\) \{\s*call\.reject\("Android no pudo consultar la biblioteca de audio del dispositivo\."\);\s*return;/, "A null MediaStore cursor must report a query failure rather than a genuinely empty music library");
 assert.match(java, /MediaStore\.Audio\.Media\.EXTERNAL_CONTENT_URI/, "El escaneo debe consultar MediaStore");
 assert.match(java, /MAX_MEDIASTORE_RESULTS = 10000/, "MediaStore debe limitar la cantidad de registros para evitar una respuesta nativa enorme");
 assert.match(java, /MAX_AUDIO_CACHE_NAME_CHARS = 120/, "The native cache must cap the original filename to leave room for its hash prefix");
