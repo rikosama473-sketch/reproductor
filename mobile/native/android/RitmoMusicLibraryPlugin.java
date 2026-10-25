@@ -574,17 +574,23 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         worker.start();
     }
 
+    private static String readableFilesystemPath(String path) {
+        if (path == null || path.trim().isEmpty()) return null;
+        File candidate = new File(path);
+        return candidate.isFile() && candidate.canRead() ? path : null;
+    }
+
     private String findReadableFilesystemPath(Uri uri) {
         if ("file".equalsIgnoreCase(uri.getScheme())) {
-            String path = uri.getPath();
-            if (path != null && new File(path).isFile()) return path;
+            String path = readableFilesystemPath(uri.getPath());
+            if (path != null) return path;
         }
         try (Cursor cursor = getContext().getContentResolver().query(uri, new String[] { MediaStore.MediaColumns.DATA }, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
                 int index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA);
                 if (index >= 0 && !cursor.isNull(index)) {
-                    String path = cursor.getString(index);
-                    if (path != null && new File(path).isFile()) return path;
+                    String path = readableFilesystemPath(cursor.getString(index));
+                    if (path != null) return path;
                 }
             }
         } catch (Exception ignored) {

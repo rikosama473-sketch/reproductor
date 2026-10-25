@@ -37,6 +37,8 @@ assert.match(app, /nativeArtworkScanned === true[\s\S]*?plugin\.getEmbeddedArtwo
 assert.match(java, /files\.length\(\) >= MAX_MEDIASTORE_RESULTS[\s\S]*?truncated = true/, "El escaneo debe detectar e informar los resultados parciales");
 assert.match(java, /result\.put\("truncated", truncated\)/, "El plugin debe enviar al usuario el estado de truncamiento");
 assert.match(java, /private synchronized String copyToPrivateCache\(Uri uri, String originalName, boolean forceRefresh\)/, "Concurrent provider resolutions must not truncate the same temporary cache file");
+assert.match(java, /private static String readableFilesystemPath\(String path\)[\s\S]*?candidate\.isFile\(\) && candidate\.canRead\(\)/, "Native fallback must reject filesystem paths that exist but cannot be read");
+assert.match(java, /readableFilesystemPath\(uri\.getPath\(\)\)[\s\S]*?readableFilesystemPath\(cursor\.getString\(index\)\)/, "Both direct and MediaStore paths must be permission-checked before skipping the private-cache copy");
 assert.match(java, /Boolean\.TRUE\.equals\(call\.getBoolean\("forceRefresh"\)\)/, "The native cache must support explicit source refreshes");
 assert.match(java, /if \(!forceRefresh && output\.isFile\(\) && output\.length\(\) > 0\)/, "Forced refreshes must bypass a potentially stale cache entry");
 assert.match(app, /resolveAudioPath\(\{ uri: track\.nativeUri, name: track\.name, forceRefresh: true \}\)/, "Web fallback must refresh the native copy when the provider URI can no longer be played");
