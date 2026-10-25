@@ -42,6 +42,9 @@ assert.doesNotMatch(app, /ritmo-capibara\.svg/, "No invented animal should be lo
 assert.match(app, /function syncCharacterCompanion\(playing\)/, "Companion visibility must be synchronized by playback state");
 assert.match(app, /syncCharacterCompanion\(hasMedia && !playbackIsPaused\(\)\)/, "The companion must appear only while media is playing");
 assert.match(html, /manifest\.webmanifest/, "HTML must link to the PWA manifest");
+assert.match(app, /import \{ mapWithConcurrency \} from "\.\/concurrent-map\.js"/, "Library import should use the tested bounded worker pool");
+assert.match(app, /const IMPORT_METADATA_CONCURRENCY = 4/, "Metadata reads should be bounded to four concurrent files on low-memory devices");
+assert.match(app, /mapWithConcurrency\(batch, IMPORT_METADATA_CONCURRENCY, async file =>/, "Library batches should use bounded metadata preparation");
 assert.match(app, /indexedDB|saveManyTracks/, "App must use persistent local library storage");
 assert.match(app, /function scanDeviceMusic/, "Android build must scan local device music");
 assert.match(app, /function nativeMusicPlugin/, "App must expose its native Android plugin bridge");
