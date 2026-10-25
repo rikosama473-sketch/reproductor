@@ -61,6 +61,9 @@ assert.match(java, /visited\.size\(\) >= MAX_TREE_FOLDERS_DISCOVERED[\s\S]*?fold
 assert.match(java, /response\.put\("truncated", [^;]*documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED[^;]*folderDiscoveryTruncated/, "The UI must learn when folder or document scan limits make results partial");
 assert.match(java, /if \(folder\.depth > 32\) \{\s*depthLimitReached = true;\s*continue;/, "The SAF scan must mark nested folders skipped by the depth limit as partial results");
 assert.match(java, /response\.put\("truncated", [^;]*depthLimitReached/, "The returned scan status must include depth-limited folders");
+assert.match(java, /if \(cursor == null\) \{\s*folderQueryUnavailable = true;\s*continue;/, "A document provider returning a null child cursor must mark that folder scan incomplete");
+assert.match(java, /response\.put\("truncated", [^;]*folderQueryUnavailable/, "The scanner response must report inaccessible folder queries as partial results");
+
 assert.match(java, /foldersVisited < MAX_TREE_FOLDERS_DISCOVERED/, "La búsqueda de carpetas debe limitar trabajo para proteger el dispositivo");
 assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interfaz debe informar cuando una carpeta es demasiado grande para escanearla completa");
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
