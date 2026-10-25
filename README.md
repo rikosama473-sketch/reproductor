@@ -188,6 +188,10 @@ El reconocimiento por micrófono es una función opcional de tipo Shazam que usa
 
 Si hay coincidencia, Ritmo muestra el título y artista informados por el servicio, metadatos disponibles (álbum, fecha, sello, ISRC) y enlaces directos devueltos por los catálogos, junto a búsquedas para contrastar otras ediciones. La coincidencia identifica una grabación y **no demuestra por sí sola que sea la primera edición o la versión original**. Si no hay coincidencia, no inventa un resultado. La grabación requiere un navegador compatible, permiso explícito de micrófono y HTTPS o localhost. La función se cancela al activar el modo sin conexión o perder la red.
 
+## Integración del conversor con la biblioteca
+
+Los WAV verificados se pueden descargar o agregar directamente a la biblioteca local desde el resultado de conversión. La acción reutiliza el flujo de importación habitual para detectar copias idénticas, guardar en IndexedDB y hacer que el audio esté disponible en el reproductor, sin cambiar el original ni sacar al usuario de la pantalla del conversor. Si el almacenamiento está lleno, el error aparece junto al resultado y se puede reintentar.
+
 ## Mascota en tonos caramelo
 
 El acompañante predeterminado usa `assets/pibara-avatar.webp`: el recorte WebP transparente del personaje original Pibara, con su diseño propio y paleta cálida. No se reemplaza por una mascota genérica. Se incluye en los shells offline de PC y Android y se usa tanto en el mini reproductor como en la previsualización de ajustes. Sigue disponible el control para elegir otra imagen o GIF; la elección personal se guarda en el dispositivo.
