@@ -127,6 +127,7 @@ const converterPreviewElements = new Set();
 let activeConverterPreview = null;
 let converterOutputBytes = 0;
 let converterOutputFilenames = new Set();
+let converterLibraryImportInProgress = false;
 
 
 function escapeHTML(value) {
@@ -2096,6 +2097,45 @@ function renderConverterSelection(preserveStatus = false) {
     else $("#converter-status").textContent = "Listo para convertir " + converterFiles.length + (converterFiles.length === 1 ? " archivo." : " archivos.");
   }
 }
+async function addConvertedWavToLibrary(blob, filename, button, description, detail) {
+  if (button.dataset.librarySaved === "true") return;
+  if (converterLibraryImportInProgress) {
+    description.textContent = detail + " · Esperá a que termine el guardado de otro WAV.";
+    return;
+  }
+  converterLibraryImportInProgress = true;
+  button.disabled = true;
+  button.textContent = "Guardando…";
+  try {
+    if (!(blob instanceof Blob) || !blob.size) {
+      throw new Error("El WAV convertido ya no está disponible. Repetí la conversión.");
+    }
+    if (typeof File !== "function") {
+      throw new Error("Este navegador no permite guardar el resultado directamente. Descargá el WAV e importalo desde la biblioteca.");
+    }
+    const outputFile = new File([blob], filename, { type: "audio/wav", lastModified: Date.now() });
+    const result = await importFiles([outputFile], { navigateToLibrary: false });
+    if (result?.saved > 0) {
+      button.textContent = "Agregado a biblioteca";
+      button.dataset.librarySaved = "true";
+      return;
+    }
+    if ((result?.skippedByContent || 0) + (result?.skippedByIdentity || 0) > 0) {
+      button.textContent = "Ya estaba en biblioteca";
+      button.dataset.librarySaved = "true";
+      return;
+    }
+    throw result?.failure || new Error("No se pudo confirmar que el WAV se haya guardado en la biblioteca.");
+  } catch (error) {
+    const message = error?.message || "No se pudo guardar el WAV en la biblioteca.";
+    description.textContent = detail + " · " + message;
+    button.textContent = "Reintentar";
+    button.disabled = false;
+  } finally {
+    converterLibraryImportInProgress = false;
+  }
+}
+
 function appendConverterResult(fileName, detail, blob = null, tone = "success") {
   const list = $("#converter-results");
   const item = document.createElement("li");
@@ -2118,6 +2158,16 @@ function appendConverterResult(fileName, detail, blob = null, tone = "success") 
     link.textContent = "Descargar WAV";
     link.setAttribute("aria-label", "Descargar WAV convertido de " + fileName);
     item.append(link);
+
+    const libraryButton = document.createElement("button");
+    libraryButton.type = "button";
+    libraryButton.className = "button button-soft converter-library-save";
+    libraryButton.textContent = "Agregar a biblioteca";
+    libraryButton.setAttribute("aria-label", "Agregar " + link.download + " a la biblioteca");
+    libraryButton.addEventListener("click", () => {
+      void addConvertedWavToLibrary(blob, link.download, libraryButton, description, detail);
+    });
+    item.append(libraryButton);
 
     // Preview the exact verified Blob using native browser controls. The player
     // stays hidden and does not preload audio until the user explicitly opens it.
@@ -2846,7 +2896,10 @@ async function importFiles(fileList, options = {}) {
     toast(skippedEmptyFiles
       ? "Se omitieron " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s); no se importó ninguno."
       : "No encontré archivos de audio compatibles.");
-    return;
+    return {
+      saved: 0, bytesSaved: 0, skippedByIdentity: 0, skippedByContent: 0,
+      comparisonWarnings: 0, skippedEmptyFiles, failure: null
+    };
   }
 
   const localTracks = state.tracks.filter(track => isLocal(track));
@@ -2936,7 +2989,10 @@ async function importFiles(fileList, options = {}) {
     toast(details.length
       ? "No se importaron archivos nuevos: " + details.join(" · ") + "."
       : "Esos archivos ya están en tu biblioteca.");
-    return;
+    return {
+      saved: 0, bytesSaved: 0, skippedByIdentity, skippedByContent,
+      comparisonWarnings, skippedEmptyFiles, failure: null
+    };
   }
 
   let saved = 0, bytesSaved = 0, failure = null;
@@ -2977,12 +3033,13 @@ async function importFiles(fileList, options = {}) {
     toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " +
       formatBytes(bytesSaved) + duplicateNote + comparisonNote + emptyFilesNote + (failure ? " · importación parcial" : ""));
     requestPersistentStorage().catch(() => {});
-    if (!currentTrack()) showView("library");
+    if (!currentTrack() && options.navigateToLibrary !== false) showView("library");
   } else {
     toast(failure?.name === "QuotaExceededError"
       ? "No hay espacio suficiente en el navegador. Importá menos archivos por vez o liberá almacenamiento."
       : (failure?.message || "No se pudo importar la música."));
   }
+  return { saved, bytesSaved, skippedByIdentity, skippedByContent, comparisonWarnings, skippedEmptyFiles, failure };
 }
 async function removeCurrent() {
   // Invalidate any play()/AudioContext continuation that is still awaiting a
