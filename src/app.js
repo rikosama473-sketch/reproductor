@@ -2097,7 +2097,7 @@ function renderConverterSelection(preserveStatus = false) {
     else $("#converter-status").textContent = "Listo para convertir " + converterFiles.length + (converterFiles.length === 1 ? " archivo." : " archivos.");
   }
 }
-async function addConvertedWavToLibrary(blob, filename, button, description, detail) {
+async function addConvertedWavToLibrary(blob, filename, button, description, detail, sourceFile = null) {
   if (button.dataset.librarySaved === "true") return;
   if (converterLibraryImportInProgress) {
     description.textContent = detail + " · Esperá a que termine el guardado de otro WAV.";
@@ -2114,7 +2114,12 @@ async function addConvertedWavToLibrary(blob, filename, button, description, det
       throw new Error("Este navegador no permite guardar el resultado directamente. Descargá el WAV e importalo desde la biblioteca.");
     }
     const outputFile = new File([blob], filename, { type: "audio/wav", lastModified: Date.now() });
-    const result = await importFiles([outputFile], { navigateToLibrary: false });
+    let sourceMetadata = null;
+    if (sourceFile) {
+      try { sourceMetadata = await readAudioMetadata(sourceFile); } catch {}
+    }
+    const metadataOverridesByFile = sourceMetadata ? new Map([[outputFile, sourceMetadata]]) : undefined;
+    const result = await importFiles([outputFile], { navigateToLibrary: false, metadataOverridesByFile });
     if (result?.saved > 0) {
       button.textContent = "Agregado a biblioteca";
       button.dataset.librarySaved = "true";
@@ -2136,7 +2141,7 @@ async function addConvertedWavToLibrary(blob, filename, button, description, det
   }
 }
 
-function appendConverterResult(fileName, detail, blob = null, tone = "success") {
+function appendConverterResult(fileName, detail, blob = null, tone = "success", sourceFile = null) {
   const list = $("#converter-results");
   const item = document.createElement("li");
   item.className = "converter-result";
@@ -2165,7 +2170,7 @@ function appendConverterResult(fileName, detail, blob = null, tone = "success") 
     libraryButton.textContent = "Agregar a biblioteca";
     libraryButton.setAttribute("aria-label", "Agregar " + link.download + " a la biblioteca");
     libraryButton.addEventListener("click", () => {
-      void addConvertedWavToLibrary(blob, link.download, libraryButton, description, detail);
+      void addConvertedWavToLibrary(blob, link.download, libraryButton, description, detail, sourceFile);
     });
     item.append(libraryButton);
 
@@ -2280,7 +2285,7 @@ async function runAudioConversion() {
         converterOutputBytes += result.blob.size;
         const rate = Math.round(result.sampleRate / 1000 * 10) / 10;
         appendConverterResult(file.name, formatBytes(result.blob.size) + " · " + formatTime(result.duration) +
-          " · " + rate + " kHz · " + result.channels + (result.channels === 1 ? " canal" : " canales"), result.blob);
+          " · " + rate + " kHz · " + result.channels + (result.channels === 1 ? " canal" : " canales"), result.blob, "success", file);
         converted++;
       } catch (error) {
         if (converterCancelRequested && error?.name === "AbortError") break;
@@ -3002,12 +3007,12 @@ async function importFiles(fileList, options = {}) {
     toast("Importando " + Math.min(offset + batch.length, uniqueFiles.length) + " de " + uniqueFiles.length + " archivos…");
     try {
       const tracks = await Promise.all(batch.map(async file => {
-        const meta = await readAudioMetadata(file);
+        const meta = options.metadataOverridesByFile?.get(file) || await readAudioMetadata(file);
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "", genre: meta.genre || "",
           ...(meta.artwork instanceof Uint8Array && (meta.artworkMimeType === "image/jpeg" || meta.artworkMimeType === "image/png") &&
               meta.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES
             ? { artworkBlob: new Blob([meta.artwork], { type: meta.artworkMimeType }) } : {}),
-          metadataScanned: /\.mp3$/i.test(file.name) || isVorbisMetadataFilename(file.name),
+          metadataScanned: options.metadataOverridesByFile?.has(file) === true || /\.mp3$/i.test(file.name) || isVorbisMetadataFilename(file.name),
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),

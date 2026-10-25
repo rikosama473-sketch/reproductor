@@ -190,7 +190,9 @@ Si hay coincidencia, Ritmo muestra el título y artista informados por el servic
 
 ## Integración del conversor con la biblioteca
 
-Los WAV verificados se pueden descargar o agregar directamente a la biblioteca local desde el resultado de conversión. La acción reutiliza el flujo de importación habitual para detectar copias idénticas, guardar en IndexedDB y hacer que el audio esté disponible en el reproductor, sin cambiar el original ni sacar al usuario de la pantalla del conversor. Si el almacenamiento está lleno, el error aparece junto al resultado y se puede reintentar.
+Los WAV verificados se pueden descargar o agregar directamente a la biblioteca local desde el resultado de conversión. Al guardar desde el conversor, Ritmo también intenta recuperar del archivo fuente el título, artista, álbum, género y carátula que sus lectores de etiquetas puedan reconocer; la carátula se conserva solo si supera los mismos límites y validaciones de seguridad que la importación normal. Esos datos se guardan en la ficha local de la biblioteca: **no se escriben dentro del WAV**, y no se cambia el original.
+
+La acción reutiliza el flujo de importación habitual para detectar copias idénticas, guardar en IndexedDB y hacer que el audio esté disponible en el reproductor, sin sacar al usuario de la pantalla del conversor. Si falla la lectura de etiquetas, se usa la ficha básica por nombre del archivo; si falla el almacenamiento, el error aparece junto al resultado y se puede reintentar.
 
 ## Mascota en tonos caramelo
 

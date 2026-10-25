@@ -50,4 +50,12 @@ assert.match(app, /return \{ saved, bytesSaved, skippedByIdentity, skippedByCont
 assert.match(app, /options\.navigateToLibrary !== false/, "Normal imports must retain navigation while converter imports stay on the converter page.");
 assert.match(app, /Agregar a biblioteca/, "Each verified WAV result must expose the library action.");
 assert.match(app, /converterLibraryImportInProgress/, "Converted outputs must not race concurrent library-save attempts.");
+assert.match(app, /appendConverterResult\(file\.name,[\s\S]*?result\.blob, "success", file\)/, "The successful conversion result must retain a reference to its original source file for on-demand metadata extraction.");
+assert.match(app, /async function addConvertedWavToLibrary\(blob, filename, button, description, detail, sourceFile = null\)/, "Library save should accept the source whose tags and artwork may be copied to track metadata.");
+assert.match(app, /sourceMetadata = await readAudioMetadata\(sourceFile\)/, "Saving converted WAV should attempt to read source metadata only on explicit user action.");
+assert.match(app, /new Map\(\[\[outputFile, sourceMetadata\]\]\)/, "Source metadata must be associated with the exact generated File object passed to import.");
+assert.match(app, /const meta = options\.metadataOverridesByFile\?\.get\(file\) \|\| await readAudioMetadata\(file\)/, "The normal importer should prefer explicitly supplied source metadata while retaining its default parser for ordinary imports.");
+assert.match(app, /metadataScanned: options\.metadataOverridesByFile\?\.has\(file\) === true \|\|/, "Imported converted WAV metadata should be considered already resolved to prevent a later empty WAV scan from overwriting it.");
+assert.match(app, /addConvertedWavToLibrary\(blob, link\.download, libraryButton, description, detail, sourceFile\)/, "The source file must flow from the converter into the local library action.");
+
 console.log("Audio converter UI tests passed: navigation, limits, real conversion wiring, cancellation, downloads and offline cache.");
