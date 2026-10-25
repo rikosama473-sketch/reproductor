@@ -53,6 +53,8 @@ import java.util.Set;
 )
 public class RitmoMusicLibraryPlugin extends Plugin {
     private static final int MAX_MEDIASTORE_RESULTS = 10000;
+    // Leave room for the 64-character SHA-256 key and separator in the cache filename.
+    private static final int MAX_AUDIO_CACHE_NAME_CHARS = 120;
     private static final int MAX_ARTWORK_RAW_BYTES = 8 * 1024 * 1024;
     private static final int MAX_ARTWORK_OUTPUT_BYTES = 512 * 1024;
     private static final int MAX_ARTWORK_DIMENSION = 4096;
@@ -596,6 +598,9 @@ public class RitmoMusicLibraryPlugin extends Plugin {
         if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("No se pudo crear la caché de audio.");
         String safeName = originalName.replaceAll("[^A-Za-z0-9._-]", "_");
         if (safeName.isEmpty()) safeName = "audio";
+        if (safeName.length() > MAX_AUDIO_CACHE_NAME_CHARS) {
+            safeName = safeName.substring(0, MAX_AUDIO_CACHE_NAME_CHARS);
+        }
         String key = sha256Hex(uri.toString());
         File output = new File(folder, key + "-" + safeName);
         if (!forceRefresh && output.isFile() && output.length() > 0) {
