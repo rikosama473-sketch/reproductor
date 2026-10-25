@@ -324,12 +324,16 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             int foldersVisited = 0;
             int documentsScanned = 0;
             boolean folderDiscoveryTruncated = false;
+            boolean depthLimitReached = false;
             while (!pending.isEmpty() && files.length() < 10000 &&
                    foldersVisited < MAX_TREE_FOLDERS_DISCOVERED &&
                    documentsScanned < MAX_TREE_DOCUMENTS_SCANNED) {
                 TreeFolder folder = pending.pop();
                 foldersVisited++;
-                if (folder.depth > 32) continue;
+                if (folder.depth > 32) {
+                    depthLimitReached = true;
+                    continue;
+                }
                 Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folder.documentId);
                 try (Cursor cursor = queryTreeChildren(resolver, childrenUri, projection)) {
                     if (cursor == null) continue;
@@ -376,7 +380,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("files", files);
             response.put("treeUri", treeUri.toString());
-            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= MAX_TREE_FOLDERS_DISCOVERED || documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED || folderDiscoveryTruncated);
+            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= MAX_TREE_FOLDERS_DISCOVERED || documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED || folderDiscoveryTruncated || depthLimitReached);
             call.resolve(response);
         } catch (SecurityException error) {
             call.reject("Android no permitió leer la carpeta. Volvé a elegirla y concedé acceso.", error);
