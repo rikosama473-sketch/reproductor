@@ -62,6 +62,8 @@ assert.match(java, /response\.put\("truncated", [^;]*documentsScanned >= MAX_TRE
 assert.match(java, /if \(folder\.depth > 32\) \{\s*depthLimitReached = true;\s*continue;/, "The SAF scan must mark nested folders skipped by the depth limit as partial results");
 assert.match(java, /response\.put\("truncated", [^;]*depthLimitReached/, "The returned scan status must include depth-limited folders");
 assert.match(java, /if \(cursor == null\) \{\s*folderQueryUnavailable = true;\s*continue;/, "A document provider returning a null child cursor must mark that folder scan incomplete");
+assert.match(java, /catch \(SecurityException error\) \{\s*throw error;\s*\} catch \(RuntimeException error\) \{\s*[^}]*folderQueryUnavailable = true;/, "A failing subfolder query must preserve earlier results and mark the scan partial without swallowing permission failures");
+
 assert.match(java, /response\.put\("truncated", [^;]*folderQueryUnavailable/, "The scanner response must report inaccessible folder queries as partial results");
 
 assert.match(java, /foldersVisited < MAX_TREE_FOLDERS_DISCOVERED/, "La búsqueda de carpetas debe limitar trabajo para proteger el dispositivo");
