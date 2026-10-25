@@ -13,6 +13,9 @@
     "android:sync": "npm --prefix mobile run android:sync",
     "desktop:prepare": "npm --prefix desktop run prepare",
     "desktop:start": "npm --prefix desktop run start",
-    "validate": "node scripts/validate.mjs"
+    "validate": "node scripts/validate.mjs",
+    "desktop:app": "npm --prefix desktop run app",
+    "desktop:package:windows": "npm --prefix desktop run package:windows",
+    "desktop:check": "npm --prefix desktop run check:package"
   }
 }
