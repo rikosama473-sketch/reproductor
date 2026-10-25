@@ -85,4 +85,24 @@ await assert.rejects(() => parseRitmoBackup(JSON.stringify({
   }
 })), /demasiados registros|adjunto|incompleto|inválido/);
 
-console.log("Backup checks passed: metadata and optional audio round-trip, custom character and artwork preservation, device-path redaction, credential exclusion, bounds and malformed-file rejection.");
+// Export must reject the same untrusted nesting depth accepted by import, before
+// recursion reaches the JavaScript stack limit.
+{
+  let deeplyNested = { leaf: true };
+  for (let index = 0; index < 45; index++) deeplyNested = { child: deeplyNested };
+  await assert.rejects(
+    createRitmoBackup({ settings: [{ key: "ritmo.test.deep", value: deeplyNested }] }),
+    /demasiado anidados/,
+    "A deeply nested setting must produce a controlled backup error, not a stack overflow"
+  );
+}
+{
+  const oversizedList = new Array(100001).fill(null);
+  await assert.rejects(
+    createRitmoBackup({ settings: [{ key: "ritmo.test.list", value: oversizedList }] }),
+    /lista.*demasiado extensa/,
+    "A nested collection beyond the import-safe limit must be rejected before serialization"
+  );
+}
+
+console.log("Backup checks passed: metadata and optional audio round-trip, custom character and artwork preservation, device-path redaction, credential exclusion, bounded nesting/arrays and malformed-file rejection.");

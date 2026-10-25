@@ -8,6 +8,8 @@ export const MAX_BACKUP_HISTORY = 5000;
 export const MAX_BACKUP_PLAYLISTS = 5000;
 export const MAX_BACKUP_SETTINGS = 500;
 export const MAX_BACKUP_PREFERENCES = 200;
+const MAX_BACKUP_NESTING_DEPTH = 40;
+const MAX_BACKUP_ARRAY_ITEMS = 100000;
 const BLOB_MARKER = "__ritmoBackupBlobV1";
 const SENSITIVE_KEY = /token|api.?key|secret|password|credential|authorization|oauth/i;
 const SAFE_PREFERENCE_KEY = /^ritmo\.[a-z0-9._-]{1,120}$/i;
@@ -60,7 +62,10 @@ function isTrackArtworkBlob(path) {
   return path.length === 3 && path[0] === "tracks" && path[2] === "artworkBlob";
 }
 
-async function encodeValue(value, path, budget, includeAudio) {
+async function encodeValue(value, path, budget, includeAudio, depth = 0) {
+  if (depth > MAX_BACKUP_NESTING_DEPTH) {
+    throw new Error("Los datos de la biblioteca están demasiado anidados para crear una copia segura.");
+  }
   if (value instanceof Blob) {
     const audioBlob = isTrackAudioBlob(path);
     const artworkBlob = isTrackArtworkBlob(path);
@@ -94,9 +99,12 @@ async function encodeValue(value, path, budget, includeAudio) {
     };
   }
   if (Array.isArray(value)) {
+    if (value.length > MAX_BACKUP_ARRAY_ITEMS) {
+      throw new Error("Una lista de la biblioteca es demasiado extensa para crear una copia segura.");
+    }
     const result = [];
     for (let index = 0; index < value.length; index++) {
-      const item = await encodeValue(value[index], [...path, index], budget, includeAudio);
+      const item = await encodeValue(value[index], [...path, index], budget, includeAudio, depth + 1);
       result.push(item === OMIT ? null : item);
     }
     return result;
@@ -108,7 +116,7 @@ async function encodeValue(value, path, budget, includeAudio) {
       if (path[0] === "tracks" && path.length === 2 && (key === "nativePath" || key === "nativeUri")) {
         continue;
       }
-      const encoded = await encodeValue(child, [...path, key], budget, includeAudio);
+      const encoded = await encodeValue(child, [...path, key], budget, includeAudio, depth + 1);
       if (encoded !== OMIT && encoded !== undefined) result[key] = encoded;
     }
     return result;
