@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from "./concurrent-map.js";
 import { getAllTracks, saveManyTracks, saveTrack, deleteTrackAndPrunePlaylists, getHistory, addHistoryEntry, clearHistory, getPlaylists, savePlaylist, deletePlaylist, estimateStorage, requestPersistentStorage, getAppSetting, saveAppSetting, deleteAppSetting } from "./storage.js";
 import { normalizePlaylistName, renamePlaylist, movePlaylistTrack, removePlaylistTrack } from "./playlist-editing.js";
 import { createYoutubeHistoryController } from "./youtube-history.js";
@@ -3024,11 +3025,12 @@ async function importFiles(fileList, options = {}) {
 
   let saved = 0, bytesSaved = 0, failure = null;
   const BATCH_SIZE = 20;
+  const IMPORT_METADATA_CONCURRENCY = 4;
   for (let offset = 0; offset < uniqueFiles.length; offset += BATCH_SIZE) {
     const batch = uniqueFiles.slice(offset, offset + BATCH_SIZE);
     toast("Importando " + Math.min(offset + batch.length, uniqueFiles.length) + " de " + uniqueFiles.length + " archivos…");
     try {
-      const tracks = await Promise.all(batch.map(async file => {
+      const tracks = await mapWithConcurrency(batch, IMPORT_METADATA_CONCURRENCY, async file => {
         const meta = options.metadataOverridesByFile?.get(file) || await readAudioMetadata(file);
         return { id: id(), kind: "file", name: file.name, sourcePath: file.webkitRelativePath || file.name, title: meta.title, artist: meta.artist, album: meta.album || "", genre: meta.genre || "",
           ...(meta.artwork instanceof Uint8Array && (meta.artworkMimeType === "image/jpeg" || meta.artworkMimeType === "image/png") &&
@@ -3039,7 +3041,7 @@ async function importFiles(fileList, options = {}) {
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
           blob: file, favorite: false, addedAt: Date.now() + saved, duration: 0, lastPlayedAt: 0 };
-      }));
+      });
       await saveManyTracks(tracks);
       saved += tracks.length;
       bytesSaved += tracks.reduce((sum, track) => sum + track.size, 0);
