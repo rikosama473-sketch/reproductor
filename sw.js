@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v97";
+const CACHE_NAME = "ritmo-shell-v98";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -15,6 +15,7 @@ const APP_SHELL = [
   "./src/import-fingerprint.js",
   "./src/id3-tags.js",
   "./src/vorbis-comments.js",
+  "./src/wav-info-tags.js",
   "./src/audio-converter.js",
   "./src/async-generation-gate.js",
   "./src/playback-position.js",

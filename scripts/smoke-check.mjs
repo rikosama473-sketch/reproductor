@@ -506,4 +506,13 @@ assert.match(vorbisMetadataApp, /parseFlacVorbisComments/);
 assert.match(vorbisMetadataApp, /parseOggVorbisComments/);
 assert.match(vorbisMetadataApp, /isVorbisMetadataFilename\(file\.name\)/, "Imported FLAC/Ogg/Opus metadata must be marked as scanned");
 assert.match(vorbisMetadataSource, /MAX_VORBIS_METADATA_BYTES/, "Vorbis metadata parsing must stay bounded");
+const wavMetadataSource = fs.readFileSync(new URL("../src/wav-info-tags.js", import.meta.url), "utf8");
+assert.ok(vorbisMetadataApp.includes('from "./wav-info-tags.js"'), "The app must integrate RIFF/WAVE INFO metadata parsing");
+assert.match(vorbisMetadataApp, /readWavInfoMetadata/);
+assert.match(vorbisMetadataApp, /isWavMetadataFilename\(file\.name\)/, "Imported WAV metadata must be marked as scanned");
+assert.match(wavMetadataSource, /MAX_WAV_METADATA_BYTES/);
+assert.match(wavMetadataSource, /LIST/);
+assert.match(wavMetadataSource, /INFO/);
+console.log("WAV INFO metadata integration checks passed.");
+
 console.log("Vorbis metadata integration checks passed.");

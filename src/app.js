@@ -8,6 +8,7 @@ import { EQUALIZER_PRESETS, getEqualizerPreset, normalizeSavedEqualizerProfiles,
 import { classifyAudioImportFiles, classifyImportDuplicate, importedFileFingerprint, MAX_BLOB_COMPARE_CANDIDATES_PER_IMPORT_BATCH, MAX_BLOB_COMPARISON_BYTES_PER_IMPORT_BATCH } from "./import-fingerprint.js";
 import { parseId3Tags, validateEmbeddedArtwork, MAX_EMBEDDED_ARTWORK_BYTES } from "./id3-tags.js";
 import { parseFlacVorbisComments, parseOggVorbisComments, isVorbisMetadataFilename, MAX_VORBIS_METADATA_BYTES } from "./vorbis-comments.js";
+import { isWavMetadataFilename, readWavInfoMetadata } from "./wav-info-tags.js";
 import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, MAX_CONVERTER_TOTAL_INPUT_BYTES, MAX_CONVERTER_OUTPUT_BYTES, claimUniqueWavFilename } from "./audio-converter.js";
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
@@ -185,7 +186,7 @@ function notifySoundTrackContext(track) {
 }
 function backfillTrackGenre(track) {
   if (!track || track.metadataScanned === true || !(track.blob instanceof Blob) ||
-      (!/\.mp3$/i.test(track.name || "") && !isVorbisMetadataFilename(track.name || "")) ||
+      (!/\.mp3$/i.test(track.name || "") && !isVorbisMetadataFilename(track.name || "") && !isWavMetadataFilename(track.name || "")) ||
       trackGenreReadsInProgress.has(track.id)) return;
   trackGenreReadsInProgress.add(track.id);
   void readAudioMetadata(track.blob, track.name).then(metadata => {
@@ -2573,7 +2574,9 @@ async function readAudioMetadata(file, filename = file?.name || "") {
   const fallback = metadataForFile({ name: metadataName });
   const isMp3 = /\.mp3$/i.test(metadataName);
   const isVorbis = isVorbisMetadataFilename(metadataName);
-  if (!file || file.size < 10 || (!isMp3 && !isVorbis)) return fallback;
+  const isWav = isWavMetadataFilename(metadataName);
+  if (!file || file.size < (isWav ? 12 : 10) || (!isMp3 && !isVorbis && !isWav)) return fallback;
+  if (isWav) return readWavInfoMetadata(file, fallback);
   try {
     // Read only a bounded prefix; never decode or rewrite the original audio.
     const scanLimit = isMp3 ? 2 * 1024 * 1024 : MAX_VORBIS_METADATA_BYTES;
@@ -3012,7 +3015,7 @@ async function importFiles(fileList, options = {}) {
           ...(meta.artwork instanceof Uint8Array && (meta.artworkMimeType === "image/jpeg" || meta.artworkMimeType === "image/png") &&
               meta.artwork.byteLength <= MAX_EMBEDDED_ARTWORK_BYTES
             ? { artworkBlob: new Blob([meta.artwork], { type: meta.artworkMimeType }) } : {}),
-          metadataScanned: options.metadataOverridesByFile?.has(file) === true || /\.mp3$/i.test(file.name) || isVorbisMetadataFilename(file.name),
+          metadataScanned: options.metadataOverridesByFile?.has(file) === true || /\.mp3$/i.test(file.name) || isVorbisMetadataFilename(file.name) || isWavMetadataFilename(file.name),
           size: file.size, mimeType: file.type || "application/octet-stream", lastModified: file.lastModified,
           nativePath: String(options.nativePathsByFile?.get(file) || ""),
           dedupeKey: String(options.dedupeKeysByFile?.get(file) || ""),
