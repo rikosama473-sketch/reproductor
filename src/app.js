@@ -19,6 +19,7 @@ import { createMusicFinderController } from "./music-finder-ui.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
 import { matchesLibrarySearch } from "./library-search.js";
 import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
+import { mergeNativeTrackMetadata } from "./native-track-metadata.js";
 
 const $ = selector => document.querySelector(selector);
 const defaultAudio = $("#audio-engine");
@@ -724,9 +725,21 @@ async function saveTrackMetadata(event) {
     return;
   }
   const snapshots = tracks.map(track => ({
-    track, fields: Object.fromEntries(updates.map(field => [field, track[field]]))
+    track,
+    fields: Object.fromEntries(updates.map(field => [field, track[field]])),
+    hadUserMetadataOverrides: Object.prototype.hasOwnProperty.call(track, "userMetadataOverrides"),
+    userMetadataOverrides: track.userMetadataOverrides && typeof track.userMetadataOverrides === "object" &&
+      !Array.isArray(track.userMetadataOverrides) ? { ...track.userMetadataOverrides } : track.userMetadataOverrides
   }));
-  for (const track of tracks) for (const field of updates) track[field] = values[field];
+  for (const track of tracks) {
+    for (const field of updates) track[field] = values[field];
+    const overrides = track.userMetadataOverrides && typeof track.userMetadataOverrides === "object" &&
+      !Array.isArray(track.userMetadataOverrides) ? track.userMetadataOverrides : {};
+    track.userMetadataOverrides = {
+      ...overrides,
+      ...Object.fromEntries(updates.map(field => [field, true]))
+    };
+  }
   try {
     await saveManyTracks(tracks);
     $("#metadata-dialog")?.close();
@@ -738,7 +751,11 @@ async function saveTrackMetadata(event) {
     }
     toast(updates.length + " campo(s) actualizado(s) en " + tracks.length + (tracks.length === 1 ? " canción." : " canciones."));
   } catch (error) {
-    for (const snapshot of snapshots) Object.assign(snapshot.track, snapshot.fields);
+    for (const snapshot of snapshots) {
+      Object.assign(snapshot.track, snapshot.fields);
+      if (snapshot.hadUserMetadataOverrides) snapshot.track.userMetadataOverrides = snapshot.userMetadataOverrides;
+      else delete snapshot.track.userMetadataOverrides;
+    }
     render();
     const status = $("#metadata-editor-status");
     if (status) status.textContent = error?.message || "No se pudieron guardar los cambios.";
@@ -2804,9 +2821,7 @@ async function scanDeviceMusic() {
         sourcePath: uri || name,
         nativePath: old?.nativePath || "",
         nativeUri: uri || old?.nativeUri || "",
-        title: String(item.title || titleFromFilename(name)),
-        artist: String(item.artist || old?.artist || "Artista desconocido"),
-        album: String(item.album || old?.album || ""),
+        ...mergeNativeTrackMetadata(old, item, titleFromFilename(name)),
         size: Number(item.size) || 0,
         mimeType: String(item.mimeType || "application/octet-stream"),
         lastModified: Number(item.lastModified) || 0,
@@ -2871,9 +2886,7 @@ async function browseAudioFolder() {
         sourcePath: uri || name,
         nativePath: "",
         nativeUri: uri,
-        title: String(item.title || titleFromFilename(name)),
-        artist: String(item.artist || old?.artist || "Artista desconocido"),
-        album: String(item.album || old?.album || ""),
+        ...mergeNativeTrackMetadata(old, item, titleFromFilename(name)),
         size: Number(item.size) || 0,
         mimeType: String(item.mimeType || "application/octet-stream"),
         lastModified: Number(item.lastModified) || 0,

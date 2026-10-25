@@ -1,4 +1,4 @@
-const CACHE_NAME = "ritmo-shell-v103";
+const CACHE_NAME = "ritmo-shell-v104";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const APP_SHELL = [
   "./src/app.js",
   "./src/library-search.js",
   "./src/library-filters.js",
+  "./src/native-track-metadata.js",
   "./src/storage.js",
   "./src/playlist-editing.js",
   "./src/youtube-history.js",
