@@ -15,8 +15,9 @@ assert.equal(capacitor.webDir, "www", "Android must use its private mobile/www s
 assert.equal(mobilePackage.dependencies?.["@capacitor/android"], "8.5.3", "Only the mobile app should declare the Android Capacitor platform");
 assert.equal(desktopPackage.scripts?.prepare, "node scripts/prepare.mjs", "Desktop must have its own PWA build entry point");
 assert.equal(desktopPackage.scripts?.start, "npm run prepare && node scripts/serve.mjs", "Desktop must have an independent PC run command");
-assert.equal(desktopPackage.dependencies, undefined, "Desktop staging should not require runtime/build dependencies");
-assert.equal(desktopPackage.devDependencies, undefined, "Desktop staging should not require runtime/build dependencies");
+assert.equal(desktopPackage.dependencies, undefined, "The desktop app should not bundle extra production dependencies into its runtime.");
+assert.deepEqual(desktopPackage.devDependencies, { electron: "45.0.0", "electron-builder": "26.18.0" },
+  "Only pinned desktop packaging tools should be declared as development dependencies; mobile remains independent.");
 
 const generated = spawnSync(process.execPath, [path.join(desktopRoot, "scripts", "prepare.mjs")], {
   cwd: root,

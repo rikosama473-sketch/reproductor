@@ -2,13 +2,68 @@
   "name": "ritmo-desktop-pwa",
   "version": "1.0.0",
   "private": true,
-  "description": "Salida independiente de Ritmo para PC y navegadores de escritorio",
+  "description": "Ritmo para PC: PWA local y aplicación de escritorio Windows",
   "type": "module",
+  "main": "electron/main.mjs",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "prepare": "node scripts/prepare.mjs",
-    "start": "npm run prepare && node scripts/serve.mjs"
+    "start": "npm run prepare && node scripts/serve.mjs",
+    "app": "npm run prepare && electron .",
+    "package:windows": "npm run prepare && electron-builder --win nsis portable",
+    "check:package": "node scripts/desktop-package-check.mjs",
+    "verify:release": "node scripts/verify-release.mjs"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.ritmo.player",
+    "productName": "Ritmo",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "../assets"
+    },
+    "files": [
+      "electron/**/*.mjs",
+      "scripts/static-server.mjs",
+      "dist/**/*",
+      "package.json",
+      "!**/node_modules/ritmo-workspace/**",
+      "!**/desktop/release/**",
+      "!**/release/win-unpacked/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "Ritmo-${version}-Setup-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "Ritmo-${version}-Portable-${arch}.${ext}"
+    }
   }
 }

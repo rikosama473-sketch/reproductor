@@ -236,3 +236,6 @@ __marimo__/
 /mobile/*.jks
 /desktop/node_modules/
 /desktop/dist/
+
+# Ritmo Windows desktop package output
+/desktop/release/

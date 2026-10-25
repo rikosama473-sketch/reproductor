@@ -1,0 +1,53 @@
+name: Build Ritmo for Windows PC
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ritmo-windows-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Build Windows installer and portable app
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install pinned Electron and packaging tools
+        run: npm install --prefix desktop --no-audit --no-fund
+
+      - name: Test desktop bundle and local server
+        run: npm --prefix desktop run check:package
+
+      - name: Build Windows installer and portable executable
+        run: npm --prefix desktop run package:windows
+
+      - name: Verify executables and produce checksums
+        env:
+          RITMO_COMMIT: ${{ github.sha }}
+          RITMO_RUN_NUMBER: ${{ github.run_number }}
+        run: npm --prefix desktop run verify:release
+
+      - name: Upload Windows installer, portable executable and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ritmo-Windows-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/Ritmo-Windows-SHA256.txt
+            desktop/release/build-info.json
+          if-no-files-found: error
+          retention-days: 30
