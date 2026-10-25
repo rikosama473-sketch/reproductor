@@ -105,4 +105,31 @@ await assert.rejects(() => parseRitmoBackup(JSON.stringify({
   );
 }
 
+// Large text must be rejected by the incremental budget before the final
+// JSON.stringify allocation would create another >40 MiB string in memory.
+{
+  const largeText = "x".repeat(2_000_000);
+  const settings = Array.from({ length: 22 }, (_, index) => ({
+    key: "ritmo.large." + index,
+    value: largeText
+  }));
+  const originalStringify = JSON.stringify;
+  let stringifyAttempted = false;
+  JSON.stringify = () => {
+    stringifyAttempted = true;
+    throw new Error("final JSON.stringify should not run for an oversized backup");
+  };
+  try {
+    await assert.rejects(
+      createRitmoBackup({ settings }),
+      /superaría 40 MiB/,
+      "The incremental budget must reject an oversized backup while encoding"
+    );
+  } finally {
+    JSON.stringify = originalStringify;
+  }
+  assert.equal(stringifyAttempted, false,
+    "Oversized backups must be rejected before the final JSON string is allocated");
+}
+
 console.log("Backup checks passed: metadata and optional audio round-trip, custom character and artwork preservation, device-path redaction, credential exclusion, bounded nesting/arrays and malformed-file rejection.");
