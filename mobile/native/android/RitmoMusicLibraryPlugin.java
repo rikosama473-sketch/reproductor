@@ -53,6 +53,8 @@ import java.util.Set;
 )
 public class RitmoMusicLibraryPlugin extends Plugin {
     private static final int MAX_MEDIASTORE_RESULTS = 10000;
+    private static final int MAX_TREE_FOLDERS_DISCOVERED = 50000;
+    private static final int MAX_TREE_DOCUMENTS_SCANNED = 100000;
     // Leave room for the 64-character SHA-256 key and separator in the cache filename.
     private static final int MAX_AUDIO_CACHE_NAME_CHARS = 120;
     private static final int MAX_ARTWORK_RAW_BYTES = 8 * 1024 * 1024;
@@ -320,7 +322,11 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                 Document.COLUMN_LAST_MODIFIED
             };
             int foldersVisited = 0;
-            while (!pending.isEmpty() && files.length() < 10000 && foldersVisited < 50000) {
+            int documentsScanned = 0;
+            boolean folderDiscoveryTruncated = false;
+            while (!pending.isEmpty() && files.length() < 10000 &&
+                   foldersVisited < MAX_TREE_FOLDERS_DISCOVERED &&
+                   documentsScanned < MAX_TREE_DOCUMENTS_SCANNED) {
                 TreeFolder folder = pending.pop();
                 foldersVisited++;
                 if (folder.depth > 32) continue;
@@ -332,13 +338,22 @@ public class RitmoMusicLibraryPlugin extends Plugin {
                     int mimeColumn = cursor.getColumnIndex(Document.COLUMN_MIME_TYPE);
                     int sizeColumn = cursor.getColumnIndex(Document.COLUMN_SIZE);
                     int modifiedColumn = cursor.getColumnIndex(Document.COLUMN_LAST_MODIFIED);
-                    while (cursor.moveToNext() && files.length() < 10000) {
+                    while (cursor.moveToNext() && files.length() < 10000 &&
+                           documentsScanned < MAX_TREE_DOCUMENTS_SCANNED) {
+                        documentsScanned++;
                         String docId = columnString(cursor, idColumn);
                         String name = columnString(cursor, nameColumn);
                         String mime = columnString(cursor, mimeColumn);
                         if (docId == null || docId.trim().isEmpty()) continue;
                         if (Document.MIME_TYPE_DIR.equals(mime)) {
-                            if (visited.add(docId)) pending.push(new TreeFolder(docId, folder.depth + 1));
+                            if (!visited.contains(docId)) {
+                                if (visited.size() >= MAX_TREE_FOLDERS_DISCOVERED) {
+                                    folderDiscoveryTruncated = true;
+                                    continue;
+                                }
+                                visited.add(docId);
+                                pending.push(new TreeFolder(docId, folder.depth + 1));
+                            }
                             continue;
                         }
                         if (!isAudioFile(name, mime)) continue;
@@ -361,7 +376,7 @@ public class RitmoMusicLibraryPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("files", files);
             response.put("treeUri", treeUri.toString());
-            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= 50000);
+            response.put("truncated", !pending.isEmpty() || files.length() >= 10000 || foldersVisited >= MAX_TREE_FOLDERS_DISCOVERED || documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED || folderDiscoveryTruncated);
             call.resolve(response);
         } catch (SecurityException error) {
             call.reject("Android no permitió leer la carpeta. Volvé a elegirla y concedé acceso.", error);

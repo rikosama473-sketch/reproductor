@@ -54,6 +54,11 @@ assert.match(java, /ACTION_OPEN_DOCUMENT_TREE/, "La app debe permitir elegir una
 assert.match(java, /listAudioFromTree/, "La app debe explorar la carpeta seleccionada");
 assert.match(java, /queryTreeChildren\(resolver, childrenUri, projection\)/, "La exploración SAF debe usar una consulta compatible con proveedores distintos");
 assert.match(java, /minimumProjection/, "El escaneo SAF debe tolerar proveedores que rechazan columnas opcionales");
+assert.match(java, /MAX_TREE_FOLDERS_DISCOVERED = 50000/, "The SAF scanner must cap queued/discovered folders, not only folders already visited");
+assert.match(java, /MAX_TREE_DOCUMENTS_SCANNED = 100000/, "The SAF scanner must cap total directory entries inspected across the entire tree");
+assert.match(java, /documentsScanned < MAX_TREE_DOCUMENTS_SCANNED/, "Both folder and document loops must stop when the global entry budget is exhausted");
+assert.match(java, /visited\.size\(\) >= MAX_TREE_FOLDERS_DISCOVERED[\s\S]*?folderDiscoveryTruncated = true/, "Large directories must stop enqueueing folders after the discovery budget");
+assert.match(java, /response\.put\("truncated", [^;]*documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED[^;]*folderDiscoveryTruncated/, "The UI must learn when folder or document scan limits make results partial");
 assert.match(java, /foldersVisited < 50000/, "La búsqueda de carpetas debe limitar trabajo para proteger el dispositivo");
 assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interfaz debe informar cuando una carpeta es demasiado grande para escanearla completa");
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
