@@ -59,7 +59,7 @@ assert.match(java, /MAX_TREE_DOCUMENTS_SCANNED = 100000/, "The SAF scanner must 
 assert.match(java, /documentsScanned < MAX_TREE_DOCUMENTS_SCANNED/, "Both folder and document loops must stop when the global entry budget is exhausted");
 assert.match(java, /visited\.size\(\) >= MAX_TREE_FOLDERS_DISCOVERED[\s\S]*?folderDiscoveryTruncated = true/, "Large directories must stop enqueueing folders after the discovery budget");
 assert.match(java, /response\.put\("truncated", [^;]*documentsScanned >= MAX_TREE_DOCUMENTS_SCANNED[^;]*folderDiscoveryTruncated/, "The UI must learn when folder or document scan limits make results partial");
-assert.match(java, /foldersVisited < 50000/, "La búsqueda de carpetas debe limitar trabajo para proteger el dispositivo");
+assert.match(java, /foldersVisited < MAX_TREE_FOLDERS_DISCOVERED/, "La búsqueda de carpetas debe limitar trabajo para proteger el dispositivo");
 assert.match(app, /result\?\.truncated[\s\S]*elegí una subcarpeta/i, "La interfaz debe informar cuando una carpeta es demasiado grande para escanearla completa");
 assert.match(app, /bridge\.nativePromise\("RitmoMusicLibrary", method/, "El puente de biblioteca debe funcionar sin un bundler");
 assert.match(app, /bridge\.nativePromise\("RitmoPlayback", method/, "La reproducción Android debe usar Media3");
