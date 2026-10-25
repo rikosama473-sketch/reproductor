@@ -109,8 +109,12 @@ export async function readWavInfoMetadata(file, fallback = {}) {
     const found = {};
     let offset = 12, chunks = 0, metadataBytesRead = 12;
     while (offset + 8 <= riffEnd && chunks < MAX_WAV_INFO_CHUNKS) {
+      // The 2 MiB budget covers every byte read, including RIFF chunk headers,
+      // not only LIST/INFO payloads. Stop before requesting bytes beyond it.
+      if (metadataBytesRead + 8 > MAX_WAV_METADATA_BYTES) break;
       chunks++;
       const chunkHeader = new Uint8Array(await file.slice(offset, offset + 8).arrayBuffer());
+      metadataBytesRead += chunkHeader.byteLength;
       if (chunkHeader.length !== 8) break;
       const id = asciiText(chunkHeader, 0, 4);
       const chunkSize = readUint32LE(chunkHeader, 4);
