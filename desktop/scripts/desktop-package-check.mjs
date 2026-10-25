@@ -22,6 +22,9 @@ assert.equal(packageJson.devDependencies.electron, "45.0.0", "Electron runtime m
 assert.equal(packageJson.devDependencies["electron-builder"], "26.18.0", "Windows packaging tool must be pinned.");
 assert.equal(packageJson.build.appId, "com.ritmo.player");
 assert.equal(packageJson.build.directories.buildResources, "../assets", "Windows installer should use the existing Ritmo icon.");
+assert.ok(packageJson.build.files.includes("!**/node_modules/ritmo-workspace/**"), "The workspace root must not be packed into the desktop runtime as a nested application.");
+assert.ok(packageJson.build.files.includes("!**/desktop/release/**"), "Generated Windows release output must never be recursively included in the app.");
+assert.ok(packageJson.build.files.includes("!**/release/win-unpacked/**"), "Electron unpacked output must not recursively include its own build directory.");
 assert.equal(packageJson.build.win.target.length, 2);
 assert.deepEqual(packageJson.build.win.target.map(target => target.target), ["nsis", "portable"]);
 assert.equal(packageJson.build.nsis.oneClick, false, "Installer should show its setup wizard.");
