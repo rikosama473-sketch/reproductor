@@ -34,7 +34,10 @@ assert.match(app, /nativeArtworkScanned === true[\s\S]*?plugin\.getEmbeddedArtwo
 
 assert.match(java, /files\.length\(\) >= MAX_MEDIASTORE_RESULTS[\s\S]*?truncated = true/, "El escaneo debe detectar e informar los resultados parciales");
 assert.match(java, /result\.put\("truncated", truncated\)/, "El plugin debe enviar al usuario el estado de truncamiento");
-assert.match(java, /private synchronized String copyToPrivateCache\(/, "Concurrent provider resolutions must not truncate the same temporary cache file");
+assert.match(java, /private synchronized String copyToPrivateCache\(Uri uri, String originalName, boolean forceRefresh\)/, "Concurrent provider resolutions must not truncate the same temporary cache file");
+assert.match(java, /Boolean\.TRUE\.equals\(call\.getBoolean\("forceRefresh"\)\)/, "The native cache must support explicit source refreshes");
+assert.match(java, /if \(!forceRefresh && output\.isFile\(\) && output\.length\(\) > 0\)/, "Forced refreshes must bypass a potentially stale cache entry");
+assert.match(app, /resolveAudioPath\(\{ uri: track\.nativeUri, name: track\.name, forceRefresh: true \}\)/, "Web fallback must refresh the native copy when the provider URI can no longer be played");
 assert.match(java, /Thread worker = new Thread\(\(\) ->[\s\S]*?RitmoPruneAudioCache[\s\S]*?worker\.start\(\)/, "Cache directory traversal and deletion must not block Android UI thread");
 assert.match(java, /synchronized \(RitmoMusicLibraryPlugin\.this\)/, "Cache pruning must coordinate with concurrent provider-cache copies");
 

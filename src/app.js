@@ -2442,7 +2442,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
           } else {
             toast("El reproductor nativo no abrió este archivo; probando la reproducción compatible.");
             try {
-              const resolved = await libraryPlugin.resolveAudioPath({ uri: track.nativeUri, name: track.name });
+              const resolved = await libraryPlugin.resolveAudioPath({ uri: track.nativeUri, name: track.name, forceRefresh: true });
               if (!isCurrentPlaybackRequest()) return;
               track.nativePath = String(resolved?.path || "");
               if (!track.nativePath) throw nativeError;
