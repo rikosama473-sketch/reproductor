@@ -44,6 +44,8 @@ assert.match(app, /syncCharacterCompanion\(hasMedia && !playbackIsPaused\(\)\)/,
 assert.match(html, /manifest\.webmanifest/, "HTML must link to the PWA manifest");
 assert.match(app, /import \{ mapWithConcurrency \} from "\.\/concurrent-map\.js"/, "Library import should use the tested bounded worker pool");
 assert.match(app, /const IMPORT_METADATA_CONCURRENCY = 4/, "Metadata reads should be bounded to four concurrent files on low-memory devices");
+assert.match(app, /const skippedUnsupportedFiles = selection\.unsupportedCount/, "Bulk library import must report non-audio files skipped from a mixed selection");
+assert.match(app, /archivo\(s\) no compatible\(s\) omitido\(s\)/, "Import feedback must clearly count unsupported files");
 assert.match(app, /mapWithConcurrency\(batch, IMPORT_METADATA_CONCURRENCY, async file =>/, "Library batches should use bounded metadata preparation");
 assert.match(app, /indexedDB|saveManyTracks/, "App must use persistent local library storage");
 assert.match(app, /function scanDeviceMusic/, "Android build must scan local device music");

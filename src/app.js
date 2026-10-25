@@ -2920,13 +2920,18 @@ async function importFiles(fileList, options = {}) {
   const selection = classifyAudioImportFiles(fileList);
   const files = selection.files;
   const skippedEmptyFiles = selection.emptyFiles.length;
+  const skippedUnsupportedFiles = selection.unsupportedCount;
+  const skippedInputNotes = [];
+  if (skippedUnsupportedFiles) skippedInputNotes.push(skippedUnsupportedFiles + " archivo(s) no compatible(s) omitido(s)");
+  if (skippedEmptyFiles) skippedInputNotes.push(skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)");
+  const skippedInputSummary = skippedInputNotes.length ? " · " + skippedInputNotes.join(" · ") : "";
   if (!files.length) {
-    toast(skippedEmptyFiles
-      ? "Se omitieron " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s); no se importó ninguno."
+    toast(skippedInputSummary
+      ? "No se importó ningún archivo." + skippedInputSummary + "."
       : "No encontré archivos de audio compatibles.");
     return {
       saved: 0, bytesSaved: 0, skippedByIdentity: 0, skippedByContent: 0,
-      comparisonWarnings: 0, skippedEmptyFiles, failure: null
+      comparisonWarnings: 0, skippedEmptyFiles, skippedUnsupportedFiles, failure: null
     };
   }
 
@@ -3013,13 +3018,14 @@ async function importFiles(fileList, options = {}) {
     if (skippedByIdentity) details.push(skippedByIdentity + " ya se reconocían por su ruta o identidad");
     if (skippedByContent) details.push(skippedByContent + " eran copias binarias idénticas");
     if (comparisonWarnings) details.push(comparisonWarnings + " comprobación(es) fallida(s); esos archivos no se descartaron");
+    if (skippedUnsupportedFiles) details.push(skippedUnsupportedFiles + " archivo(s) no compatible(s) omitido(s)");
     if (skippedEmptyFiles) details.push(skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)");
     toast(details.length
       ? "No se importaron archivos nuevos: " + details.join(" · ") + "."
       : "Esos archivos ya están en tu biblioteca.");
     return {
       saved: 0, bytesSaved: 0, skippedByIdentity, skippedByContent,
-      comparisonWarnings, skippedEmptyFiles, failure: null
+      comparisonWarnings, skippedEmptyFiles, skippedUnsupportedFiles, failure: null
     };
   }
 
@@ -3056,19 +3062,17 @@ async function importFiles(fileList, options = {}) {
     const comparisonNote = comparisonWarnings
       ? " · " + comparisonWarnings + " comprobación(es) no concluyentes; se conservaron"
       : "";
-    const emptyFilesNote = skippedEmptyFiles
-      ? " · " + skippedEmptyFiles + " archivo(s) de audio vacío(s) o no legible(s) omitido(s)"
-      : "";
     toast(saved + (saved === 1 ? " archivo importado" : " archivos importados") + " · " +
-      formatBytes(bytesSaved) + duplicateNote + comparisonNote + emptyFilesNote + (failure ? " · importación parcial" : ""));
+      formatBytes(bytesSaved) + duplicateNote + comparisonNote + skippedInputSummary + (failure ? " · importación parcial" : ""));
     requestPersistentStorage().catch(() => {});
     if (!currentTrack() && options.navigateToLibrary !== false) showView("library");
   } else {
-    toast(failure?.name === "QuotaExceededError"
+    const failureMessage = failure?.name === "QuotaExceededError"
       ? "No hay espacio suficiente en el navegador. Importá menos archivos por vez o liberá almacenamiento."
-      : (failure?.message || "No se pudo importar la música."));
+      : (failure?.message || "No se pudo importar la música.");
+    toast(failureMessage + skippedInputSummary);
   }
-  return { saved, bytesSaved, skippedByIdentity, skippedByContent, comparisonWarnings, skippedEmptyFiles, failure };
+  return { saved, bytesSaved, skippedByIdentity, skippedByContent, comparisonWarnings, skippedEmptyFiles, skippedUnsupportedFiles, failure };
 }
 async function removeCurrent() {
   // Invalidate any play()/AudioContext continuation that is still awaiting a
