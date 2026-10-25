@@ -32,7 +32,10 @@
       "electron/**/*.mjs",
       "scripts/static-server.mjs",
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "!**/node_modules/ritmo-workspace/**",
+      "!**/desktop/release/**",
+      "!**/release/win-unpacked/**"
     ],
     "win": {
       "target": [
