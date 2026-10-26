@@ -178,8 +178,20 @@ try {
   const uninstallExit = await runProcess(path.join(installDir, uninstallerName), ["/S"]);
   assert.equal(uninstallExit.code, 0,
     "El desinstalador NSIS terminó con código " + uninstallExit.code);
-  assert.equal(await targetExists(installedExecutable), false,
-    "La desinstalación silenciosa debe retirar el ejecutable de la aplicación.");
+  const uninstallDeadline = Date.now() + 15000;
+  let executableRemoved = false;
+  while (Date.now() < uninstallDeadline) {
+    if (!(await targetExists(installedExecutable))) {
+      executableRemoved = true;
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  const remainingInstallFiles = await readdir(installDir).catch(error =>
+    error?.code === "ENOENT" ? [] : ["No se pudo listar el directorio: " + error.message]);
+  assert.equal(executableRemoved, true,
+    "La desinstalación silenciosa debe retirar Ritmo.exe. Archivos restantes: " +
+    JSON.stringify(remainingInstallFiles));
 
   console.log("Ritmo Windows release smoke test passed: " + JSON.stringify({
     portable: {
