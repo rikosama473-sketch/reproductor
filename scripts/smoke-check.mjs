@@ -453,7 +453,8 @@ assert.ok(html.includes('id="music-recognition-start"'), "The app must expose mi
 assert.ok(html.includes('id="music-recognition-consent"'), "The app must require explicit consent before sending an audio clip");
 assert.ok(html.includes('id="music-finder-search-results"'), "Manual song search must have a results area");
 assert.match(app, /createMusicFinderController/, "The music finder controller must be wired into Ritmo");
-assert.match(app, /filterAndSortLibraryTracks\(state\.tracks, \{ query: state\.query/, "Library search, facets and sort must share one canonical result pipeline");
+assert.match(app, /filterAndSortLibraryTracks\(libraryTracks, \{ query: state\.query/, "Library search, facets and sort must share one canonical result pipeline after radios are separated");
+assert.match(app, /const libraryTracks = state\.tracks\.filter\(track => !isRadioStationTrack\(track\)\)/, "Radio streams must not pollute song library filters and facets");
 assert.match(libraryFilters, /matchesLibrarySearch\(track, filters\.query\)/, "Library facets must preserve accent-aware text search");
 assert.match(libraryFilters, /function getLibraryFacetOptions/, "Library facet values must be derived from real library metadata");
 assert.match(libraryFilters, /duration-asc/, "Library sorting must include duration ordering");
