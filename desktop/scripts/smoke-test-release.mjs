@@ -72,6 +72,27 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
     assert.ok(result.details.elements?.converterView && result.details.elements?.converterFiles && result.details.elements?.converterStart);
     assert.equal(result.details.persistentLibrary?.passed, true, "La prueba de persistencia falló.");
     assert.equal(result.details.persistentLibrary?.phase, phase);
+    assert.equal(result.details.converterIntegration?.passed, true,
+      "La integración del conversor, la biblioteca y el motor de audio debe aprobar.");
+    assert.equal(result.details.convertedTrackPersistence?.passed, true,
+      "La prueba de persistencia del WAV convertido debe aprobar.");
+    if (phase === "write") {
+      assert.equal(result.details.converterIntegration.conversion?.converted, true,
+        "El conversor no produjo un WAV desde la interfaz real.");
+      assert.equal(result.details.converterIntegration.conversion?.wavPcm16Stereo, true,
+        "El resultado del conversor no es un WAV PCM16 estéreo válido.");
+      assert.equal(result.details.converterIntegration.library?.saved, true,
+        "El WAV convertido no se guardó usando la importación de biblioteca.");
+      assert.equal(result.details.converterIntegration.library?.searchable, true,
+        "El WAV convertido no se encontró en la interfaz de biblioteca.");
+      assert.equal(result.details.converterIntegration.audioEngine?.playedMuted, true,
+        "El motor de audio no reprodujo la muestra de prueba en silencio.");
+    } else {
+      assert.equal(result.details.convertedTrackPersistence?.survivedRestart, true,
+        "El WAV convertido no sobrevivió al reinicio de la app.");
+      assert.equal(result.details.convertedTrackPersistence?.cleaned, true,
+        "No se limpió el registro de prueba tras comprobar persistencia.");
+    }
     return result.details;
   } finally {
     if (child && child.exitCode === null) child.kill();
