@@ -23,6 +23,13 @@ assert.equal(inferUiSoundRhythm("Rock"), "rock");
 assert.equal(inferUiSoundRhythm("Punk rock"), "rock");
 assert.equal(inferUiSoundRhythm("Alternative Metal"), "rock");
 assert.equal(inferUiSoundRhythm("Jazz"), null);
+assert.equal(inferUiSoundRhythm("Hip-Hop"), "pop");
+assert.equal(inferUiSoundRhythm("Cumbia"), "pop");
+assert.equal(inferUiSoundRhythm("Drum & Bass"), "cyber");
+assert.equal(inferUiSoundRhythm("Indie Rock"), "rock");
+assert.equal(inferUiSoundRhythm("Pop Rock"), "rock");
+assert.equal(inferUiSoundRhythm("Classical"), null);
+
 assert.equal(resolveUiSoundRhythm("auto", "Pop", "piano"), "pop");
 assert.equal(resolveUiSoundRhythm("auto", "Techno", "piano"), "cyber");
 assert.equal(resolveUiSoundRhythm("auto", "Punk Rock", "piano"), "rock");
