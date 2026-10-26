@@ -223,7 +223,12 @@ export function parseId3Tags(input, fallback = {}) {
     if (mappedField && !skipFrame) {
       const payload = frameUnsynchronised ? removeUnsynchronisation(rawPayload) : rawPayload;
       const value = decodeText(payload);
-      if (value) result[mappedField] = mappedField === "genre" ? normalizeId3Genre(value) : value;
+      if (value) {
+        const normalized = mappedField === "genre" ? normalizeId3Genre(value) : value;
+        // An unknown numeric ID3 genre is not a real label. Preserve valid
+        // fallback metadata instead of erasing the genre with an empty string.
+        if (normalized) result[mappedField] = normalized;
+      }
     }
     const isPictureFrame = (version === 2 && frameId === "PIC") || (version >= 3 && frameId === "APIC");
     if (isPictureFrame && !skipFrame) {
