@@ -453,6 +453,13 @@ assert.ok(html.includes('id="music-recognition-start"'), "The app must expose mi
 assert.ok(html.includes('id="music-recognition-consent"'), "The app must require explicit consent before sending an audio clip");
 assert.ok(html.includes('id="music-finder-search-results"'), "Manual song search must have a results area");
 assert.match(app, /createMusicFinderController/, "The music finder controller must be wired into Ritmo");
+assert.ok(html.includes('id="saved-radio-stations"'), "Radio Browser needs a separate saved-stations collection.");
+assert.match(app, /async function loadSavedRadioStations\(tracks\)/, "Legacy station entries must migrate into the separate saved collection.");
+assert.match(app, /async function addRadioStation\(stationuuid, playNow = false, saveForLater = true\)/, "Radio persistence must be explicit rather than coupled to playback.");
+assert.match(app, /addRadioStation\(play\.dataset\.radioPlay, true, false\)/, "Listening to an unsaved search result must not automatically save it.");
+assert.match(app, /track\.ephemeralRadio !== true\) await saveTrack\(track\)/, "One-off station streams must not be persisted as songs during playback.");
+assert.match(app, /async function removeSavedRadioStationFromCollection\(stationuuid\)/, "Removing a saved station must clean its associated legacy track records.");
+
 assert.match(app, /filterAndSortLibraryTracks\(libraryTracks, \{ query: state\.query/, "Library search, facets and sort must share one canonical result pipeline after radios are separated");
 assert.match(app, /const libraryTracks = state\.tracks\.filter\(track => !isRadioStationTrack\(track\)\)/, "Radio streams must not pollute song library filters and facets");
 assert.match(libraryFilters, /matchesLibrarySearch\(track, filters\.query\)/, "Library facets must preserve accent-aware text search");
