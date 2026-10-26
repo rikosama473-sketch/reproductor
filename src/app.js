@@ -3428,7 +3428,7 @@ async function searchRadioStations() {
     const result = await searchRadioBrowser(query, filter, { signal: controller.signal });
     if (requestId !== radioSearchRequestId) return;
     radioStations = result.stations;
-    renderRadioStations(radioStations);
+    $("#radio-results").innerHTML = renderRadioStations(radioStations);
     if (radioStations.length) {
       status.textContent = "Encontré " + radioStations.length + " emisoras con stream HTTPS reproducible. La disponibilidad puede cambiar y la radio original controla la emisión.";
       status.dataset.tone = "success";
