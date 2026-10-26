@@ -205,12 +205,14 @@ try {
     portable: {
       title: portable.secondLaunch.title,
       navigation: portable.secondLaunch.navigation,
+      desktopMicrophone: portable.secondLaunch.desktopMicrophone,
       audioIdleOnBothLaunches: portable.firstLaunch.audioIdle && portable.secondLaunch.audioIdle,
       persistentLibrary: portable.secondLaunch.persistentLibrary
     },
     installer: {
       title: installed.secondLaunch.title,
       navigation: installed.secondLaunch.navigation,
+      desktopMicrophone: installed.secondLaunch.desktopMicrophone,
       audioIdleOnBothLaunches: installed.firstLaunch.audioIdle && installed.secondLaunch.audioIdle,
       persistentLibrary: installed.secondLaunch.persistentLibrary
     },
