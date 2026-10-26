@@ -59,6 +59,10 @@ function normalizeGenreSegment(segment) {
 export function normalizeId3Genre(value) {
   const raw = String(value ?? "").replace(/\u0000/g, " / ").replace(/\s+/g, " ").trim();
   if (!raw) return "";
+  // Preserve known compound ID3 labels such as "Pop/Funk". Splitting on every
+  // slash would incorrectly turn a single legacy genre into two unrelated tags.
+  const canonical = ID3_V1_GENRES.find(label => genreKey(label) === genreKey(raw));
+  if (canonical) return canonical;
   // ID3 permits adjacent numeric codes such as "(17)(13)" as well as separated values.
   const adjacentCodes = raw.match(/^(?:\([0-9]{1,3}\))+$/);
   if (adjacentCodes) {
