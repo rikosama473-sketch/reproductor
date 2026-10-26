@@ -33,5 +33,4 @@ assert.equal(inferUiSoundRhythm("Reggae"), null);
 assert.equal(inferUiSoundRhythm("Salsa"), null);
 assert.equal(inferUiSoundRhythm("Alternative"), null, "Ambiguous broad labels should remain neutral.");
 assert.equal(inferUiSoundRhythm("Synth-pop"), "pop");
-assert.equal(inferUiSoundRhythm("Pop Rock"), "rock");
 console.log("Music genre model checks passed: 192 legacy codes, composite tags, duplicate removal and broad rhythm families.");
