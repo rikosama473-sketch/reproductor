@@ -14,13 +14,14 @@ import { convertAudioFileToWav, MAX_CONVERTER_FILES, MAX_CONVERTER_INPUT_BYTES, 
 import { createAsyncGenerationGate } from "./async-generation-gate.js";
 import { schedulePlaybackPositionRestore, setPlaybackPosition } from "./playback-position.js";
 import { normalizeSavedAudioLevel, normalizeSavedLimiterPreference } from "./audio-preferences.js";
-import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, searchInvidiousYoutube, readYoutubeModeEnabled, persistYoutubeModeEnabled, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet } from "./online-services.js";
+import { parseSpotifyShareLink, searchRadioBrowser, radioStationClickUrl, readYoutubeModeEnabled, persistYoutubeModeEnabled, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet, SAVED_RADIO_STATIONS_SETTING_KEY, isRadioStationTrack, migrateRadioStationsFromTracks, upsertSavedRadioStation, removeSavedRadioStation } from "./online-services.js";
 import { validateCompanionImage, validateCompanionImageDimensions } from "./character-companion.js";
 import { createMusicFinderController } from "./music-finder-ui.js";
 import { normalizeExternalMediaUrl } from "./external-navigation.js";
 import { matchesLibrarySearch } from "./library-search.js";
 import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
 import { mergeNativeTrackMetadata } from "./native-track-metadata.js";
+import { normalizeId3Genre } from "./music-genres.js";
 import { preserveKnownScanNumber } from "./native-track-scan.js";
 
 const $ = selector => document.querySelector(selector);
@@ -166,16 +167,6 @@ function metadataForFile(file) {
   const clean = titleFromFilename(file.name);
   const split = clean.split(" - ");
   return { title: split.length > 1 ? split.slice(1).join(" - ").trim() : clean, artist: split.length > 1 ? split[0].trim() : "Artista desconocido" };
-}
-function normalizeId3Genre(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const numeric = raw.match(/^\(?(\d{1,3})\)?$/);
-  if (numeric) {
-    const knownGenres = { 3: "Dance", 4: "Disco", 13: "Pop", 17: "Rock", 18: "Techno", 19: "Industrial", 20: "Alternative", 25: "Euro-Techno", 26: "Ambient", 31: "Trance", 38: "Electronic", 52: "Electronic", 80: "Folk" };
-    return knownGenres[Number(numeric[1])] || "";
-  }
-  return raw.replace(/^\(\d+\)\s*/, "").trim();
 }
 function getTrack(trackId) { return state.tracks.find(track => track.id === trackId); }
 function currentTrack() { return getTrack(state.currentId); }
@@ -681,8 +672,9 @@ function renderLibrarySection() {
   renderTrackList("#library-tracks", visible, "#library-empty");
   renderLibraryGrid(visible);
   syncLibraryViewControls();
-  $("#library-empty").hidden = state.tracks.length > 0;
-  $("#library-no-results").hidden = !(state.tracks.length > 0 &&
+  const libraryTrackCount = state.tracks.filter(track => !isRadioStationTrack(track)).length;
+  $("#library-empty").hidden = libraryTrackCount > 0;
+  $("#library-no-results").hidden = !(libraryTrackCount > 0 &&
     hasActiveLibraryFilters({ query: state.query, ...libraryFilters }) && visible.length === 0);
   syncLibrarySelection();
 }
@@ -821,8 +813,9 @@ function renderLibraryGrid(list) {
 }
 
 function sortedForView(view) {
-  if (view === "library") return filterAndSortLibraryTracks(state.tracks, { query: state.query, ...libraryFilters });
-  let tracks = [...state.tracks];
+  const libraryTracks = state.tracks.filter(track => !isRadioStationTrack(track));
+  if (view === "library") return filterAndSortLibraryTracks(libraryTracks, { query: state.query, ...libraryFilters });
+  let tracks = libraryTracks;
   if (view === "favorites") tracks = tracks.filter(track => track.favorite);
   if (view === "offline") tracks = tracks.filter(isLocal);
   return tracks;
@@ -1583,7 +1576,7 @@ function setupMediaSession() {
 }
 function render() {
   releaseUnusedArtworkObjectUrls();
-  const all = state.tracks;
+  const all = state.tracks.filter(track => !isRadioStationTrack(track));
   $("#library-count").textContent = String(all.length);
   $("#stat-total").innerHTML = all.length + ' <small>canciones</small>';
   $("#stat-favorites").innerHTML = all.filter(track => track.favorite).length + ' <small>guardadas</small>';
@@ -2550,7 +2543,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
     showPlaybackStatus("");
     if (autoplay && !options.skipHistory) {
       track.lastPlayedAt = Date.now();
-      try { await saveTrack(track); } catch {}
+      try { if (track.ephemeralRadio !== true) await saveTrack(track); } catch {}
       try {
         await addHistoryEntry({ id: id(), trackId: track.id, kind: track.kind, title: track.title,
           artist: track.artist || "Artista desconocido", album: track.album || "", playedAt: Date.now(),
@@ -3130,6 +3123,7 @@ let spotifyDuration = Number.NaN;
 let spotifyProgressTimer = null;
 let spotifyEmbedRequestId = 0;
 let radioStations = [];
+let savedRadioStations = [];
 let radioSearchRequestId = 0;
 let radioSearchAbortController = null;
 
@@ -3346,21 +3340,66 @@ async function loadSpotifyEmbed(rawLink, { persist = true } = {}) {
   }
   return true;
 }
-function renderRadioStations(stations) {
-  const root = $("#radio-results");
-  root.innerHTML = (stations || []).map(station => {
+function renderRadioStations(stations, saved = false) {
+  return (stations || []).map(station => {
     const details = [station.country, station.language, station.codec, station.bitrate ? station.bitrate + " kbps" : ""].filter(Boolean).join(" · ");
     const tags = station.tags ? '<p class="radio-station-tags">' + escapeHTML(station.tags) + '</p>' : "";
     const homeLink = station.homepage
       ? '<a class="archive-download-link" href="' + escapeHTML(station.homepage) + '" target="_blank" rel="noopener noreferrer">Web de la emisora ↗</a>'
       : "";
     const buttons = '<button type="button" class="button button-primary" data-radio-play="' + escapeHTML(station.stationuuid) + '">▶ Escuchar</button>' +
-      '<button type="button" class="button button-soft" data-radio-add="' + escapeHTML(station.stationuuid) + '">Agregar</button>';
+      (saved
+        ? '<button type="button" class="button button-soft" data-radio-remove="' + escapeHTML(station.stationuuid) + '">Quitar guardada</button>'
+        : '<button type="button" class="button button-soft" data-radio-add="' + escapeHTML(station.stationuuid) + '">Guardar emisora</button>');
     return '<article class="archive-result radio-station-result"><div class="archive-result-main">' +
       '<div class="archive-result-label">RADIO BROWSER · STREAM HTTPS</div><strong>' + escapeHTML(station.name) + '</strong>' +
       '<small>' + escapeHTML(details || "Emisión online") + '</small>' + tags +
       '<div class="archive-result-actions">' + buttons + homeLink + '</div></div></article>';
   }).join("");
+}
+function renderSavedRadioStations() {
+  const root = $("#saved-radio-stations");
+  if (!root) return;
+  root.innerHTML = renderRadioStations(savedRadioStations, true);
+  $("#saved-radio-count").textContent = String(savedRadioStations.length);
+  $("#saved-radio-empty").hidden = savedRadioStations.length > 0;
+}
+async function loadSavedRadioStations(tracks) {
+  const stored = await getAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY);
+  const migration = migrateRadioStationsFromTracks(stored, tracks);
+  savedRadioStations = migration.stations;
+  // Settings are a separate collection; legacy track records stay available
+  // until a user explicitly removes a station, preserving old playback/history.
+  if (JSON.stringify(Array.isArray(stored) ? stored : []) !== JSON.stringify(savedRadioStations)) {
+    await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, savedRadioStations);
+  }
+  renderSavedRadioStations();
+  return migration;
+}
+async function removeSavedRadioStationFromCollection(stationuuid) {
+  const station = savedRadioStations.find(item => item.stationuuid === stationuuid);
+  if (!station) return;
+  const relatedTracks = state.tracks.filter(track => isRadioStationTrack(track) &&
+    (track.radioStationUuid === stationuuid || track.url === station.url));
+  try {
+    if (relatedTracks.some(track => track.id === state.currentId)) await removeCurrent();
+    for (const track of relatedTracks) {
+      const objectUrl = state.objectUrls.get(track.id);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      state.objectUrls.delete(track.id);
+      await deleteTrackAndPrunePlaylists(track.id);
+    }
+    const next = removeSavedRadioStation(savedRadioStations, stationuuid);
+    await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, next);
+    savedRadioStations = next;
+    state.tracks = await getAllTracks();
+    state.playlists = await getPlaylists();
+    renderSavedRadioStations();
+    render();
+    toast("Se quitó la emisora guardada.");
+  } catch (error) {
+    toast(error?.message || "No se pudo quitar la emisora guardada.");
+  }
 }
 async function searchRadioStations() {
   if (!requireInternetMode("buscar emisoras")) return;
@@ -3389,7 +3428,7 @@ async function searchRadioStations() {
     const result = await searchRadioBrowser(query, filter, { signal: controller.signal });
     if (requestId !== radioSearchRequestId) return;
     radioStations = result.stations;
-    renderRadioStations(radioStations);
+    $("#radio-results").innerHTML = renderRadioStations(radioStations);
     if (radioStations.length) {
       status.textContent = "Encontré " + radioStations.length + " emisoras con stream HTTPS reproducible. La disponibilidad puede cambiar y la radio original controla la emisión.";
       status.dataset.tone = "success";
@@ -3413,13 +3452,27 @@ async function searchRadioStations() {
     }
   }
 }
-async function addRadioStation(stationuuid, playNow = false) {
+async function addRadioStation(stationuuid, playNow = false, saveForLater = true) {
   if (!requireInternetMode("agregar o reproducir una emisora")) return;
-  const station = radioStations.find(item => item.stationuuid === stationuuid);
+  const station = radioStations.find(item => item.stationuuid === stationuuid) ||
+    savedRadioStations.find(item => item.stationuuid === stationuuid);
   if (!station || !station.url) {
     toast("Esta emisora no tiene un stream HTTPS compatible disponible.");
     return;
   }
+  const previousSavedStations = savedRadioStations;
+  if (saveForLater) {
+    const nextSavedStations = upsertSavedRadioStation(savedRadioStations, station);
+    try {
+      await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, nextSavedStations);
+      savedRadioStations = nextSavedStations;
+      renderSavedRadioStations();
+    } catch (error) {
+      toast(error?.message || "No se pudo guardar la emisora.");
+      return;
+    }
+  }
+
   let track = state.tracks.find(item => item.kind === "url" && item.url === station.url);
   if (!track) {
     track = {
@@ -3428,23 +3481,40 @@ async function addRadioStation(stationuuid, playNow = false) {
       album: ["Radio Browser", station.codec].filter(Boolean).join(" · "),
       favorite: false, addedAt: Date.now(), duration: 0, lastPlayedAt: 0,
       sourceProvider: "Radio Browser", sourcePage: station.homepage || station.url,
-      radioStationUuid: station.stationuuid, radioTags: station.tags
+      radioStationUuid: station.stationuuid, radioTags: station.tags, ephemeralRadio: !saveForLater
     };
     try {
-      await saveTrack(track);
-      state.tracks = await getAllTracks();
+      if (saveForLater) await saveTrack(track);
+      if (saveForLater) state.tracks = await getAllTracks();
+      else track.ephemeralRadio = true;
+      if (!saveForLater) state.tracks.push(track);
       render();
-      toast("Radio agregada a tu biblioteca. El stream sigue llegando desde la emisora.");
+      if (saveForLater) toast("Emisora guardada en «Mis radios», separada de las canciones.");
+      else toast("Reproducción temporal; usá «Guardar emisora» para conservarla.");
     } catch (error) {
+      savedRadioStations = previousSavedStations;
+      await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, previousSavedStations).catch(() => {});
+      renderSavedRadioStations();
       toast(error?.message || "No se pudo guardar la emisora.");
       return;
     }
-  } else toast("Esta emisora ya estaba en tu biblioteca.");
+  } else if (saveForLater && track.ephemeralRadio === true) {
+    delete track.ephemeralRadio;
+    try { await saveTrack(track); } catch (error) {
+      savedRadioStations = previousSavedStations;
+      await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, previousSavedStations).catch(() => {});
+      renderSavedRadioStations();
+      toast(error?.message || "No se pudo guardar la emisora.");
+      return;
+    }
+  }
   if (playNow) {
     void fetch(radioStationClickUrl(station.stationuuid), {
       mode: "cors", credentials: "omit", cache: "no-store"
     }).catch(() => {});
     await playTrack(track.id);
+  } else if (saveForLater) {
+    toast("Emisora guardada en «Mis radios», separada de tu biblioteca de canciones.");
   }
 }
 
@@ -3515,9 +3585,15 @@ function bindOnlineServiceEvents() {
   });
   $("#radio-results").addEventListener("click", event => {
     const play = event.target.closest("[data-radio-play]");
-    if (play) { void addRadioStation(play.dataset.radioPlay, true); return; }
+    if (play) { void addRadioStation(play.dataset.radioPlay, true, false); return; }
     const add = event.target.closest("[data-radio-add]");
     if (add) void addRadioStation(add.dataset.radioAdd, false);
+  });
+  $("#saved-radio-stations").addEventListener("click", event => {
+    const play = event.target.closest("[data-radio-play]");
+    if (play) { void addRadioStation(play.dataset.radioPlay, true, true); return; }
+    const remove = event.target.closest("[data-radio-remove]");
+    if (remove) void removeSavedRadioStationFromCollection(remove.dataset.radioRemove);
   });
   let savedLink = "";
   try { savedLink = localStorage.getItem(SPOTIFY_EMBED_STORAGE) || ""; } catch {}
@@ -4659,6 +4735,11 @@ async function init() {
   ]);
   if (tracksResult.status === "fulfilled") {
     state.tracks = tracksResult.value;
+    try {
+      await loadSavedRadioStations(state.tracks);
+    } catch (error) {
+      toast(error?.message || "No se pudo cargar la colección de radios guardadas.");
+    }
     void pruneNativeAudioCache();
   } else {
     $("#home-empty").hidden = false;

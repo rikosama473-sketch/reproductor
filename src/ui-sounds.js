@@ -1,3 +1,6 @@
+import { inferUiSoundRhythm } from "./music-genres.js";
+export { inferUiSoundRhythm };
+
 const STORAGE_KEY = "ritmo.ui-sounds.v2";
 const LEGACY_STORAGE_KEY = "ritmo.ui-sounds.v1";
 // Keep UI feedback secondary to music, dialogue, and voice-design previews.
@@ -105,19 +108,6 @@ export const UI_SOUND_RHYTHMS = Object.freeze({
 });
 
 const CYBER_SOUND_PACKS = new Set(["cyber", "holo", "pixel", "softbit", "arcade", "retro", "sonar", "orbit", "analog", "laser", "terminal", "glitch", "fmsoft", "synthpop", "neonpulse", "deepfm", "ripple", "pulsebass", "sweep", "circuit"]);
-
-function normalizedGenreText(value) {
-  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
-export function inferUiSoundRhythm(genre) {
-  const text = normalizedGenreText(genre);
-  if (!text) return null;
-  if (/\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum.?and.?bass|dnb|tech.?house|house|breakbeat)\b/.test(text)) return "cyber";
-  if (/\b(pop|k-pop|j-pop|dance.?pop|pop.?rock|teen.?pop|electropop|popular)\b/.test(text)) return "pop";
-  if (/\b(rock|punk|metal|grunge|hardcore|emo|alternative)\b/.test(text)) return "rock";
-  return null;
-}
 
 export function resolveUiSoundRhythm(preference, genre, pack = "piano") {
   if (preference && preference !== "auto" && Object.prototype.hasOwnProperty.call(UI_SOUND_RHYTHMS, preference)) return preference;

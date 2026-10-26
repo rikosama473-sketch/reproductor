@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import { ID3_V1_GENRES, normalizeId3Genre, inferUiSoundRhythm } from "../src/music-genres.js";
+
+assert.equal(ID3_V1_GENRES.length, 192, "Cover every common ID3v1/Winamp genre code.");
+assert.equal(normalizeId3Genre("0"), "Blues");
+assert.equal(normalizeId3Genre("(8)"), "Jazz");
+assert.equal(normalizeId3Genre("14"), "R&B");
+assert.equal(normalizeId3Genre("145"), "Anime");
+assert.equal(normalizeId3Genre("146"), "JPop");
+assert.equal(normalizeId3Genre("(17)Rock"), "Rock");
+assert.equal(normalizeId3Genre("(17)(13)"), "Rock / Pop");
+assert.equal(normalizeId3Genre("(17)Rock / (13)Pop"), "Rock / Pop");
+assert.equal(normalizeId3Genre("Rock / Pop / Rock"), "Rock / Pop", "Deduplicate composite genres without losing their labels.");
+assert.equal(normalizeId3Genre("193"), "", "Unknown numeric genre codes should not be mislabelled.");
+assert.equal(normalizeId3Genre("  "), "");
+
+assert.equal(inferUiSoundRhythm("Pop"), "pop");
+assert.equal(inferUiSoundRhythm("K-pop"), "pop");
+assert.equal(inferUiSoundRhythm("Hip-Hop"), null, "Hip-hop is not pop; do not guess a UI rhythm for distinct genres.");
+assert.equal(inferUiSoundRhythm("Cumbia"), null, "Cumbia should stay neutral rather than being mislabeled pop.");
+assert.equal(inferUiSoundRhythm("Electrónica"), "cyber");
+assert.equal(inferUiSoundRhythm("Techno / Synthwave"), "cyber");
+assert.equal(inferUiSoundRhythm("Drum & Bass"), "cyber");
+assert.equal(inferUiSoundRhythm("Indie Rock"), "rock");
+assert.equal(inferUiSoundRhythm("Alternative Metal"), "rock");
+assert.equal(inferUiSoundRhythm("Pop Rock"), "rock", "A mixed rock subgenre should not be classified as generic pop.");
+assert.equal(inferUiSoundRhythm("Jazz"), null, "Unmapped genres should keep the neutral sound rhythm.");
+assert.equal(inferUiSoundRhythm("Classical"), null);
+assert.equal(inferUiSoundRhythm("Rap"), null);
+assert.equal(inferUiSoundRhythm("R&B"), null);
+assert.equal(inferUiSoundRhythm("Soul"), null);
+assert.equal(inferUiSoundRhythm("Reggae"), null);
+assert.equal(inferUiSoundRhythm("Salsa"), null);
+assert.equal(inferUiSoundRhythm("Alternative"), null, "Ambiguous broad labels should remain neutral.");
+assert.equal(inferUiSoundRhythm("Synth-pop"), "pop");
+console.log("Music genre model checks passed: 192 legacy codes, composite tags, duplicate removal and broad rhythm families.");

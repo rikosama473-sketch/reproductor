@@ -1,3 +1,5 @@
+import { normalizeId3Genre } from "./music-genres.js";
+
 export const MAX_ID3_FRAMES = 4096;
 
 const TEXT_FRAMES = Object.freeze({
@@ -32,15 +34,6 @@ function decodeText(frame) {
   } catch {
     return "";
   }
-}
-function normalizeGenre(value) {
-  const raw = String(value || "").trim();
-  const numeric = raw.match(/^\(?(\d{1,3})\)?$/);
-  if (numeric) {
-    const knownGenres = { 3: "Dance", 4: "Disco", 13: "Pop", 17: "Rock", 18: "Techno", 19: "Industrial", 20: "Alternative", 25: "Euro-Techno", 26: "Ambient", 31: "Trance", 38: "Electronic", 52: "Electronic", 80: "Folk" };
-    return knownGenres[Number(numeric[1])] || "";
-  }
-  return raw.replace(/^\(\d+\)\s*/, "").trim();
 }
 function removeUnsynchronisation(bytes) {
   const result = new Uint8Array(bytes.length);
@@ -230,7 +223,7 @@ export function parseId3Tags(input, fallback = {}) {
     if (mappedField && !skipFrame) {
       const payload = frameUnsynchronised ? removeUnsynchronisation(rawPayload) : rawPayload;
       const value = decodeText(payload);
-      if (value) result[mappedField] = mappedField === "genre" ? normalizeGenre(value) : value;
+      if (value) result[mappedField] = mappedField === "genre" ? normalizeId3Genre(value) : value;
     }
     const isPictureFrame = (version === 2 && frameId === "PIC") || (version >= 3 && frameId === "APIC");
     if (isPictureFrame && !skipFrame) {

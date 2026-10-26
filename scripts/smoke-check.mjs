@@ -5,6 +5,7 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const musicFinder = fs.readFileSync(new URL("../src/music-finder-ui.js", import.meta.url), "utf8");
 const musicRecognition = fs.readFileSync(new URL("../src/music-recognition.js", import.meta.url), "utf8");
+const onlineServices = fs.readFileSync(new URL("../src/online-services.js", import.meta.url), "utf8");
 const backup = fs.readFileSync(new URL("../src/backup.js", import.meta.url), "utf8");
 const backupUi = fs.readFileSync(new URL("../src/backup-ui.js", import.meta.url), "utf8");
 const librarySearch = fs.readFileSync(new URL("../src/library-search.js", import.meta.url), "utf8");
@@ -425,6 +426,10 @@ assert.ok(app.includes("parseSpotifyShareLink"), "Spotify links must be validate
 assert.ok(app.includes("open.spotify.com/oembed"), "Spotify embed metadata should use Spotify's public oEmbed endpoint");
 assert.ok(app.includes("searchRadioBrowser(query, filter"), "Public radio search must use the no-key Radio Browser directory");
 assert.ok(app.includes("radioStationClickUrl(station.stationuuid)"), "Radio Browser playback should signal station starts");
+assert.match(app, /migrateRadioStationsFromTracks/, "Legacy Radio Browser entries must migrate out of the song library.");
+assert.match(app, /state\.tracks\.filter\(track => !isRadioStationTrack\(track\)\)/, "Library views must exclude Radio Browser stations.");
+assert.match(onlineServices, /export function normalizeSavedRadioStations/, "Saved radio stations must have their own normalized collection.");
+
 assert.ok(app.includes("stopSpotifyEmbed({ preserveSaved: true, refresh: false })"), "Starting another source must stop Spotify audio to avoid overlap");
 assert.ok(sw.includes("./src/online-services.js"), "New online-source code must be cached in the offline shell");
 assert.match(sw, /ritmo-shell-v\d+/, "PWA cache must be refreshed for app-level network mode");
@@ -448,7 +453,15 @@ assert.ok(html.includes('id="music-recognition-start"'), "The app must expose mi
 assert.ok(html.includes('id="music-recognition-consent"'), "The app must require explicit consent before sending an audio clip");
 assert.ok(html.includes('id="music-finder-search-results"'), "Manual song search must have a results area");
 assert.match(app, /createMusicFinderController/, "The music finder controller must be wired into Ritmo");
-assert.match(app, /filterAndSortLibraryTracks\(state\.tracks, \{ query: state\.query/, "Library search, facets and sort must share one canonical result pipeline");
+assert.ok(html.includes('id="saved-radio-stations"'), "Radio Browser needs a separate saved-stations collection.");
+assert.match(app, /async function loadSavedRadioStations\(tracks\)/, "Legacy station entries must migrate into the separate saved collection.");
+assert.match(app, /async function addRadioStation\(stationuuid, playNow = false, saveForLater = true\)/, "Radio persistence must be explicit rather than coupled to playback.");
+assert.match(app, /addRadioStation\(play\.dataset\.radioPlay, true, false\)/, "Listening to an unsaved search result must not automatically save it.");
+assert.match(app, /track\.ephemeralRadio !== true\) await saveTrack\(track\)/, "One-off station streams must not be persisted as songs during playback.");
+assert.match(app, /async function removeSavedRadioStationFromCollection\(stationuuid\)/, "Removing a saved station must clean its associated legacy track records.");
+
+assert.match(app, /filterAndSortLibraryTracks\(libraryTracks, \{ query: state\.query/, "Library search, facets and sort must share one canonical result pipeline after radios are separated");
+assert.match(app, /const libraryTracks = state\.tracks\.filter\(track => !isRadioStationTrack\(track\)\)/, "Radio streams must not pollute song library filters and facets");
 assert.match(libraryFilters, /matchesLibrarySearch\(track, filters\.query\)/, "Library facets must preserve accent-aware text search");
 assert.match(libraryFilters, /function getLibraryFacetOptions/, "Library facet values must be derived from real library metadata");
 assert.match(libraryFilters, /duration-asc/, "Library sorting must include duration ordering");

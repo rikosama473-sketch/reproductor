@@ -87,6 +87,84 @@ export function normalizeRadioStation(item) {
   });
 }
 
+export const SAVED_RADIO_STATIONS_SETTING_KEY = "ritmo.saved-radio-stations.v1";
+
+export function isRadioStationTrack(track) {
+  return Boolean(track && typeof track === "object" && track.kind === "url" &&
+    (track.radioStationUuid || track.sourceProvider === "Radio Browser"));
+}
+
+function savedStationFrom(value) {
+  if (!value || typeof value !== "object") return null;
+  return normalizeRadioStation({
+    stationuuid: value.stationuuid,
+    name: value.name || value.title,
+    url_resolved: value.url_resolved || value.url,
+    url: value.url,
+    homepage: value.homepage,
+    country: value.country,
+    language: value.language,
+    tags: value.tags || value.radioTags,
+    codec: value.codec,
+    bitrate: value.bitrate,
+    votes: value.votes
+  });
+}
+
+/** Normalize and deduplicate the user's explicit radio collection. */
+export function normalizeSavedRadioStations(value) {
+  if (!Array.isArray(value)) return [];
+  const result = [];
+  const ids = new Set();
+  const urls = new Set();
+  for (const item of value) {
+    const station = savedStationFrom(item);
+    if (!station || !station.url || ids.has(station.stationuuid) || urls.has(station.url)) continue;
+    ids.add(station.stationuuid);
+    urls.add(station.url);
+    result.push(station);
+    if (result.length >= 500) break;
+  }
+  return result;
+}
+
+export function migrateRadioStationsFromTracks(savedStations, tracks) {
+  const normalizedSaved = normalizeSavedRadioStations(savedStations);
+  const legacyTracks = Array.isArray(tracks) ? tracks.filter(isRadioStationTrack) : [];
+  const stations = normalizeSavedRadioStations([
+    ...normalizedSaved,
+    ...legacyTracks.map(track => ({
+      stationuuid: track.radioStationUuid,
+      name: track.title || track.name,
+      url: track.url,
+      homepage: track.sourcePage,
+      tags: track.radioTags,
+      country: "",
+      language: "",
+      codec: ""
+    }))
+  ]);
+  return {
+    stations,
+    legacyTrackIds: legacyTracks.map(track => track.id).filter(id => id !== undefined && id !== null)
+  };
+}
+
+export function upsertSavedRadioStation(savedStations, candidate) {
+  const station = savedStationFrom(candidate);
+  if (!station || !station.url) return normalizeSavedRadioStations(savedStations);
+  const next = normalizeSavedRadioStations(savedStations).filter(existing =>
+    existing.stationuuid !== station.stationuuid && existing.url !== station.url);
+  next.unshift(station);
+  return next.slice(0, 500);
+}
+
+export function removeSavedRadioStation(savedStations, stationuuid) {
+  const id = String(stationuuid ?? "").trim();
+  if (!id) return normalizeSavedRadioStations(savedStations);
+  return normalizeSavedRadioStations(savedStations).filter(station => station.stationuuid !== id);
+}
+
 export function radioStationClickUrl(stationuuid, mirror = RADIO_BROWSER_MIRRORS[0]) {
   if (!RADIO_BROWSER_MIRRORS.includes(mirror)) throw new TypeError("Servidor de Radio Browser no permitido.");
   const id = String(stationuuid ?? "").trim();
