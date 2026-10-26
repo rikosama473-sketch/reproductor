@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, session, shell } from "electron";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -57,6 +57,32 @@ function openSafeExternal(target) {
   } catch {
     // Ignore malformed or non-URL navigation requests.
   }
+}
+
+function isTrustedAppOrigin(value) {
+  try { return new URL(value).origin === appOrigin; } catch { return false; }
+}
+
+// The music recognizer uses the microphone only after the user opts in inside
+// the app. Grant audio capture to this renderer and local origin only; never
+// grant camera, display capture, or permissions to external pages.
+function configureDesktopMediaPermissions() {
+  const desktopSession = session.defaultSession;
+  desktopSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details = {}) => {
+    return permission === "media" &&
+      webContents === mainWindow?.webContents &&
+      isTrustedAppOrigin(requestingOrigin) &&
+      details?.mediaType === "audio";
+  });
+  desktopSession.setPermissionRequestHandler((webContents, permission, callback, details = {}) => {
+    const requestingUrl = details?.requestingUrl || webContents.getURL();
+    const mediaTypes = Array.isArray(details?.mediaTypes) ? details.mediaTypes : [];
+    const audioOnlyRequest = mediaTypes.includes("audio") && !mediaTypes.includes("video");
+    callback(permission === "media" &&
+      webContents === mainWindow?.webContents &&
+      isTrustedAppOrigin(requestingUrl) &&
+      audioOnlyRequest);
+  });
 }
 
 async function startLocalAppServer() {
@@ -470,6 +496,7 @@ if (!hasSingleInstance) {
   });
   app.whenReady().then(async () => {
     try {
+      configureDesktopMediaPermissions();
       await createMainWindow();
     } catch (error) {
       console.error("No se pudo iniciar Ritmo para PC:", error);
