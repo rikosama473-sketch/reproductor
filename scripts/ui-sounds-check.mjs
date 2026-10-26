@@ -124,7 +124,8 @@ assert.match(moduleSource, /if \(rhythm === "rock"\)/, "Rock rhythm needs a filt
 assert.match(moduleSource, /resolveUiSoundRhythm\(rhythmPreference, currentMusicGenre, pack\)/);
 assert.match(moduleSource, /ritmo:track-context/);
 assert.match(id3Source, /TCON: "genre"/, "ID3 parser must retain the genre text frame mapping");
-assert.match(id3Source, /function normalizeGenre\(value\)/, "Numeric ID3 genre codes must be normalized");
+assert.match(id3Source, /import \{ normalizeId3Genre \} from "\.\/music-genres\.js"/, "ID3 genre parsing must use the shared genre normalizer");
+assert.match(id3Source, /normalizeId3Genre\(value\)/, "Numeric ID3 genre codes must be normalized");
 assert.match(appSource, /genre: meta\.genre \|\| ""/);
 assert.match(appSource, /notifySoundTrackContext\(track\)/);
 assert.match(appSource, /radioTags: String\(track\?\.radioTags \|\| ""\)/);
