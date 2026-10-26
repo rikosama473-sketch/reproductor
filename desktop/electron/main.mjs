@@ -10,7 +10,6 @@ const distRoot = path.join(desktopRoot, "dist");
 // IndexedDB database for every launch and make users think their library vanished.
 const APP_HOST = "127.0.0.1";
 const APP_PORT = 41739;
-const hasSingleInstance = app.requestSingleInstanceLock();
 let server = null;
 let mainWindow = null;
 let appOrigin = "";
@@ -19,6 +18,12 @@ const smokeTest = process.env.RITMO_DESKTOP_SMOKE_TEST === "1";
 const smokeTestId = String(process.env.RITMO_DESKTOP_SMOKE_TEST_ID || "")
   .replace(/[^a-zA-Z0-9-]/g, "")
   .slice(0, 64);
+const smokeUserDataDir = String(process.env.RITMO_DESKTOP_SMOKE_USER_DATA_DIR || "").trim();
+const smokePhase = String(process.env.RITMO_DESKTOP_SMOKE_PHASE || "write");
+const smokeTrackId = String(process.env.RITMO_DESKTOP_SMOKE_TRACK_ID || "");
+// Isolate automated persistence tests from the desktop user's real profile.
+if (smokeTest && smokeUserDataDir) app.setPath("userData", path.resolve(smokeUserDataDir));
+const hasSingleInstance = app.requestSingleInstanceLock();
 const smokeResultPath = smokeTest && smokeTestId
   ? path.join(app.getPath("temp"), "ritmo-desktop-smoke-" + smokeTestId + ".json")
   : null;
@@ -119,6 +124,84 @@ async function createMainWindow() {
           while (!window.__ritmoAppReady && Date.now() < deadline) {
             await new Promise(resolve => setTimeout(resolve, 50));
           }
+                    const smokePhase = ${JSON.stringify(smokePhase)};
+          const smokeTrackId = ${JSON.stringify(smokeTrackId)};
+          async function testLibraryPersistence() {
+            const request = indexedDB.open("ritmo-library", 3);
+            const db = await new Promise((resolve, reject) => {
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error || new Error("No se pudo abrir la biblioteca IndexedDB."));
+              request.onblocked = () => reject(new Error("La apertura de IndexedDB quedó bloqueada en el perfil de prueba."));
+            });
+            const stores = Array.from(db.objectStoreNames);
+            const missingStores = ["tracks", "history", "playlists", "appSettings"].filter(name => !stores.includes(name));
+            if (missingStores.length) {
+              db.close();
+              throw new Error("Faltan almacenes de biblioteca: " + missingStores.join(", "));
+            }
+            const testTitle = "__RITMO_WINDOWS_RESTART_SMOKE__";
+            if (smokePhase === "write") {
+              await new Promise((resolve, reject) => {
+                let tx;
+                try {
+                  tx = db.transaction("tracks", "readwrite");
+                  tx.oncomplete = resolve;
+                  tx.onerror = () => reject(tx.error || new Error("No se pudo guardar la pista de prueba."));
+                  tx.onabort = () => reject(tx.error || new Error("Se canceló el guardado de la pista de prueba."));
+                  tx.objectStore("tracks").put({
+                    id: smokeTrackId,
+                    title: testTitle,
+                    artist: "Ritmo CI",
+                    album: "Prueba de persistencia",
+                    genre: "Test",
+                    duration: 0,
+                    addedAt: Date.now(),
+                    favorite: false
+                  });
+                } catch (error) {
+                  try { tx?.abort(); } catch {}
+                  reject(error);
+                }
+              });
+              db.close();
+              return { passed: true, phase: smokePhase, stores, saved: true, trackId: smokeTrackId };
+            }
+            if (smokePhase === "verify") {
+              const record = await new Promise((resolve, reject) => {
+                let tx;
+                try {
+                  tx = db.transaction("tracks", "readonly");
+                  const getRequest = tx.objectStore("tracks").get(smokeTrackId);
+                  getRequest.onsuccess = () => resolve(getRequest.result || null);
+                  getRequest.onerror = () => reject(getRequest.error || new Error("No se pudo leer la pista guardada."));
+                  tx.onabort = () => reject(tx.error || new Error("Se canceló la lectura de la biblioteca."));
+                } catch (error) {
+                  reject(error);
+                }
+              });
+              if (!record || record.title !== testTitle) {
+                db.close();
+                throw new Error("La pista de prueba no sobrevivió al cierre y reapertura de Ritmo.");
+              }
+              await new Promise((resolve, reject) => {
+                let tx;
+                try {
+                  tx = db.transaction("tracks", "readwrite");
+                  tx.oncomplete = resolve;
+                  tx.onerror = () => reject(tx.error || new Error("No se pudo limpiar la pista de prueba."));
+                  tx.onabort = () => reject(tx.error || new Error("Se canceló la limpieza de la pista de prueba."));
+                  tx.objectStore("tracks").delete(smokeTrackId);
+                } catch (error) {
+                  try { tx?.abort(); } catch {}
+                  reject(error);
+                }
+              });
+              db.close();
+              return { passed: true, phase: smokePhase, stores, survivedRestart: true, cleaned: true, trackId: smokeTrackId };
+            }
+            db.close();
+            throw new Error("Fase de prueba de persistencia desconocida: " + smokePhase);
+          }
           const selectors = {
             appShell: ".app-shell",
             homeView: "#home-view",
@@ -152,16 +235,19 @@ async function createMainWindow() {
             navigation[view] = !panel.hidden && button.classList.contains("active");
             if (!navigation[view]) missing.push("navigation-" + view);
           }
+          const persistentLibrary = await testLibraryPersistence();
           return {
             ready: window.__ritmoAppReady === true,
             title: document.title,
             elements,
             navigation,
             missing,
-            audioIdle: Boolean(document.querySelector("#audio-engine")?.paused)
+            audioIdle: Boolean(document.querySelector("#audio-engine")?.paused),
+            persistentLibrary
           };
         })()`, true);
-        const passed = result.ready && result.missing.length === 0 && result.audioIdle;
+        const passed = result.ready && result.missing.length === 0 && result.audioIdle &&
+          result.persistentLibrary?.passed === true;
         await finishSmokeTest(passed ? 0 : 1, result);
       } catch (error) {
         console.error("La prueba de inicio de Ritmo para PC falló:", error);
