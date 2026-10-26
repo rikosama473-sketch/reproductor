@@ -425,6 +425,10 @@ assert.ok(app.includes("parseSpotifyShareLink"), "Spotify links must be validate
 assert.ok(app.includes("open.spotify.com/oembed"), "Spotify embed metadata should use Spotify's public oEmbed endpoint");
 assert.ok(app.includes("searchRadioBrowser(query, filter"), "Public radio search must use the no-key Radio Browser directory");
 assert.ok(app.includes("radioStationClickUrl(station.stationuuid)"), "Radio Browser playback should signal station starts");
+assert.match(app, /migrateRadioStationsFromTracks/, "Legacy Radio Browser entries must migrate out of the song library.");
+assert.match(app, /state\.tracks\.filter\(track => !isRadioStationTrack\(track\)\)/, "Library views must exclude Radio Browser stations.");
+assert.match(onlineServices, /export function normalizeSavedRadioStations/, "Saved radio stations must have their own normalized collection.");
+
 assert.ok(app.includes("stopSpotifyEmbed({ preserveSaved: true, refresh: false })"), "Starting another source must stop Spotify audio to avoid overlap");
 assert.ok(sw.includes("./src/online-services.js"), "New online-source code must be cached in the offline shell");
 assert.match(sw, /ritmo-shell-v\d+/, "PWA cache must be refreshed for app-level network mode");
