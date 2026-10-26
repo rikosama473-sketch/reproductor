@@ -3,6 +3,7 @@ name: Build Ritmo for Windows PC
 on:
   push:
     branches: [main, "feat/**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -29,6 +30,18 @@ jobs:
       - name: Install pinned Electron and packaging tools
         run: npm install --prefix desktop --no-audit --no-fund
 
+      - name: Verify release tag matches the desktop version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          RITMO_RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $package = Get-Content desktop/package.json -Raw | ConvertFrom-Json
+          $expected = "v$($package.version)"
+          if ($env:RITMO_RELEASE_TAG -ne $expected) {
+            throw "La etiqueta $env:RITMO_RELEASE_TAG no coincide con la versión $expected de desktop/package.json."
+          }
+
       - name: Test desktop bundle and local server
         run: npm --prefix desktop run check:package
 
@@ -54,3 +67,39 @@ jobs:
             desktop/release/build-info.json
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    name: Publish verified Windows build to GitHub Releases
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Windows build
+        uses: actions/download-artifact@v7
+        with:
+          name: Ritmo-Windows-${{ github.run_number }}-${{ github.sha }}
+          path: release-assets
+
+      - name: Publish installer, portable app and checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Ritmo ${{ github.ref_name }} para Windows
+          body: |
+            ## RITMO para Windows x64
+
+            Incluye instalador NSIS y ejecutable portable x64, más SHA-256 y build-info.json.
+
+            La publicación solo ocurre después de superar las pruebas de arranque, instalación/desinstalación, conversión WAV PCM16, integración con la biblioteca, persistencia entre reinicios y reproducción silenciada del motor de audio.
+
+            Este paquete no incluye certificado comercial de firma de código; Windows puede mostrar una advertencia de editor desconocido. Los archivos de audio originales no se modifican.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/*.exe
+            release-assets/Ritmo-Windows-SHA256.txt
+            release-assets/build-info.json
