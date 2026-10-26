@@ -5,7 +5,9 @@ import {
   buildInvidiousYoutubeSearchUrl, normalizeInvidiousYoutubeResult,
   searchInvidiousYoutube, INVIDIOUS_SEARCH_INSTANCES,
   YOUTUBE_MODE_STORAGE_KEY, readYoutubeModeEnabled, persistYoutubeModeEnabled,
-  NETWORK_MODE_STORAGE_KEY, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet
+  NETWORK_MODE_STORAGE_KEY, readNetworkModeEnabled, persistNetworkModeEnabled, networkModeCanUseInternet,
+  SAVED_RADIO_STATIONS_SETTING_KEY, isRadioStationTrack, normalizeSavedRadioStations,
+  migrateRadioStationsFromTracks, upsertSavedRadioStation, removeSavedRadioStation
 } from "../src/online-services.js";
 import { readFile } from "node:fs/promises";
 
@@ -42,6 +44,38 @@ assert.equal(station.name, "Radio Café");
 assert.equal(station.url, "https://stream.example/radio.mp3");
 assert.equal(station.country, "Argentina");
 assert.equal(station.bitrate, 128);
+
+assert.equal(SAVED_RADIO_STATIONS_SETTING_KEY, "ritmo.saved-radio-stations.v1");
+assert.equal(isRadioStationTrack({ kind: "url", radioStationUuid: station.stationuuid }), true);
+assert.equal(isRadioStationTrack({ kind: "url", sourceProvider: "Radio Browser" }), true);
+assert.equal(isRadioStationTrack({ kind: "file", radioStationUuid: station.stationuuid }), false,
+  "A local audio file must never be classified as a radio station.");
+assert.equal(isRadioStationTrack({ kind: "url", sourceProvider: "Internet Archive" }), false,
+  "Other streaming catalogue entries must not be mistaken for Radio Browser stations.");
+
+const savedCollection = normalizeSavedRadioStations([
+  station,
+  station,
+  { ...station, stationuuid: "different-radio-id" },
+  { stationuuid: "not-valid", name: "Bad", url: "https://stream.example/radio.mp3" },
+  { ...station, url: "http://stream.example/insecure.mp3", stationuuid: "radio-without-https" }
+]);
+assert.equal(savedCollection.length, 1, "Saved stations should deduplicate by stream URL and reject invalid/HTTP streams.");
+assert.equal(savedCollection[0].stationuuid, station.stationuuid);
+const migrated = migrateRadioStationsFromTracks(savedCollection, [
+  { id: "legacy-radio-1", kind: "url", url: station.url, title: station.name, radioStationUuid: station.stationuuid, sourceProvider: "Radio Browser" },
+  { id: "song-url", kind: "url", url: "https://media.example/track.mp3", title: "Other stream", sourceProvider: "Internet Archive" },
+  { id: "local-song", kind: "file", title: "Local song" }
+]);
+assert.deepEqual(migrated.legacyTrackIds, ["legacy-radio-1"]);
+assert.equal(migrated.stations.length, 1, "Migrating a legacy radio must not duplicate its saved station.");
+const anotherStation = { ...station, stationuuid: "eeced67f-a234-4cda-a5df-3c9791c1d3b7", name: "Radio Dos", url: "https://stream.example/dos.mp3" };
+const upserted = upsertSavedRadioStation(savedCollection, anotherStation);
+assert.equal(upserted.length, 2);
+assert.equal(upserted[0].stationuuid, anotherStation.stationuuid, "Newly saved stations should be visible first.");
+assert.equal(removeSavedRadioStation(upserted, station.stationuuid).length, 1);
+assert.equal(removeSavedRadioStation(upserted, "missing").length, 2);
+
 assert.equal(normalizeRadioStation({ stationuuid: "abc-123", name: "No TLS", url_resolved: "http://stream.example/live" }).url, "");
 assert.equal(normalizeRadioStation({ stationuuid: "abc-123", name: "HLS", url_resolved: "https://stream.example/live.m3u8" }).url, "");
 assert.equal(normalizeRadioStation({ stationuuid: "abc-123", name: "Unsafe", url_resolved: "https://user:pass@stream.example/live" }).url, "");
