@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,13 +13,14 @@ if (process.platform !== "win32") {
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseRoot = path.join(desktopRoot, "release");
 const packageJson = JSON.parse(await readFile(path.join(desktopRoot, "package.json"), "utf8"));
-const executable = path.join(releaseRoot, "Ritmo-" + packageJson.version + "-Portable-x64.exe");
-const resultId = randomUUID();
-const trackId = "ritmo-smoke-" + randomUUID();
+const portableExecutable = path.join(releaseRoot, "Ritmo-" + packageJson.version + "-Portable-x64.exe");
+const installerExecutable = path.join(releaseRoot, "Ritmo-" + packageJson.version + "-Setup-x64.exe");
 const workDir = await mkdtemp(path.join(os.tmpdir(), "ritmo-desktop-smoke-run-"));
-const profileDir = path.join(workDir, "isolated-user-data");
+const installDir = path.join(workDir, "installed-app");
+const portableProfileDir = path.join(workDir, "portable-user-data");
+const installerProfileDir = path.join(workDir, "installer-user-data");
 
-async function launchPhase(phase) {
+async function launchPhase(phase, { executable, resultId, trackId, profileDir }) {
   const phaseId = resultId + "-" + phase;
   const resultPath = path.join(os.tmpdir(), "ritmo-desktop-smoke-" + phaseId + ".json");
   let child;
@@ -78,23 +79,102 @@ async function launchPhase(phase) {
   }
 }
 
-try {
+async function runProcess(executable, args, timeoutMs = 120000) {
+  const child = spawn(executable, args, {
+    cwd: workDir,
+    windowsHide: true,
+    stdio: "ignore"
+  });
+  const outcome = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => resolve({ timedOut: true }), timeoutMs);
+    child.once("error", error => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
+  });
+  if (outcome.timedOut) {
+    child.kill();
+    throw new Error(path.basename(executable) + " no terminó dentro de " + timeoutMs + " ms.");
+  }
+  return outcome;
+}
+
+async function targetExists(target) {
+  try {
+    await stat(target);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function verifyTarget(label, executable, profileDir) {
+  const testConfig = {
+    executable,
+    resultId: randomUUID(),
+    trackId: "ritmo-smoke-" + randomUUID(),
+    profileDir
+  };
   await mkdir(profileDir, { recursive: true });
-  const firstLaunch = await launchPhase("write");
-  assert.equal(firstLaunch.persistentLibrary.saved, true, "La primera ejecución debe guardar una pista de prueba.");
+  const firstLaunch = await launchPhase("write", testConfig);
+  assert.equal(firstLaunch.persistentLibrary.saved, true,
+    label + ": la primera ejecución debe guardar una pista de prueba.");
 
-  const secondLaunch = await launchPhase("verify");
+  const secondLaunch = await launchPhase("verify", testConfig);
   assert.equal(secondLaunch.persistentLibrary.survivedRestart, true,
-    "La pista guardada no persistió tras cerrar y volver a abrir Ritmo.");
+    label + ": la pista guardada no persistió tras cerrar y volver a abrir Ritmo.");
   assert.equal(secondLaunch.persistentLibrary.cleaned, true,
-    "La pista temporal debe eliminarse después de comprobar la persistencia.");
+    label + ": la pista temporal debe eliminarse después de comprobar la persistencia.");
+  assert.equal(firstLaunch.audioIdle && secondLaunch.audioIdle, true,
+    label + ": la prueba no debe iniciar reproducción.");
+  return { firstLaunch, secondLaunch };
+}
 
-  console.log("Ritmo Windows packaged smoke test passed: " + JSON.stringify({
-    title: secondLaunch.title,
-    navigation: secondLaunch.navigation,
-    audioIdleOnBothLaunches: firstLaunch.audioIdle && secondLaunch.audioIdle,
-    persistentLibrary: secondLaunch.persistentLibrary,
-    isolatedProfile: true
+try {
+  assert.ok(await targetExists(portableExecutable), "No se encontró el ejecutable portable.");
+  assert.ok(await targetExists(installerExecutable), "No se encontró el instalador NSIS.");
+
+  const portable = await verifyTarget("Portable", portableExecutable, portableProfileDir);
+
+  const installExit = await runProcess(installerExecutable, ["/S", "/D=" + installDir]);
+  assert.equal(installExit.code, 0,
+    "El instalador Windows terminó con código " + installExit.code +
+    (installExit.signal ? " (señal " + installExit.signal + ")" : ""));
+  const installedExecutable = path.join(installDir, "Ritmo.exe");
+  assert.ok(await targetExists(installedExecutable),
+    "El instalador terminó, pero no creó Ritmo.exe en la ruta solicitada.");
+
+  const installed = await verifyTarget("Instalación NSIS", installedExecutable, installerProfileDir);
+
+  const installedFiles = await readdir(installDir);
+  const uninstallerName = installedFiles.find(name => /^uninstall.*\.exe$/i.test(name));
+  assert.ok(uninstallerName, "La instalación no contiene el desinstalador NSIS esperado.");
+  const uninstallExit = await runProcess(path.join(installDir, uninstallerName), ["/S"]);
+  assert.equal(uninstallExit.code, 0,
+    "El desinstalador NSIS terminó con código " + uninstallExit.code);
+  assert.equal(await targetExists(installedExecutable), false,
+    "La desinstalación silenciosa debe retirar el ejecutable de la aplicación.");
+
+  console.log("Ritmo Windows release smoke test passed: " + JSON.stringify({
+    portable: {
+      title: portable.secondLaunch.title,
+      navigation: portable.secondLaunch.navigation,
+      audioIdleOnBothLaunches: portable.firstLaunch.audioIdle && portable.secondLaunch.audioIdle,
+      persistentLibrary: portable.secondLaunch.persistentLibrary
+    },
+    installer: {
+      title: installed.secondLaunch.title,
+      navigation: installed.secondLaunch.navigation,
+      audioIdleOnBothLaunches: installed.firstLaunch.audioIdle && installed.secondLaunch.audioIdle,
+      persistentLibrary: installed.secondLaunch.persistentLibrary
+    },
+    silentInstallAndUninstall: true,
+    isolatedProfiles: true
   }));
 } finally {
   await rm(workDir, { recursive: true, force: true }).catch(() => {});
