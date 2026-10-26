@@ -20,6 +20,7 @@ const packageJson = JSON.parse(packageSource);
 assert.equal(packageJson.main, "electron/main.mjs");
 assert.equal(packageJson.devDependencies.electron, "45.0.0", "Electron runtime must be pinned to a stable release.");
 assert.equal(packageJson.devDependencies["electron-builder"], "26.18.0", "Windows packaging tool must be pinned.");
+assert.equal(packageJson.scripts["smoke:release"], "node scripts/smoke-test-release.mjs", "The packaged Windows smoke test must remain available.");
 assert.equal(packageJson.build.appId, "com.ritmo.player");
 assert.equal(packageJson.build.directories.buildResources, "../assets", "Windows installer should use the existing Ritmo icon.");
 assert.ok(packageJson.build.files.includes("!**/node_modules/ritmo-workspace/**"), "The workspace root must not be packed into the desktop runtime as a nested application.");
@@ -36,6 +37,9 @@ assert.match(electronSource, /sandbox: true/);
 assert.match(electronSource, /setWindowOpenHandler/);
 assert.match(electronSource, /requestSingleInstanceLock/);
 assert.match(workflowSource, /runs-on: windows-latest/);
+assert.match(workflowSource, /uses: actions\/upload-artifact@v7/, "Windows artifact upload must use the current Node.js 24-compatible action.");
+assert.match(workflowSource, /npm --prefix desktop run smoke:release/, "The Windows workflow must launch and test the packaged portable executable.");
+assert.match(electronSource, /RITMO_DESKTOP_SMOKE_TEST/);
 assert.match(workflowSource, /Ritmo-Windows-\$\{\{ github\.run_number \}\}/);
 assert.match(readme, /Ritmo-Windows/);
 

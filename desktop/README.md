@@ -13,7 +13,7 @@ Ritmo tiene dos salidas independientes para escritorio:
 4. Ejecutá `Ritmo-1.0.0-Setup-x64.exe` para instalarlo, o `Ritmo-1.0.0-Portable-x64.exe` para iniciarlo sin pasar por el instalador.
 5. Si Windows muestra una advertencia de aplicación desconocida, tené en cuenta que este build no tiene certificado comercial de firma de código.
 
-El workflow publica ambos ejecutables, sus SHA-256 y un `build-info.json` en el mismo artefacto. Los archivos se conservan 30 días en GitHub Actions; no se publican automáticamente como una versión de GitHub Releases.
+El workflow publica ambos ejecutables, sus SHA-256 y un `build-info.json` en el mismo artefacto. Antes de subirlos, inicia el ejecutable portable en modo de prueba y verifica que la aplicación se inicialice, que se pueda navegar entre Inicio, Biblioteca y Conversor, y que existan los controles esenciales del reproductor. Esta prueba no reproduce audio ni importa archivos. Los archivos se conservan 30 días en GitHub Actions; no se publican automáticamente como una versión de GitHub Releases.
 
 ## Compilar o ejecutar desde el código
 

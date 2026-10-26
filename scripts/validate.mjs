@@ -78,6 +78,7 @@ const syntaxChecks = [
   "desktop/scripts/static-server.mjs",
   "desktop/electron/main.mjs",
   "desktop/scripts/desktop-package-check.mjs",
+  "desktop/scripts/smoke-test-release.mjs",
   "desktop/scripts/verify-release.mjs",
   "scripts/mobile-touch-check.mjs",
   "scripts/configure-android.mjs",

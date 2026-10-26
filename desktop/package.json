@@ -14,7 +14,8 @@
     "app": "npm run prepare && electron .",
     "package:windows": "npm run prepare && electron-builder --win nsis portable",
     "check:package": "node scripts/desktop-package-check.mjs",
-    "verify:release": "node scripts/verify-release.mjs"
+    "verify:release": "node scripts/verify-release.mjs",
+    "smoke:release": "node scripts/smoke-test-release.mjs"
   },
   "devDependencies": {
     "electron": "45.0.0",
