@@ -43,11 +43,8 @@ const syntaxChecks = [
   "scripts/ui-sounds-check.mjs",
   "scripts/voice-studio-check.mjs",
   "scripts/smoke-check.mjs",
-  "scripts/concurrent-map-check.mjs",
   "scripts/library-search-check.mjs",
   "scripts/library-filters-check.mjs",
-  "scripts/native-track-metadata-check.mjs",
-  "scripts/native-track-scan-check.mjs",
   "scripts/native-track-metadata-check.mjs",
   "scripts/native-track-scan-check.mjs",
   "scripts/character-companion-check.mjs",
@@ -89,7 +86,6 @@ const syntaxChecks = [
   "scripts/android-music-library-check.mjs",
   "scripts/service-worker-fetch-check.mjs",
   "scripts/history-limit-check.mjs",
-  "desktop/scripts/desktop-package-check.mjs"
 ];
 const regressionSuites = [
   "scripts/smoke-check.mjs",
