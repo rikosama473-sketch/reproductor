@@ -2543,7 +2543,7 @@ async function playTrack(trackId, autoplay = true, options = {}) {
     showPlaybackStatus("");
     if (autoplay && !options.skipHistory) {
       track.lastPlayedAt = Date.now();
-      try { await saveTrack(track); } catch {}
+      try { if (track.ephemeralRadio !== true) await saveTrack(track); } catch {}
       try {
         await addHistoryEntry({ id: id(), trackId: track.id, kind: track.kind, title: track.title,
           artist: track.artist || "Artista desconocido", album: track.album || "", playedAt: Date.now(),
@@ -3452,7 +3452,7 @@ async function searchRadioStations() {
     }
   }
 }
-async function addRadioStation(stationuuid, playNow = false) {
+async function addRadioStation(stationuuid, playNow = false, saveForLater = true) {
   if (!requireInternetMode("agregar o reproducir una emisora")) return;
   const station = radioStations.find(item => item.stationuuid === stationuuid) ||
     savedRadioStations.find(item => item.stationuuid === stationuuid);
@@ -3461,14 +3461,16 @@ async function addRadioStation(stationuuid, playNow = false) {
     return;
   }
   const previousSavedStations = savedRadioStations;
-  const nextSavedStations = upsertSavedRadioStation(savedRadioStations, station);
-  try {
-    await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, nextSavedStations);
-    savedRadioStations = nextSavedStations;
-    renderSavedRadioStations();
-  } catch (error) {
-    toast(error?.message || "No se pudo guardar la emisora.");
-    return;
+  if (saveForLater) {
+    const nextSavedStations = upsertSavedRadioStation(savedRadioStations, station);
+    try {
+      await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, nextSavedStations);
+      savedRadioStations = nextSavedStations;
+      renderSavedRadioStations();
+    } catch (error) {
+      toast(error?.message || "No se pudo guardar la emisora.");
+      return;
+    }
   }
 
   let track = state.tracks.find(item => item.kind === "url" && item.url === station.url);
@@ -3479,13 +3481,16 @@ async function addRadioStation(stationuuid, playNow = false) {
       album: ["Radio Browser", station.codec].filter(Boolean).join(" · "),
       favorite: false, addedAt: Date.now(), duration: 0, lastPlayedAt: 0,
       sourceProvider: "Radio Browser", sourcePage: station.homepage || station.url,
-      radioStationUuid: station.stationuuid, radioTags: station.tags
+      radioStationUuid: station.stationuuid, radioTags: station.tags, ephemeralRadio: !saveForLater
     };
     try {
-      await saveTrack(track);
-      state.tracks = await getAllTracks();
+      if (saveForLater) await saveTrack(track);
+      if (saveForLater) state.tracks = await getAllTracks();
+      else track.ephemeralRadio = true;
+      if (!saveForLater) state.tracks.push(track);
       render();
-      toast("Emisora guardada en «Mis radios». La canción original no se mezcla con las emisoras.");
+      if (saveForLater) toast("Emisora guardada en «Mis radios», separada de las canciones.");
+      else toast("Reproducción temporal; usá «Guardar emisora» para conservarla.");
     } catch (error) {
       savedRadioStations = previousSavedStations;
       await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, previousSavedStations).catch(() => {});
@@ -3493,14 +3498,23 @@ async function addRadioStation(stationuuid, playNow = false) {
       toast(error?.message || "No se pudo guardar la emisora.");
       return;
     }
-  } else {
-    toast("Emisora guardada en «Mis radios».");
+  } else if (saveForLater && track.ephemeralRadio === true) {
+    delete track.ephemeralRadio;
+    try { await saveTrack(track); } catch (error) {
+      savedRadioStations = previousSavedStations;
+      await saveAppSetting(SAVED_RADIO_STATIONS_SETTING_KEY, previousSavedStations).catch(() => {});
+      renderSavedRadioStations();
+      toast(error?.message || "No se pudo guardar la emisora.");
+      return;
+    }
   }
   if (playNow) {
     void fetch(radioStationClickUrl(station.stationuuid), {
       mode: "cors", credentials: "omit", cache: "no-store"
     }).catch(() => {});
     await playTrack(track.id);
+  } else if (saveForLater) {
+    toast("Emisora guardada en «Mis radios», separada de tu biblioteca de canciones.");
   }
 }
 
@@ -3571,13 +3585,13 @@ function bindOnlineServiceEvents() {
   });
   $("#radio-results").addEventListener("click", event => {
     const play = event.target.closest("[data-radio-play]");
-    if (play) { void addRadioStation(play.dataset.radioPlay, true); return; }
+    if (play) { void addRadioStation(play.dataset.radioPlay, true, false); return; }
     const add = event.target.closest("[data-radio-add]");
     if (add) void addRadioStation(add.dataset.radioAdd, false);
   });
   $("#saved-radio-stations").addEventListener("click", event => {
     const play = event.target.closest("[data-radio-play]");
-    if (play) { void addRadioStation(play.dataset.radioPlay, true); return; }
+    if (play) { void addRadioStation(play.dataset.radioPlay, true, true); return; }
     const remove = event.target.closest("[data-radio-remove]");
     if (remove) void removeSavedRadioStationFromCollection(remove.dataset.radioRemove);
   });
