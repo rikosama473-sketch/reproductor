@@ -36,6 +36,13 @@ assert.match(electronSource, /contextIsolation: true/);
 assert.match(electronSource, /sandbox: true/);
 assert.match(electronSource, /setWindowOpenHandler/);
 assert.match(electronSource, /requestSingleInstanceLock/);
+assert.match(electronSource, /setPermissionCheckHandler/, "Desktop APIs must explicitly check media permission.");
+assert.match(electronSource, /setPermissionRequestHandler/, "Desktop APIs must explicitly handle microphone permission requests.");
+assert.match(electronSource, /isTrustedAppOrigin\(requestingOrigin\)/, "Only the local app origin may pass media permission checks.");
+assert.match(electronSource, /details\?\.mediaType === "audio"/, "Media permission checks should allow only audio, not camera.");
+assert.match(electronSource, /mediaTypes\.includes\("audio"\) && !mediaTypes\.includes\("video"\)/, "Permission request must reject any capture request that includes video.");
+assert.match(electronSource, /webContents === mainWindow\?\.webContents/, "External windows must not receive microphone permission.");
+
 assert.match(workflowSource, /runs-on: windows-latest/);
 assert.match(workflowSource, /uses: actions\/upload-artifact@v7/, "Windows artifact upload must use the current Node.js 24-compatible action.");
 assert.match(workflowSource, /npm --prefix desktop run smoke:release/, "The Windows workflow must launch and test the packaged portable executable.");
