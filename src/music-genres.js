@@ -70,12 +70,17 @@ export function normalizeId3Genre(value) {
   return [...new Map(parts.map(label => [genreKey(label), label])).values()].join(" / ");
 }
 
+/**
+ * Maps a known track tag to the optional UI-feedback rhythm only.
+ * This is not an audio genre classifier and must never alter track playback.
+ * Unknown and distinct genres stay neutral instead of being guessed as pop.
+ */
 export function inferUiSoundRhythm(genre) {
   const text = genreKey(genre);
   if (!text) return null;
-  // A composite rock tag is rock even when it also contains "pop" or "alternative".
-  if (/\b(rock|punk|metal|grunge|hardcore|emo|gothic|shoegaze|krautrock|math rock|post punk|post rock|britpop|indie rock|crossover)\b/.test(text)) return "rock";
-  if (/\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum and bass|dnb|tech house|house|breakbeat|big beat|jungle|idm|ebm|psytrance|goa|rave|synthpop|electroclash|nu breakz)\b/.test(text)) return "cyber";
-  if (/\b(pop|k pop|j pop|dance pop|teen pop|electropop|popular|disco|dance|eurodance|euro house|funk|r and b|r b|hip hop|rap|soul|reggae|dance hall|dancehall|latin|salsa|merengue|cumbia|reggaeton|afrobeats|freestyle|club)\b/.test(text)) return "pop";
+  // Keep rock subgenres ahead of pop in mixed labels such as "Pop Rock".
+  if (/\b(rock|punk|metal|grunge|hardcore|emo|gothic|shoegaze|krautrock|math rock|post punk|post rock|britpop|indie rock|crossover|rock and roll|hard rock|progressive rock|psychedelic rock|alternative rock|death metal|black metal|thrash metal)\b/.test(text)) return "rock";
+  if (/\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum and bass|dnb|tech house|house|breakbeat|big beat|jungle|idm|ebm|psytrance|goa|rave|electroclash|nu breakz|euro house|euro techno|eurodance|hardcore techno|techno industrial)\b/.test(text)) return "cyber";
+  if (/\b(pop|k pop|j pop|jpop|dance pop|teen pop|electropop|synthpop|synth pop)\b/.test(text)) return "pop";
   return null;
 }
