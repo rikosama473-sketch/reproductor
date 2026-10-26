@@ -37,6 +37,7 @@ assert.match(electronSource, /sandbox: true/);
 assert.match(electronSource, /setWindowOpenHandler/);
 assert.match(electronSource, /requestSingleInstanceLock/);
 assert.match(workflowSource, /runs-on: windows-latest/);
+assert.match(workflowSource, /uses: actions\/upload-artifact@v7/, "Windows artifact upload must use the current Node.js 24-compatible action.");
 assert.match(workflowSource, /npm --prefix desktop run smoke:release/, "The Windows workflow must launch and test the packaged portable executable.");
 assert.match(electronSource, /RITMO_DESKTOP_SMOKE_TEST/);
 assert.match(workflowSource, /Ritmo-Windows-\$\{\{ github\.run_number \}\}/);
