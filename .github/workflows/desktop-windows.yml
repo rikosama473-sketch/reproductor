@@ -41,6 +41,9 @@ jobs:
           RITMO_RUN_NUMBER: ${{ github.run_number }}
         run: npm --prefix desktop run verify:release
 
+      - name: Launch the packaged Windows app and check key screens
+        run: npm --prefix desktop run smoke:release
+
       - name: Upload Windows installer, portable executable and checksums
         uses: actions/upload-artifact@v4
         with:
