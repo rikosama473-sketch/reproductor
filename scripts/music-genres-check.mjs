@@ -5,6 +5,8 @@ assert.equal(ID3_V1_GENRES.length, 192, "Cover every common ID3v1/Winamp genre c
 assert.equal(normalizeId3Genre("0"), "Blues");
 assert.equal(normalizeId3Genre("(8)"), "Jazz");
 assert.equal(normalizeId3Genre("14"), "R&B");
+assert.equal(normalizeId3Genre("Pop/Funk"), "Pop/Funk", "Keep a known compound genre intact instead of splitting its label.");
+assert.equal(normalizeId3Genre("pop / funk"), "Pop/Funk", "Canonicalize case and spacing in a known compound genre.");
 assert.equal(normalizeId3Genre("145"), "Anime");
 assert.equal(normalizeId3Genre("146"), "JPop");
 assert.equal(normalizeId3Genre("(17)Rock"), "Rock");
