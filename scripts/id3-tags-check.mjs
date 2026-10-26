@@ -78,6 +78,13 @@ assert.equal(v23.title, "Piano nocturno");
 assert.equal(v23.artist, "Artista");
 assert.equal(v23.album, "Álbum");
 assert.equal(v23.genre, "Rock");
+assert.equal(parseId3Tags(tag(3, [frame("TCON", "0")]), fallback).genre, "Blues");
+assert.equal(parseId3Tags(tag(3, [frame("TCON", "8")]), fallback).genre, "Jazz");
+assert.equal(parseId3Tags(tag(3, [frame("TCON", "14")]), fallback).genre, "R&B");
+assert.equal(parseId3Tags(tag(3, [frame("TCON", "145")]), fallback).genre, "Anime");
+assert.equal(parseId3Tags(tag(3, [frame("TCON", "(17)(13)")]), fallback).genre, "Rock / Pop");
+assert.equal(parseId3Tags(tag(3, [frame("TCON", "(193)")]), fallback).genre, fallback.genre);
+
 assert.equal(parseId3Tags(tag(3, [frame("TIT2", "AC/DC - Live")]), fallback).title, "AC/DC - Live", "preserve slash characters in titles");
 
 const v22 = parseId3Tags(tag(2, [frame("TT2", "Tema v2.2", 2), frame("TP1", "Banda", 2)]), fallback);
