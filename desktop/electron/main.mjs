@@ -15,6 +15,9 @@ let mainWindow = null;
 let appOrigin = "";
 
 const smokeTest = process.env.RITMO_DESKTOP_SMOKE_TEST === "1";
+// A fake input is enabled only for the Windows release smoke test. This lets CI
+// exercise Electron's real permission handlers without recording real audio.
+if (smokeTest) app.commandLine.appendSwitch("use-fake-device-for-media-stream");
 const smokeTestId = String(process.env.RITMO_DESKTOP_SMOKE_TEST_ID || "")
   .replace(/[^a-zA-Z0-9-]/g, "")
   .slice(0, 64);
@@ -422,11 +425,60 @@ async function createMainWindow() {
             db.close();
             throw new Error("Fase de prueba de persistencia desconocida: " + smokePhase);
           }
+          async function testDesktopMicrophonePermission() {
+            const consent = document.getElementById("music-recognition-consent");
+            const identifyButton = document.getElementById("music-recognition-start");
+            if (!consent || !identifyButton) throw new Error("La pantalla de identificación musical no está disponible en PC.");
+            if (consent.checked) throw new Error("El consentimiento de identificación debe empezar desmarcado.");
+            if (!navigator.mediaDevices?.getUserMedia) throw new Error("La versión de escritorio no ofrece captura de micrófono.");
+
+            let audioStream = null;
+            let videoDenied = false;
+            let videoDenialName = "";
+            try {
+              audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+              const audioTracks = audioStream.getAudioTracks();
+              if (!audioTracks.length || audioTracks.some(track => track.kind !== "audio")) {
+                throw new Error("La aplicación no recibió una pista de audio simulada válida.");
+              }
+              audioTracks.forEach(track => track.stop());
+              if (audioTracks.some(track => track.readyState !== "ended")) {
+                throw new Error("El flujo de prueba de audio no se detuvo correctamente.");
+              }
+
+              try {
+                const videoStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+                videoStream.getTracks().forEach(track => track.stop());
+              } catch (error) {
+                videoDenied = ["NotAllowedError", "PermissionDeniedError"].includes(error?.name);
+                videoDenialName = String(error?.name || "");
+              }
+              if (!videoDenied) throw new Error("La captura de vídeo fue permitida; solo debe autorizarse audio.");
+              return {
+                passed: true,
+                audioCaptureAllowed: true,
+                videoCaptureDenied: true,
+                explicitConsentRequired: consent.checked === false,
+                identifyButtonAvailable: !identifyButton.disabled,
+                videoDenialName,
+                testAudioTracksStopped: audioTracks.every(track => track.readyState === "ended")
+              };
+            } finally {
+              audioStream?.getTracks().forEach(track => {
+                if (track.readyState !== "ended") track.stop();
+              });
+            }
+          }
+
           const selectors = {
             appShell: ".app-shell",
             homeView: "#home-view",
             libraryView: "#library-view",
             librarySearch: "#library-search",
+            musicFinderView: "#finder-view",
+            musicRecognitionStart: "#music-recognition-start",
+            musicRecognitionConsent: "#music-recognition-consent",
+            musicRecognitionToken: "#music-recognition-token",
             converterView: "#converter-view",
             converterFiles: "#converter-files",
             converterStart: "#converter-start",
@@ -443,7 +495,7 @@ async function createMainWindow() {
           if (bootError && !bootError.hidden) missing.push("boot-error-visible");
 
           const navigation = {};
-          for (const view of ["library", "converter", "home"]) {
+          for (const view of ["finder", "library", "converter", "home"]) {
             const button = document.querySelector('[data-view="' + view + '"]');
             const panel = document.getElementById(view + "-view");
             if (!button || !panel) {
@@ -455,6 +507,7 @@ async function createMainWindow() {
             navigation[view] = !panel.hidden && button.classList.contains("active");
             if (!navigation[view]) missing.push("navigation-" + view);
           }
+          const desktopMicrophone = await testDesktopMicrophonePermission();
           const converterIntegration = smokePhase === "write"
             ? await testConverterAndAudioEngine()
             : { passed: true, skipped: true, reason: "La conversión e importación se comprueban en la primera ejecución." };
@@ -467,14 +520,15 @@ async function createMainWindow() {
             navigation,
             missing,
             audioIdle: Boolean(document.querySelector("#audio-engine")?.paused),
+            desktopMicrophone,
             converterIntegration,
             convertedTrackPersistence,
             persistentLibrary
           };
         })()`, true);
         const passed = result.ready && result.missing.length === 0 && result.audioIdle &&
-          result.persistentLibrary?.passed === true && result.converterIntegration?.passed === true &&
-          result.convertedTrackPersistence?.passed === true;
+          result.persistentLibrary?.passed === true && result.desktopMicrophone?.passed === true &&
+          result.converterIntegration?.passed === true && result.convertedTrackPersistence?.passed === true;
         await finishSmokeTest(passed ? 0 : 1, result);
       } catch (error) {
         console.error("La prueba de inicio de Ritmo para PC falló:", error);

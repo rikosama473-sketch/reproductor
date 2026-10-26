@@ -36,6 +36,16 @@ assert.match(electronSource, /contextIsolation: true/);
 assert.match(electronSource, /sandbox: true/);
 assert.match(electronSource, /setWindowOpenHandler/);
 assert.match(electronSource, /requestSingleInstanceLock/);
+assert.match(electronSource, /if \(smokeTest\) app\.commandLine\.appendSwitch\("use-fake-device-for-media-stream"\)/,
+  "A fake media device must only be enabled in the isolated desktop release smoke test.");
+assert.match(electronSource, /async function testDesktopMicrophonePermission\(\)/,
+  "The release smoke test must exercise the actual Electron media permission handlers.");
+assert.match(electronSource, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true, video: false \}\)/,
+  "The desktop smoke test must request audio capture.");
+assert.match(electronSource, /navigator\.mediaDevices\.getUserMedia\(\{ audio: false, video: true \}\)/,
+  "The desktop smoke test must verify that video capture is rejected.");
+assert.match(electronSource, /result\.desktopMicrophone\?\.passed === true/,
+  "The release smoke test cannot pass if microphone permission checks fail.");
 assert.match(electronSource, /setPermissionCheckHandler/, "Desktop APIs must explicitly check media permission.");
 assert.match(electronSource, /setPermissionRequestHandler/, "Desktop APIs must explicitly handle microphone permission requests.");
 assert.match(electronSource, /isTrustedAppOrigin\(requestingOrigin\)/, "Only the local app origin may pass media permission checks.");

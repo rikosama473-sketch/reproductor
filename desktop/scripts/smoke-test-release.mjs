@@ -66,10 +66,18 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
     assert.equal(result.details.ready, true, "La inicialización de Ritmo no finalizó en " + phase + ".");
     assert.equal(result.details.audioIdle, true, "La prueba no debe iniciar reproducción.");
     assert.deepEqual(result.details.missing, [], "Faltan controles o falló la navegación.");
-    assert.deepEqual(result.details.navigation, { library: true, converter: true, home: true });
+    assert.deepEqual(result.details.navigation, { finder: true, library: true, converter: true, home: true });
     assert.ok(result.details.elements?.audioEngine && result.details.elements?.playButton);
     assert.ok(result.details.elements?.libraryView && result.details.elements?.librarySearch);
     assert.ok(result.details.elements?.converterView && result.details.elements?.converterFiles && result.details.elements?.converterStart);
+    assert.ok(result.details.elements?.musicFinderView && result.details.elements?.musicRecognitionStart &&
+      result.details.elements?.musicRecognitionConsent && result.details.elements?.musicRecognitionToken,
+      "El reconocedor musical debe estar disponible en el ejecutable de Windows.");
+    assert.equal(result.details.desktopMicrophone?.passed, true, "El permiso de micrófono de Windows debe pasar la prueba simulada.");
+    assert.equal(result.details.desktopMicrophone?.audioCaptureAllowed, true);
+    assert.equal(result.details.desktopMicrophone?.videoCaptureDenied, true, "El acceso a vídeo debe permanecer bloqueado.");
+    assert.equal(result.details.desktopMicrophone?.explicitConsentRequired, true, "La autorización de envío debe comenzar desmarcada.");
+    assert.equal(result.details.desktopMicrophone?.testAudioTracksStopped, true, "El dispositivo simulado debe apagarse tras la prueba.");
     assert.equal(result.details.persistentLibrary?.passed, true, "La prueba de persistencia falló.");
     assert.equal(result.details.persistentLibrary?.phase, phase);
     assert.equal(result.details.converterIntegration?.passed, true,
@@ -197,12 +205,14 @@ try {
     portable: {
       title: portable.secondLaunch.title,
       navigation: portable.secondLaunch.navigation,
+      desktopMicrophone: portable.secondLaunch.desktopMicrophone,
       audioIdleOnBothLaunches: portable.firstLaunch.audioIdle && portable.secondLaunch.audioIdle,
       persistentLibrary: portable.secondLaunch.persistentLibrary
     },
     installer: {
       title: installed.secondLaunch.title,
       navigation: installed.secondLaunch.navigation,
+      desktopMicrophone: installed.secondLaunch.desktopMicrophone,
       audioIdleOnBothLaunches: installed.firstLaunch.audioIdle && installed.secondLaunch.audioIdle,
       persistentLibrary: installed.secondLaunch.persistentLibrary
     },
