@@ -5,6 +5,7 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const musicFinder = fs.readFileSync(new URL("../src/music-finder-ui.js", import.meta.url), "utf8");
 const musicRecognition = fs.readFileSync(new URL("../src/music-recognition.js", import.meta.url), "utf8");
+const onlineServices = fs.readFileSync(new URL("../src/online-services.js", import.meta.url), "utf8");
 const backup = fs.readFileSync(new URL("../src/backup.js", import.meta.url), "utf8");
 const backupUi = fs.readFileSync(new URL("../src/backup-ui.js", import.meta.url), "utf8");
 const librarySearch = fs.readFileSync(new URL("../src/library-search.js", import.meta.url), "utf8");
