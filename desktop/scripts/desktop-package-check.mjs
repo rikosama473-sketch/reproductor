@@ -44,7 +44,14 @@ assert.match(electronSource, /app\.setPath\("userData"/, "The desktop smoke test
 assert.match(electronSource, /testLibraryPersistence/, "The packaged smoke test must exercise the actual IndexedDB library.");
 assert.match(electronSource, /survivedRestart|saved:/, "The smoke test must report library persistence.");
 assert.match(workflowSource, /Ritmo-Windows-\$\{\{ github\.run_number \}\}/);
-assert.match(readme, /Ritmo-Windows/);
+assert.match(workflowSource, /tags:\s*\["v\*"\]/, "Version tags must trigger a Windows release build.");
+assert.match(workflowSource, /Verify release tag matches the desktop version/, "A tag must match the desktop package version before packaging.");
+assert.match(workflowSource, /publish-release:\s*\n\s*name: Publish verified Windows build to GitHub Releases\s*\n\s*if: startsWith\(github\.ref, 'refs\/tags\/v'\)\s*\n\s*needs: build-windows\s*\n\s*runs-on: ubuntu-latest\s*\n\s*permissions:\s*\n\s*contents: write/s, "Release publishing must be isolated to successful version-tag builds with scoped write permission.");
+assert.match(workflowSource, /uses: actions\/download-artifact@v7/, "Release publishing must use the artifact from the tested build.");
+assert.match(workflowSource, /uses: softprops\/action-gh-release@v2/, "Verified Windows builds must be published as a GitHub Release.");
+assert.match(workflowSource, /Ritmo-Windows-SHA256\.txt/, "The release must include the artifact checksums.");
+assert.match(readme, /GitHub Releases de Ritmo/);
+assert.match(readme, /Los artefactos de Actions se conservan 30 días/);
 
 const prepared = spawnSync(process.execPath, [path.join(desktopRoot, "scripts", "prepare.mjs")], {
   cwd: repositoryRoot,
