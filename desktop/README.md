@@ -13,7 +13,7 @@ Ritmo tiene dos salidas independientes para escritorio:
 4. Ejecutá `Ritmo-1.0.0-Setup-x64.exe` para instalarlo, o `Ritmo-1.0.0-Portable-x64.exe` para iniciarlo sin pasar por el instalador.
 5. Si Windows muestra una advertencia de aplicación desconocida, tené en cuenta que este build no tiene certificado comercial de firma de código.
 
-El workflow publica ambos ejecutables, sus SHA-256 y un `build-info.json` en el mismo artefacto. Antes de subirlos, inicia dos veces el ejecutable portable en un perfil temporal aislado. Comprueba la inicialización, la navegación entre Inicio, Biblioteca y Conversor, los controles principales del reproductor y la persistencia de una pista temporal en IndexedDB entre reinicios; luego elimina la pista y el perfil de prueba. No reproduce audio ni importa archivos del usuario. Los archivos se conservan 30 días en GitHub Actions; no se publican automáticamente como una versión de GitHub Releases.
+El workflow publica ambos ejecutables, sus SHA-256 y un `build-info.json` en el mismo artefacto. Antes de subirlos, instala de forma silenciosa el paquete NSIS en una carpeta temporal, inicia tanto el ejecutable portable como la versión instalada dos veces cada uno en perfiles aislados, verifica inicialización, navegación entre Inicio, Biblioteca y Conversor y persistencia de una pista temporal en IndexedDB entre reinicios, y ejecuta la desinstalación silenciosa. Las pistas temporales y los perfiles de prueba se eliminan al terminar. No reproduce audio ni importa archivos del usuario. Los archivos se conservan 30 días en GitHub Actions; no se publican automáticamente como una versión de GitHub Releases.
 
 ## Compilar o ejecutar desde el código
 
