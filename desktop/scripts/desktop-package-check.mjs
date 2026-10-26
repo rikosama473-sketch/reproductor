@@ -40,6 +40,9 @@ assert.match(workflowSource, /runs-on: windows-latest/);
 assert.match(workflowSource, /uses: actions\/upload-artifact@v7/, "Windows artifact upload must use the current Node.js 24-compatible action.");
 assert.match(workflowSource, /npm --prefix desktop run smoke:release/, "The Windows workflow must launch and test the packaged portable executable.");
 assert.match(electronSource, /RITMO_DESKTOP_SMOKE_TEST/);
+assert.match(electronSource, /app\.setPath\("userData"/, "The desktop smoke test must use an isolated, disposable profile.");
+assert.match(electronSource, /testLibraryPersistence/, "The packaged smoke test must exercise the actual IndexedDB library.");
+assert.match(electronSource, /survivedRestart|saved:/, "The smoke test must report library persistence.");
 assert.match(workflowSource, /Ritmo-Windows-\$\{\{ github\.run_number \}\}/);
 assert.match(readme, /Ritmo-Windows/);
 
