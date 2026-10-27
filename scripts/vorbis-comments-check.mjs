@@ -51,6 +51,8 @@ const numericGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENR
 assert.equal(numericGenre.genre, "Rock", "FLAC numeric genres should use the same mapping as ID3 tags.");
 const compoundGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENRE=pop / funk"])), {});
 assert.equal(compoundGenre.genre, "Pop/Funk", "Vorbis comments must preserve known compound genre labels.");
+const mixedCompoundGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENRE=Jazz, pop / funk"])), {});
+assert.equal(mixedCompoundGenre.genre, "Jazz / Pop/Funk", "Vorbis genre lists must keep compound labels intact.");
 const unsupportedGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENRE=193"])), { genre: "Metal" });
 assert.equal(unsupportedGenre.genre, "Metal", "Unsupported numeric genre codes must not erase fallback metadata.");
 const oggNumericGenre = parseOggVorbisComments(oggPage(concat(Uint8Array.from([3, ...encoder.encode("vorbis")]), commentBody(["GENRE=14"]))), {});

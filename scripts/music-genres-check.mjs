@@ -7,6 +7,8 @@ assert.equal(normalizeId3Genre("(8)"), "Jazz");
 assert.equal(normalizeId3Genre("14"), "R&B");
 assert.equal(normalizeId3Genre("Pop/Funk"), "Pop/Funk", "Keep a known compound genre intact instead of splitting its label.");
 assert.equal(normalizeId3Genre("pop / funk"), "Pop/Funk", "Canonicalize case and spacing in a known compound genre.");
+assert.equal(normalizeId3Genre("Jazz, pop / funk"), "Jazz / Pop/Funk", "Do not split a compound label when it appears alongside another genre.");
+assert.equal(normalizeId3Genre("Rock / Pop/Funk / Indie"), "Rock / Pop/Funk / Indie", "Mixed genre lists should keep compound labels atomic.");
 assert.equal(normalizeId3Genre("145"), "Anime");
 assert.equal(normalizeId3Genre("146"), "JPop");
 assert.equal(normalizeId3Genre("(17)Rock"), "Rock");

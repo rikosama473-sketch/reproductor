@@ -34,6 +34,24 @@ function genreKey(value) {
     .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function splitGenreLabels(raw) {
+  // Some legacy labels contain a slash themselves (notably "Pop/Funk").
+  // Protect these labels before treating slash characters as separators.
+  const compoundLabels = ID3_V1_GENRES.filter(label => label.includes("/"));
+  const placeholders = new Map();
+  let source = raw;
+  compoundLabels.forEach((label, index) => {
+    const pattern = label.split("/").map(part => part.trim()).join("\\s*\\/\\s*");
+    const placeholder = "\u0002genre" + index + "\u0003";
+    const matcher = new RegExp("(^|[\\s,;|+/])(" + pattern + ")(?=$|[\\s,;|+/])", "gi");
+    source = source.replace(matcher, (_match, boundary) => boundary + placeholder);
+    placeholders.set(placeholder, label);
+  });
+  return source.split(/\s*(?:\/|;|\||,|\s\+\s)\s*/).map(segment => {
+    const value = segment.trim();
+    return placeholders.get(value) || normalizeGenreSegment(value);
+  }).filter(Boolean);
+}
 function normalizeGenreSegment(segment) {
   const raw = String(segment ?? "").trim();
   if (!raw) return "";
@@ -70,7 +88,7 @@ export function normalizeId3Genre(value) {
       .map(match => ID3_V1_GENRES[Number(match[1])]).filter(Boolean);
     return [...new Map(labels.map(label => [genreKey(label), label])).values()].join(" / ");
   }
-  const parts = raw.split(/\s*(?:\/|;|\||,|\s\+\s)\s*/).map(normalizeGenreSegment).filter(Boolean);
+  const parts = splitGenreLabels(raw);
   return [...new Map(parts.map(label => [genreKey(label), label])).values()].join(" / ");
 }
 
