@@ -102,7 +102,7 @@ assert.match(appSource, /searchItunesGenreSuggestions/);
 assert.match(appSource, /if \(!networkModeIsAvailable\(\)\)/, "Catalog lookup must respect the app's network mode.");
 assert.match(appSource, /metadataTouchedFields\.add\("genre"\)/, "Applying a proposal must mark the genre field as edited.");
 assert.match(appSource, /tocá «Guardar cambios» para actualizar la ficha local/);
-assert.match(appSource, /El archivo original no se modifica/);
+assert.match(appSource, /el archivo original no se modifica/i);
 assert.doesNotMatch(metadataHtml, /Sugerencia automática aplicada y guardada/);
 
 console.log("Music genre catalog suggestion checks passed: safe query construction, title/artist match filtering, genre de-duplication, safe source links and mocked catalog request behavior.");
