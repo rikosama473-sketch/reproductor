@@ -36,14 +36,24 @@ function genreKey(value) {
 
 function splitGenreLabels(raw) {
   // Some legacy labels contain a slash themselves (notably "Pop/Funk").
-  // Protect known compound labels before treating slashes as genre separators,
-  // so they remain intact even inside multi-genre tags such as "Jazz, Pop/Funk".
+  // Protect these labels before treating slash characters as separators.
   const compoundLabels = ID3_V1_GENRES.filter(label => label.includes("/"));
   const placeholders = new Map();
   let source = raw;
   compoundLabels.forEach((label, index) => {
-    const pattern = label.split("/").map(part =>
-      part.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\function normalizeGenreSegment(segment) {")
+    const pattern = label.split("/").map(part => part.trim()).join("\\s*\\/\\s*");
+    const placeholder = "\u0002genre" + index + "\u0003";
+    const matcher = new RegExp("(^|[\\s,;|+/])(" + pattern + ")(?=$|[\\s,;|+/])", "gi");
+    source = source.replace(matcher, (_match, boundary) => boundary + placeholder);
+    placeholders.set(placeholder, label);
+  });
+  return source.split(/\s*(?:\/|;|\||,|\s\+\s)\s*/).map(segment => {
+    const value = segment.trim();
+    return placeholders.get(value) || normalizeGenreSegment(value);
+  }).filter(Boolean);
+}
+
+function normalizeGenreSegment(segment) {")
     ).join("\\s*\\/\\s*");
     const placeholder = "\\u0002genre" + index + "\\u0003";
     const matcher = new RegExp("(^|[\\s,;|+/])(" + pattern + ")(?=$|[\\s,;|+/])", "gi");
