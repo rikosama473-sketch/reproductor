@@ -21,3 +21,11 @@ Esta integración tampoco equivale a un clasificador de género acústico. Para 
 ## Regresión ID3 cubierta
 
 Los modificadores ID3 `(RX)` (remix) y `(CR)` (cover) deben eliminarse antes de interpretar códigos adyacentes, por ejemplo `(RX)(17)` → `Rock` y `(CR)(13)` → `Pop`. Un código numérico desconocido sigue sin convertirse en una etiqueta inventada.
+
+## Sugerencias de género desde un catálogo
+
+El editor de metadatos puede consultar, solo cuando el usuario pulsa **Buscar sugerencias**, el catálogo de Apple/iTunes por título y artista. La respuesta incluye un género primario catalogado, no una predicción acústica. La interfaz muestra la pista que coincidió y un indicador de similitud textual; ese porcentaje no expresa la confianza de la clasificación musical. La persona elige una propuesta y todavía debe pulsar **Guardar cambios**. La búsqueda no modifica el archivo fuente, no analiza el audio y no ejecuta cambios por lotes.
+
+La petición usa metadatos de texto y no envía el archivo ni un fragmento de audio al catálogo. Requiere conexión y Modo Internet. La respuesta procede de [iTunes Search API de Apple](https://performance-partners.apple.com/search-api), que documenta \`primaryGenreName\` en los resultados de canción y el parámetro de callback para búsquedas entre sitios. Si el navegador bloquea \`fetch()\` por CORS, Ritmo usa el callback dentro de un iframe con origen opaco y sin acceso al almacenamiento de la aplicación. Si el catálogo no responde, la ficha queda sin cambios.
+
+La fuente del catálogo puede tener un género amplio o distinto al que el usuario considera correcto. Para estilos minoritarios, lanzamientos regionales o metadatos ausentes, debe prevalecer la revisión humana; no se debe presentar una etiqueta como verdad acústica.

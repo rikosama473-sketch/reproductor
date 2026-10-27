@@ -627,7 +627,12 @@
         <label id="metadata-title-row"><span>Título</span><input id="metadata-title" type="text" maxlength="300" autocomplete="off"></label>
         <label><span>Artista</span><input id="metadata-artist" type="text" maxlength="300" autocomplete="off"></label>
         <label><span>Álbum</span><input id="metadata-album" type="text" maxlength="300" autocomplete="off"></label>
-        <label><span>Género</span><input id="metadata-genre" type="text" maxlength="120" autocomplete="off"></label>
+        <div class="metadata-genre-lookup">
+          <label><span>Género</span><input id="metadata-genre" type="text" maxlength="120" autocomplete="off"></label>
+          <button class="button button-soft" id="metadata-genre-suggest" type="button">Buscar sugerencias</button>
+          <p class="metadata-genre-note">Consulta título y artista en un catálogo externo. No analiza ni envía el audio; vos confirmás antes de guardar.</p>
+        </div>
+        <div id="metadata-genre-suggestions" class="metadata-genre-suggestions" aria-live="polite" hidden></div>
       </div>
       <p id="metadata-editor-status" class="settings-note" role="status" aria-live="polite"></p>
       <div class="settings-actions"><button class="button button-primary" id="metadata-save" type="submit">Guardar cambios</button><button class="button button-soft" id="metadata-cancel" type="button">Cancelar</button></div>

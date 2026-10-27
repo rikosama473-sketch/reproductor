@@ -22,6 +22,7 @@ import { matchesLibrarySearch } from "./library-search.js";
 import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
 import { mergeNativeTrackMetadata } from "./native-track-metadata.js";
 import { normalizeId3Genre } from "./music-genres.js";
+import { searchItunesGenreSuggestions } from "./music-genre-suggestions.js";
 import { preserveKnownScanNumber } from "./native-track-scan.js";
 
 const $ = selector => document.querySelector(selector);
@@ -118,6 +119,8 @@ let libraryFilters = readSavedLibraryFilters();
 const selectedLibraryTrackIds = new Set();
 let metadataEditingTrackIds = [];
 let metadataTouchedFields = new Set();
+let genreSuggestionRequestId = 0;
+let genreSuggestionAbortController = null;
 
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", finder: "Encontrar música", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
@@ -678,12 +681,138 @@ function renderLibrarySection() {
     hasActiveLibraryFilters({ query: state.query, ...libraryFilters }) && visible.length === 0);
   syncLibrarySelection();
 }
+function clearGenreSuggestionResults() {
+  genreSuggestionRequestId++;
+  genreSuggestionAbortController?.abort();
+  genreSuggestionAbortController = null;
+  const root = $("#metadata-genre-suggestions");
+  if (root) {
+    root.replaceChildren();
+    root.hidden = true;
+  }
+  const button = $("#metadata-genre-suggest");
+  if (button) {
+    button.disabled = metadataEditingTrackIds.length !== 1;
+    button.textContent = "Buscar sugerencias";
+  }
+}
+
+function renderGenreSuggestionResults(suggestions) {
+  const root = $("#metadata-genre-suggestions");
+  if (!root) return;
+  root.replaceChildren();
+  root.hidden = false;
+  const intro = document.createElement("p");
+  intro.className = "metadata-genre-suggestions-intro";
+  intro.textContent = "Propuestas de Apple/iTunes según título y artista. El porcentaje mide la coincidencia textual, no la precisión del género. Elegí una propuesta y después guardá los cambios.";
+  root.append(intro);
+
+  for (const suggestion of suggestions) {
+    const row = document.createElement("div");
+    row.className = "metadata-genre-option";
+    const copy = document.createElement("div");
+    copy.className = "metadata-genre-option-copy";
+    const genre = document.createElement("strong");
+    genre.textContent = suggestion.genre;
+    const track = document.createElement("span");
+    track.textContent = suggestion.title + " — " + suggestion.artist;
+    const score = document.createElement("span");
+    score.textContent = "Coincidencia textual: " + suggestion.confidence + " %";
+    copy.append(genre, track, score);
+    if (suggestion.sourceUrl) {
+      const sourceLink = document.createElement("a");
+      sourceLink.href = suggestion.sourceUrl;
+      sourceLink.target = "_blank";
+      sourceLink.rel = "noopener noreferrer";
+      sourceLink.textContent = "Ver ficha en Apple/iTunes ↗";
+      copy.append(sourceLink);
+    }
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "button button-primary";
+    apply.textContent = "Usar género";
+    apply.addEventListener("click", () => {
+      const input = $("#metadata-genre");
+      if (!input || metadataEditingTrackIds.length !== 1) return;
+      input.value = suggestion.genre;
+      metadataTouchedFields.add("genre");
+      clearGenreSuggestionResults();
+      const status = $("#metadata-editor-status");
+      if (status) status.textContent = "Propuesta aplicada al formulario. Revisala y tocá «Guardar cambios» para actualizar la ficha local; el archivo original no se modifica.";
+    });
+    row.append(copy, apply);
+    root.append(row);
+  }
+}
+
+async function suggestTrackGenreFromCatalog() {
+  const button = $("#metadata-genre-suggest");
+  const status = $("#metadata-editor-status");
+  const root = $("#metadata-genre-suggestions");
+  if (metadataEditingTrackIds.length !== 1) {
+    if (status) status.textContent = "Las sugerencias están disponibles para una canción por vez, no para una edición por lote.";
+    return;
+  }
+  const title = String($("#metadata-title")?.value || "").trim();
+  const artist = String($("#metadata-artist")?.value || "").trim();
+  if (!title) {
+    if (status) status.textContent = "Escribí el título de la canción antes de buscar sugerencias.";
+    $("#metadata-title")?.focus();
+    return;
+  }
+  if (!networkModeIsAvailable()) {
+    if (status) status.textContent = "La búsqueda de sugerencias necesita conexión y Modo Internet. Tu biblioteca local sigue funcionando sin conexión.";
+    return;
+  }
+
+  genreSuggestionAbortController?.abort();
+  const currentRequestId = ++genreSuggestionRequestId;
+  const controller = new AbortController();
+  genreSuggestionAbortController = controller;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Buscando…";
+  }
+  if (status) status.textContent = "Consultando el catálogo con título y artista. No se envía ni analiza el audio.";
+  if (root) {
+    root.replaceChildren();
+    root.hidden = true;
+  }
+  try {
+    const suggestions = await searchItunesGenreSuggestions({
+      title,
+      artist,
+      country: "AR",
+      signal: controller.signal
+    });
+    if (currentRequestId !== genreSuggestionRequestId) return;
+    if (!suggestions.length) {
+      if (status) status.textContent = "No encontré géneros con una coincidencia suficiente de título y artista. No cambié la ficha; podés escribir el género manualmente.";
+      return;
+    }
+    renderGenreSuggestionResults(suggestions);
+    if (status) status.textContent = "Encontré " + suggestions.length + " propuesta(s) de catálogo. Elegí una para llevarla al formulario; todavía no se guardó nada.";
+  } catch (error) {
+    if (currentRequestId !== genreSuggestionRequestId || error?.name === "AbortError") return;
+    if (status) status.textContent = error?.message || "No se pudo consultar el catálogo de géneros.";
+  } finally {
+    if (currentRequestId === genreSuggestionRequestId) {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Buscar sugerencias";
+      }
+      if (genreSuggestionAbortController === controller) genreSuggestionAbortController = null;
+    }
+  }
+}
+
 function openTrackMetadataEditor(trackIds) {
   const ids = [...new Set((trackIds || []).map(String))];
   const tracks = ids.map(id => state.tracks.find(track => String(track.id) === id)).filter(Boolean);
   if (!tracks.length) { toast("Seleccioná al menos una canción para editar."); return; }
   metadataEditingTrackIds = tracks.map(track => String(track.id));
   metadataTouchedFields = new Set();
+  clearGenreSuggestionResults();
   const bulk = tracks.length > 1;
   const titleRow = $("#metadata-title-row");
   const titleInput = $("#metadata-title");
@@ -781,8 +910,16 @@ function bindLibraryManagementEvents() {
   });
   $("#library-bulk-edit")?.addEventListener("click", () => openTrackMetadataEditor([...selectedLibraryTrackIds]));
   $("#track-metadata-form")?.addEventListener("submit", saveTrackMetadata);
+  $("#metadata-genre-suggest")?.addEventListener("click", suggestTrackGenreFromCatalog);
   for (const field of ["title", "artist", "album", "genre"]) {
-    $("#metadata-" + field)?.addEventListener("input", () => metadataTouchedFields.add(field));
+    $("#metadata-" + field)?.addEventListener("input", () => {
+      metadataTouchedFields.add(field);
+      if (field === "title" || field === "artist" || field === "genre") {
+        clearGenreSuggestionResults();
+        const status = $("#metadata-editor-status");
+        if (status) status.textContent = "";
+      }
+    });
   }
   $("#metadata-cancel")?.addEventListener("click", () => $("#metadata-dialog")?.close());
   $("#metadata-close")?.addEventListener("click", () => $("#metadata-dialog")?.close());
