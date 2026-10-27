@@ -186,13 +186,13 @@
           <section class="music-recognition-card" aria-labelledby="music-recognition-title">
             <div class="music-recognition-header">
               <div class="music-recognition-icon" aria-hidden="true">♫</div>
-              <div class="music-recognition-header-copy"><div class="eyebrow">IDENTIFICACIÓN POR AUDIO · ESTILO SHAZAM</div><h2 id="music-recognition-title">¿Qué está sonando?</h2><p>Grabá 8 segundos del sonido que escuchás. Ritmo consultará a AudD para intentar reconocer la grabación y ofrecer enlaces de la canción detectada.</p></div>
+              <div class="music-recognition-header-copy"><div class="eyebrow">IDENTIFICACIÓN POR AUDIO · ESTILO SHAZAM</div><h2 id="music-recognition-title">¿Qué está sonando?</h2><p>Grabá 8 segundos del sonido que escuchás. Ritmo consultará a AudD para intentar reconocer la grabación y ofrecer enlaces de la canción detectada. Funciona también en la aplicación de escritorio para Windows.</p></div>
               <span class="music-recognition-badge">Opcional</span>
             </div>
             <div id="music-recognition-network-note" class="music-network-note" role="status" aria-live="polite" hidden>🔒 La identificación y los catálogos externos necesitan conexión y Modo Internet. La búsqueda local sigue disponible.</div>
             <details class="music-recognition-settings" id="music-recognition-settings">
               <summary>Configurar el servicio de reconocimiento</summary>
-              <p>Necesitás un token personal de AudD. El token se guarda en este navegador y se envía a AudD solo cuando solicitás una identificación. El fragmento de audio también se enviará al servicio para intentar reconocerlo; no se envía a Ritmo ni se conserva como canción local.</p>
+              <p>Necesitás un token personal de AudD. El token se guarda localmente en esta instalación de Ritmo (navegador o app de escritorio) y se envía a AudD solo cuando solicitás una identificación. El fragmento de audio se envía directamente a AudD para intentar reconocerlo; Ritmo no lo sube a un servidor propio ni lo conserva como canción local.</p>
               <p><a href="https://dashboard.audd.io/" target="_blank" rel="noopener noreferrer" data-network-only="true">Obtener token de AudD ↗</a></p>
               <label for="music-recognition-token">Token de API</label>
               <div class="music-token-row"><input id="music-recognition-token" class="form-input" type="password" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Pegá aquí tu token personal"><button type="button" class="button button-primary" id="music-recognition-save-token">Guardar en este dispositivo</button><button type="button" class="button button-soft" id="music-recognition-clear-token">Borrar</button></div>
@@ -201,7 +201,7 @@
             <label class="music-recognition-consent"><input type="checkbox" id="music-recognition-consent"><span>Autorizo esta identificación: se enviarán hasta 8 segundos a AudD. El consentimiento se vuelve a pedir para cada grabación.</span></label>
             <div class="music-recognition-actions"><button type="button" class="button button-primary" id="music-recognition-start">🎙 Identificar con micrófono</button><button type="button" class="button button-soft" id="music-recognition-stop" hidden>Cancelar grabación</button><span id="music-recognition-countdown" class="music-recognition-countdown" aria-live="polite">8 s de audio como máximo</span></div>
             <progress id="music-recognition-progress" class="music-recognition-progress" max="8" value="0" hidden></progress>
-            <p id="music-recognition-status" class="online-service-status" role="status" aria-live="polite">El micrófono requiere permiso del navegador y un sitio HTTPS o localhost. La identificación necesita Modo Internet y un token válido.</p>
+            <p id="music-recognition-status" class="online-service-status" role="status" aria-live="polite">Disponible en navegador y en Ritmo para Windows. Requiere permiso del micrófono (solo audio), HTTPS o localhost, Modo Internet y un token válido; no usa la cámara.</p>
             <div id="music-recognition-result" class="music-recognition-result"></div>
           </section>
         </section>
