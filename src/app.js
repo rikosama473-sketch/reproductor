@@ -22,6 +22,7 @@ import { matchesLibrarySearch } from "./library-search.js";
 import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFilters, LIBRARY_SORT_OPTIONS } from "./library-filters.js";
 import { mergeNativeTrackMetadata } from "./native-track-metadata.js";
 import { normalizeId3Genre } from "./music-genres.js";
+import { searchItunesGenreSuggestions } from "./music-genre-suggestions.js";
 import { preserveKnownScanNumber } from "./native-track-scan.js";
 
 const $ = selector => document.querySelector(selector);
@@ -118,6 +119,8 @@ let libraryFilters = readSavedLibraryFilters();
 const selectedLibraryTrackIds = new Set();
 let metadataEditingTrackIds = [];
 let metadataTouchedFields = new Set();
+let genreSuggestionRequestId = 0;
+let genreSuggestionAbortController = null;
 
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", finder: "Encontrar música", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
