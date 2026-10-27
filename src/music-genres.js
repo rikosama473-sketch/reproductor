@@ -111,6 +111,9 @@ export function inferUiSoundRhythm(genre) {
   if (!text) return null;
   // Keep rock subgenres ahead of pop in mixed labels such as "Pop Rock".
   if (/\b(rock|punk|metal|grunge|hardcore|emo|gothic|shoegaze|krautrock|math rock|post punk|post rock|britpop|indie rock|crossover|rock and roll|hard rock|progressive rock|psychedelic rock|alternative rock|death metal|black metal|thrash metal)\b/.test(text)) return "rock";
+  // Specific pop subgenres must be checked before the broad "electro" family.
+  // Otherwise a normal "Electro Pop" tag is incorrectly routed to Cyber.
+  if (/\b(electro pop|electropop|dance pop|synth pop|synthpop|k pop|j pop|jpop)\b/.test(text)) return "pop";
   if (/\b(cyberpunk|electronic|electronica|electro|techno|trance|edm|synthwave|industrial|dubstep|drum and bass|drum bass|dnb|tech house|house|breakbeat|big beat|jungle|idm|ebm|psytrance|goa|rave|electroclash|nu breakz|euro house|euro techno|eurodance|hardcore techno|techno industrial)\b/.test(text)) return "cyber";
   if (/\b(pop|k pop|j pop|jpop|dance pop|teen pop|electropop|synthpop|synth pop)\b/.test(text)) return "pop";
   return null;
