@@ -98,4 +98,25 @@ import { mergeNativeTrackMetadata } from "../src/native-track-metadata.js";
     "A user override is authoritative, including an intentionally unusual or blank value.");
 }
 
-console.log("Native metadata merge checks passed: legacy fallback preservation, real tag refresh, and per-field user overrides.");
+// MediaStore genre values use the same normalization as imported file metadata.
+{
+  const mapped = mergeNativeTrackMetadata(
+    { title: "Tema", artist: "Artista", genre: "Jazz" },
+    { title: "Tema", artist: "Artista", genre: "17" },
+    "Tema"
+  );
+  assert.equal(mapped.genre, "Rock", "Native numeric genre codes should be canonicalized.");
+  const unknown = mergeNativeTrackMetadata(
+    { title: "Tema", artist: "Artista", genre: "Jazz" },
+    { title: "Tema", artist: "Artista", genre: "193" },
+    "Tema"
+  );
+  assert.equal(unknown.genre, "Jazz", "Unknown native genre codes must not overwrite valid metadata.");
+  const compound = mergeNativeTrackMetadata(
+    { title: "Tema", artist: "Artista", genre: "" },
+    { title: "Tema", artist: "Artista", genre: "pop / funk" },
+    "Tema"
+  );
+  assert.equal(compound.genre, "Pop/Funk", "Native tags should retain a known compound genre.");
+}
+console.log("Native metadata merge checks passed: legacy fallback preservation, genre canonicalization, real tag refresh, and per-field user overrides.");
