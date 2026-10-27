@@ -56,7 +56,7 @@ export function createMusicFinderController({
     const status = $("#music-recognition-token-status");
     if (!status) return;
     status.textContent = message || (readMusicRecognitionToken()
-      ? "Hay un token guardado en este navegador. No se mostrará en pantalla; podés borrarlo cuando quieras."
+      ? "Hay un token guardado localmente en esta instalación. No se mostrará en pantalla; podés borrarlo cuando quieras."
       : "Sin token guardado. La búsqueda por texto y la biblioteca local funcionan sin token.");
   }
 
@@ -153,7 +153,7 @@ export function createMusicFinderController({
       return;
     }
     if (blob.size > MAX_RECOGNITION_CLIP_BYTES) {
-      $("#music-recognition-status").textContent = "El fragmento grabado supera 2 MB; no se envió. Probá de nuevo con otro navegador.";
+      $("#music-recognition-status").textContent = "El fragmento grabado supera el límite de 2 MB; no se envió. Intentá de nuevo con otra captura.";
       return;
     }
     if (!networkModeIsAvailable()) {
