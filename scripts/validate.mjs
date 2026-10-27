@@ -100,6 +100,7 @@ const regressionSuites = [
   "scripts/audio-output-volume-check.mjs",
   "scripts/media-session-state-check.mjs",
   "scripts/equalizer-presets-check.mjs",
+  "scripts/music-genre-suggestions-check.mjs",
   "scripts/music-genres-check.mjs",
   "scripts/ui-sounds-check.mjs",
   "scripts/id3-tags-check.mjs",
