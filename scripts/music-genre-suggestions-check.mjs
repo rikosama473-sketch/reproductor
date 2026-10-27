@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   buildItunesGenreSearchUrl,
   normalizeItunesGenreSuggestions,
@@ -64,4 +65,17 @@ await assert.rejects(
   searchItunesGenreSuggestions({ title: "Warriors", fetchImpl: null }),
   /no puede consultar/i
 );
+const [metadataHtml, appSource] = await Promise.all([
+  readFile(new URL("../index.html", import.meta.url), "utf8"),
+  readFile(new URL("../src/app.js", import.meta.url), "utf8")
+]);
+assert.match(metadataHtml, /id="metadata-genre-suggest"/);
+assert.match(metadataHtml, /No analiza ni envía el audio/);
+assert.match(appSource, /searchItunesGenreSuggestions/);
+assert.match(appSource, /if \(!networkModeIsAvailable\(\)\)/, "Catalog lookup must respect the app's network mode.");
+assert.match(appSource, /metadataTouchedFields\.add\("genre"\)/, "Applying a proposal must mark the genre field as edited.");
+assert.match(appSource, /Guardá cambios para actualizar la ficha local/);
+assert.match(appSource, /El archivo original no se modifica/);
+assert.doesNotMatch(metadataHtml, /Sugerencia automática aplicada y guardada/);
+
 console.log("Music genre catalog suggestion checks passed: safe query construction, title/artist match filtering, genre de-duplication, safe source links and mocked catalog request behavior.");
