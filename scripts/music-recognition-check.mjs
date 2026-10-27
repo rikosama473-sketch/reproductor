@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   MUSIC_RECOGNITION_RECORDING_MS,
   MUSIC_RECOGNITION_TOKEN_STORAGE_KEY,
@@ -12,6 +13,16 @@ import {
 } from "../src/music-recognition.js";
 
 assert.equal(MUSIC_RECOGNITION_RECORDING_MS, 8000, "Microphone capture must stay short and bounded");
+
+const recognitionHtml = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const recognitionUi = await readFile(new URL("../src/music-finder-ui.js", import.meta.url), "utf8");
+assert.match(recognitionHtml, /Funciona también en la aplicación de escritorio para Windows/);
+assert.match(recognitionHtml, /micrófono \(solo audio\).*no usa la cámara/);
+assert.match(recognitionHtml, /token se guarda localmente en esta instalación de Ritmo/);
+assert.match(recognitionUi, /token guardado localmente en esta instalación/);
+assert.match(recognitionUi, /Intentá de nuevo con otra captura/);
+assert.doesNotMatch(recognitionHtml, /El token se guarda en este navegador/);
+assert.doesNotMatch(recognitionUi, /Hay un token guardado en este navegador/);
 assert.equal(normalizeMusicRecognitionToken("  personal-token  "), "personal-token");
 assert.equal(normalizeMusicRecognitionToken(""), "");
 assert.equal(normalizeMusicRecognitionToken("bad\ntoken"), "");
