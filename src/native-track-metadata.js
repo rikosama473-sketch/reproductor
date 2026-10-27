@@ -1,4 +1,15 @@
+import { normalizeId3Genre } from "./music-genres.js";
+
 const GENERIC_ARTIST = "Artista desconocido";
+
+function usableGenre(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const normalized = normalizeId3Genre(raw);
+  if (normalized) return normalized;
+  // A bare unknown numeric value is an unsupported legacy code, not a genre.
+  return /^\(?[0-9]{1,3}\)?$/.test(raw) ? "" : raw;
+}
 
 function record(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -48,8 +59,11 @@ export function mergeNativeTrackMetadata(existingTrack, discoveredTrack, fallbac
   const album = overrides.album === true ? existingAlbum : (discoveredAlbum || existingAlbum);
 
   const existingGenre = String(existing.genre ?? "");
-  const discoveredGenre = String(discovered.genre ?? "").trim();
-  const genre = overrides.genre === true ? existingGenre : (discoveredGenre || existingGenre);
+  const discoveredGenre = usableGenre(discovered.genre);
+  const normalizedExistingGenre = usableGenre(existingGenre);
+  const genre = overrides.genre === true
+    ? existingGenre
+    : (discoveredGenre || normalizedExistingGenre || existingGenre);
 
   return { title, artist, album, genre };
 }

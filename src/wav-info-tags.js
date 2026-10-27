@@ -1,3 +1,5 @@
+import { normalizeId3Genre } from "./music-genres.js";
+
 export const MAX_WAV_METADATA_BYTES = 2 * 1024 * 1024;
 export const MAX_WAV_INFO_CHUNKS = 4096;
 
@@ -54,7 +56,9 @@ function parseInfoPayload(payload, found) {
     const field = INFO_FIELDS[id];
     if (field && !found[field] && size > 0) {
       const value = decodeInfoValue(payload.subarray(dataStart, declaredEnd));
-      if (value) found[field] = value;
+      const normalized = field === "genre" ? normalizeId3Genre(value) : value;
+      // Do not replace fallback metadata with an unsupported numeric genre code.
+      if (normalized) found[field] = normalized;
     }
     const next = declaredEnd + (size & 1);
     if (next <= offset || next > payload.length) break;

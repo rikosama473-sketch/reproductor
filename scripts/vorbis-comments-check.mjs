@@ -47,6 +47,14 @@ assert.equal(flac.title, "Track title");
 assert.equal(flac.artist, "Artist A / Artist B");
 assert.equal(flac.album, "Test album");
 assert.equal(flac.genre, "Jazz");
+const numericGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENRE=17"])), { genre: "Metal" });
+assert.equal(numericGenre.genre, "Rock", "FLAC numeric genres should use the same mapping as ID3 tags.");
+const compoundGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENRE=pop / funk"])), {});
+assert.equal(compoundGenre.genre, "Pop/Funk", "Vorbis comments must preserve known compound genre labels.");
+const unsupportedGenre = parseFlacVorbisComments(flacWithComments(commentBody(["GENRE=193"])), { genre: "Metal" });
+assert.equal(unsupportedGenre.genre, "Metal", "Unsupported numeric genre codes must not erase fallback metadata.");
+const oggNumericGenre = parseOggVorbisComments(oggPage(concat(Uint8Array.from([3, ...encoder.encode("vorbis")]), commentBody(["GENRE=14"]))), {});
+assert.equal(oggNumericGenre.genre, "R&B", "Ogg/Vorbis must share genre normalization.");
 assert.equal(fallback.title, "Filename title", "Fallback metadata must not be mutated");
 
 const oggVorbis = concat(Uint8Array.from([3, ...encoder.encode("vorbis")]), body);

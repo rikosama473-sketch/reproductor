@@ -1,3 +1,5 @@
+import { normalizeId3Genre } from "./music-genres.js";
+
 export const MAX_VORBIS_METADATA_BYTES = 2 * 1024 * 1024;
 export const MAX_VORBIS_COMMENTS = 4096;
 const MAX_COMMENT_BYTES = 16 * 1024;
@@ -71,7 +73,11 @@ function applyCommentBlock(input, fallback = {}) {
   if (values.title.length) metadata.title = values.title[0];
   if (values.album.length) metadata.album = values.album[0];
   if (values.artist.length) metadata.artist = values.artist.join(" / ");
-  if (values.genre.length) metadata.genre = values.genre.join(", ");
+  if (values.genre.length) {
+    const genre = normalizeId3Genre(values.genre.join(", "));
+    // Invalid numeric codes must not erase a useful filename/fallback genre.
+    if (genre) metadata.genre = genre;
+  }
   return Object.keys(metadata).length ? { ...fallback, ...metadata } : { ...fallback };
 }
 
