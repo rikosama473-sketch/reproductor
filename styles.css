@@ -761,3 +761,17 @@ button.track-index:hover{color:#f2c4a7}
 .metadata-dialog .settings-actions{margin-top:17px}
 @media(max-width:900px){.library-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.library-filters{gap:9px;padding:11px}.library-filters select{min-height:38px;font-size:10px}.library-selection-tools{align-items:stretch}.library-selection-tools .button{flex:1}.library-selection-tools #library-selection-status{width:100%;margin-left:0}.metadata-fields{grid-template-columns:1fr}.metadata-fields label,#metadata-title-row{grid-column:auto}}
+/* Explicit, non-destructive metadata genre suggestions. */
+.metadata-genre-lookup{display:grid;gap:8px;align-content:start;min-width:0}
+.metadata-genre-lookup .button{width:100%;min-height:34px;justify-content:center}
+.metadata-genre-note{font-size:9px!important;line-height:1.55!important;color:#96909b!important;margin:0!important}
+.metadata-genre-suggestions{grid-column:1/-1;display:grid;gap:8px;min-width:0;margin-top:2px}
+.metadata-genre-suggestions[hidden]{display:none}
+.metadata-genre-suggestions-intro{margin:0!important;font-size:10px!important;color:#b8a7a0!important;line-height:1.6!important}
+.metadata-genre-option{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px;border:1px solid #48404a;border-radius:9px;background:#1b1718;min-width:0}
+.metadata-genre-option-copy{min-width:0}
+.metadata-genre-option-copy strong{display:block;font-size:11px;color:#f0e3dd;overflow-wrap:anywhere}
+.metadata-genre-option-copy span,.metadata-genre-option-copy a{display:block;font-size:9px;color:#aaa0a0;line-height:1.5;margin-top:3px;overflow-wrap:anywhere}
+.metadata-genre-option-copy a{color:#ddbaa9;text-decoration:underline}
+.metadata-genre-option .button{min-height:32px;padding:0 10px;white-space:nowrap}
+@media(max-width:580px){.metadata-genre-lookup,.metadata-genre-suggestions{grid-column:1/-1}.metadata-genre-option{grid-template-columns:minmax(0,1fr)}.metadata-genre-option .button{width:100%}}
