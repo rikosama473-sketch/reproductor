@@ -52,20 +52,6 @@ function splitGenreLabels(raw) {
     return placeholders.get(value) || normalizeGenreSegment(value);
   }).filter(Boolean);
 }
-
-function normalizeGenreSegment(segment) {")
-    ).join("\\s*\\/\\s*");
-    const placeholder = "\\u0002genre" + index + "\\u0003";
-    const matcher = new RegExp("(^|[\\s,;|+/])(" + pattern + ")(?=$|[\\s,;|+/])", "gi");
-    source = source.replace(matcher, (_match, boundary) => boundary + placeholder);
-    placeholders.set(placeholder, label);
-  });
-  return source.split(/\\s*(?:\\/|;|\\||,|\\s\\+\\s)\\s*/).map(segment => {
-    const value = segment.trim();
-    return placeholders.get(value) || normalizeGenreSegment(value);
-  }).filter(Boolean);
-}
-
 function normalizeGenreSegment(segment) {
   const raw = String(segment ?? "").trim();
   if (!raw) return "";
