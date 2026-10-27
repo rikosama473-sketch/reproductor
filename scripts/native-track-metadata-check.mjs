@@ -118,5 +118,11 @@ import { mergeNativeTrackMetadata } from "../src/native-track-metadata.js";
     "Tema"
   );
   assert.equal(compound.genre, "Pop/Funk", "Native tags should retain a known compound genre.");
+  const mixed = mergeNativeTrackMetadata(
+    { title: "Tema", artist: "Artista", genre: "" },
+    { title: "Tema", artist: "Artista", genre: "Jazz, pop / funk" },
+    "Tema"
+  );
+  assert.equal(mixed.genre, "Jazz / Pop/Funk", "Native multi-genre tags must preserve compound labels.");
 }
 console.log("Native metadata merge checks passed: legacy fallback preservation, genre canonicalization, real tag refresh, and per-field user overrides.");

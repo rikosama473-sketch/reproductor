@@ -59,6 +59,8 @@ assert.ok(MAX_WAV_INFO_CHUNKS >= 1024);
   assert.equal(metadata.genre, "Rock", "WAV numeric genre tags should match ID3 genre mapping.");
   const compound = parseWavInfoComments(wav([infoList([infoField("IGNR", "pop / funk")])]), {});
   assert.equal(compound.genre, "Pop/Funk", "WAV must preserve compound genre labels.");
+  const mixedCompound = parseWavInfoComments(wav([infoList([infoField("IGNR", "Jazz, pop / funk")])]), {});
+  assert.equal(mixedCompound.genre, "Jazz / Pop/Funk", "WAV multi-genre tags must keep compound labels intact.");
   const unsupported = parseWavInfoComments(wav([infoList([infoField("IGNR", "193")])]), { genre: "Metal" });
   assert.equal(unsupported.genre, "Metal", "An unknown numeric genre must not erase fallback metadata.");
 }
