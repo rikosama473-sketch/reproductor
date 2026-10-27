@@ -53,8 +53,8 @@ function splitGenreLabels(raw) {
   }).filter(Boolean);
 }
 function normalizeAdjacentGenreCodes(raw) {
-  if (!/^(?:\\([0-9]{1,3}\\))+$/i.test(raw)) return null;
-  const labels = [...raw.matchAll(/\\(([0-9]{1,3})\\)/g)]
+  if (!/^(?:\([0-9]{1,3}\))+$/i.test(raw)) return null;
+  const labels = [...raw.matchAll(/\(([0-9]{1,3})\)/g)]
     .map(match => ID3_V1_GENRES[Number(match[1])]).filter(Boolean);
   return [...new Map(labels.map(label => [genreKey(label), label])).values()].join(" / ");
 }
@@ -64,20 +64,20 @@ function normalizeGenreSegment(segment) {
   if (!raw) return "";
   // ID3v2 uses (RX) and (CR) as remix/cover modifiers before a genre code.
   // Strip them before parsing codes, otherwise "(RX)(17)" degrades to "(17)".
-  raw = raw.replace(/^(?:\\((?:RX|CR)\\)\\s*)+/i, "").trim();
+  raw = raw.replace(/^(?:\((?:RX|CR)\)\s*)+/i, "").trim();
   if (!raw) return "";
   const adjacentCodes = normalizeAdjacentGenreCodes(raw);
   if (adjacentCodes !== null) return adjacentCodes;
-  const numeric = raw.match(/^\\(?([0-9]{1,3})\\)?$/);
+  const numeric = raw.match(/^\(?([0-9]{1,3})\)?$/);
   if (numeric) return ID3_V1_GENRES[Number(numeric[1])] || "";
-  const prefixed = raw.match(/^\\(([0-9]{1,3})\\)\\s*(.*)$/);
+  const prefixed = raw.match(/^\(([0-9]{1,3})\)\s*(.*)$/);
   if (prefixed) {
     const mapped = ID3_V1_GENRES[Number(prefixed[1])] || "";
     const tail = prefixed[2].trim();
     if (!mapped) return tail;
     return !tail || genreKey(tail) === genreKey(mapped) ? mapped : mapped + " / " + tail;
   }
-  const loose = raw.match(/^([0-9]{1,3})\\s+(.+)$/);
+  const loose = raw.match(/^([0-9]{1,3})\s+(.+)$/);
   if (loose) {
     const mapped = ID3_V1_GENRES[Number(loose[1])] || "";
     const tail = loose[2].trim();
