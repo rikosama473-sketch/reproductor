@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   buildItunesGenreSearchUrl,
+  buildSandboxedItunesJsonpDocument,
   normalizeItunesGenreSuggestions,
   searchItunesGenreSuggestions
 } from "../src/music-genre-suggestions.js";
@@ -16,6 +17,14 @@ assert.equal(queryUrl.searchParams.get("limit"), "8");
 assert.equal(new URL(buildItunesGenreSearchUrl("夜に駆ける", "", "US")).searchParams.get("country"), "US");
 assert.throws(() => buildItunesGenreSearchUrl("", "Imagine Dragons"), /título/i);
 assert.equal(new URL(buildItunesGenreSearchUrl("Song", "Artist", "bad")).searchParams.get("country"), "AR");
+
+const isolatedDocument = buildSandboxedItunesJsonpDocument();
+assert.match(isolatedDocument, /https:\/\/itunes\.apple\.com/);
+assert.match(isolatedDocument, /searchParams\.set\("callback", callbackName\)/);
+assert.match(isolatedDocument, /event\.source !== parent/);
+assert.doesNotMatch(isolatedDocument, /allow-same-origin/, "JSONP callback must never share the main app origin.");
+assert.doesNotMatch(isolatedDocument, /localStorage|indexedDB|document\.cookie/, "The isolated callback frame must not read app storage.");
+
 
 const payload = {
   resultCount: 6,
@@ -56,6 +65,24 @@ assert.equal(capturedOptions.method, "GET");
 assert.equal(capturedOptions.mode, "cors");
 assert.equal(capturedOptions.credentials, "omit");
 assert.equal(capturedOptions.cache, "no-store");
+
+let jsonpCalled = false;
+const fallback = await searchItunesGenreSuggestions({
+  title: "Warriors",
+  artist: "Imagine Dragons",
+  fetchImpl: async () => { throw new TypeError("CORS blocked"); },
+  jsonpImpl: async (url, options) => {
+    jsonpCalled = true;
+    assert.ok(url.startsWith("https://itunes.apple.com/search?"));
+    assert.ok(options && Object.prototype.hasOwnProperty.call(options, "signal"));
+    return { results: [
+      { trackName: "Warriors", artistName: "Imagine Dragons", primaryGenreName: "Alternative" }
+    ] };
+  }
+});
+assert.equal(jsonpCalled, true, "A fetch CORS/network TypeError should use the isolated JSONP fallback.");
+assert.equal(fallback[0].genre, "Alternative");
+
 
 await assert.rejects(
   searchItunesGenreSuggestions({ title: "Warriors", artist: "Imagine Dragons", fetchImpl: async () => ({ ok: false, status: 503 }) }),
