@@ -1,6 +1,8 @@
 const ITUNES_SEARCH_ENDPOINT = "https://itunes.apple.com/search";
 const MAX_QUERY_LENGTH = 180;
 const MAX_RESULTS = 8;
+const JSONP_TIMEOUT_MS = 12000;
+let jsonpRequestSequence = 0;
 
 function cleanText(value, maxLength = 300) {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -39,6 +41,128 @@ function normalizeAppleMusicUrl(value) {
   } catch {
     return "";
   }
+}
+
+/**
+ * This isolated frame handles Apple's documented JSONP callback path.
+ * It has scripts enabled, but deliberately lacks allow-same-origin, forms,
+ * popups and top-navigation permissions. Apple-controlled script cannot read
+ * the Ritmo document or its IndexedDB state.
+ */
+export function buildSandboxedItunesJsonpDocument() {
+  return [
+    '<!doctype html><html><head><meta charset="utf-8"><title>Ritmo catalog request</title></head><body><script>',
+    '(function () {',
+    '  "use strict";',
+    '  var callbackName = "__ritmo_itunes_callback";',
+    '  window.addEventListener("message", function (event) {',
+    '    if (event.source !== parent || !event.data || event.data.type !== "ritmo-itunes-search") return;',
+    '    var request = event.data;',
+    '    var url;',
+    '    try {',
+    '      url = new URL(request.url);',
+    '      if (url.origin !== "https://itunes.apple.com" || url.pathname !== "/search" ||',
+    '          !url.searchParams.get("term") || url.searchParams.get("entity") !== "song" ||',
+    '          url.searchParams.get("limit") !== "8" || !/^[A-Z]{2}$/.test(url.searchParams.get("country") || "")) {',
+    '        throw new Error("URL no permitida");',
+    '      }',
+    '      url.search = new URLSearchParams({',
+    '        term: url.searchParams.get("term"),',
+    '        entity: "song",',
+    '        limit: "8",',
+    '        country: url.searchParams.get("country")',
+    '      }).toString();',
+    '      url.searchParams.set("callback", callbackName);',
+    '    } catch (error) {',
+    '      parent.postMessage({ type: "ritmo-itunes-result", id: request.id, error: "La consulta al catálogo no es válida." }, "*");',
+    '      return;',
+    '    }',
+    '    var finished = false;',
+    '    function finish(message) {',
+    '      if (finished) return;',
+    '      finished = true;',
+    '      parent.postMessage(message, "*");',
+    '      try { delete window[callbackName]; } catch (_) {}',
+    '    }',
+    '    window[callbackName] = function (payload) {',
+    '      finish({ type: "ritmo-itunes-result", id: request.id, payload: payload });',
+    '    };',
+    '    var script = document.createElement("script");',
+    '    script.async = true;',
+    '    script.src = url.href;',
+    '    script.onerror = function () {',
+    '      finish({ type: "ritmo-itunes-result", id: request.id, error: "No se pudo cargar el catálogo de Apple." });',
+    '    };',
+    '    document.head.appendChild(script);',
+    '  });',
+    '}());',
+    '</script></body></html>'
+  ].join("\n");
+}
+
+/**
+ * Use a new opaque-origin sandbox for JSONP, rather than executing a
+ * third-party callback in the main Ritmo window. This fallback is needed by
+ * browsers that block cross-origin fetch() to the iTunes search endpoint.
+ */
+export function searchItunesViaSandboxedJsonp(url, { signal, timeoutMs = JSONP_TIMEOUT_MS } = {}) {
+  if (typeof document === "undefined" || typeof window === "undefined" || !document.body) {
+    return Promise.reject(new Error("Este entorno no permite la consulta aislada al catálogo. Abrí Ritmo en su navegador o aplicación de escritorio."));
+  }
+  if (signal?.aborted) return Promise.reject(new DOMException("La búsqueda fue cancelada.", "AbortError"));
+  let parsed;
+  try {
+    parsed = new URL(url);
+    if (parsed.origin !== "https://itunes.apple.com" || parsed.pathname !== "/search" ||
+        !parsed.searchParams.get("term") || parsed.searchParams.get("entity") !== "song" ||
+        parsed.searchParams.get("limit") !== String(MAX_RESULTS)) {
+      throw new Error("URL no permitida");
+    }
+  } catch {
+    return Promise.reject(new Error("La consulta al catálogo no es válida."));
+  }
+
+  return new Promise((resolve, reject) => {
+    const id = "ritmo-genre-" + (++jsonpRequestSequence);
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("title", "Consulta aislada del catálogo musical");
+    frame.setAttribute("aria-hidden", "true");
+    frame.tabIndex = -1;
+    frame.style.cssText = "position:absolute;width:0;height:0;border:0;left:-10000px;top:0;visibility:hidden";
+    let timeoutHandle = null;
+    let settled = false;
+
+    const cleanup = () => {
+      if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+      window.removeEventListener("message", onMessage);
+      signal?.removeEventListener("abort", onAbort);
+      frame.remove();
+    };
+    const settle = (error, payload) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(payload);
+    };
+    const onMessage = event => {
+      if (event.source !== frame.contentWindow || event.data?.type !== "ritmo-itunes-result" || event.data.id !== id) return;
+      if (typeof event.data.error === "string") settle(new Error(event.data.error));
+      else settle(null, event.data.payload);
+    };
+    const onAbort = () => settle(new DOMException("La búsqueda fue cancelada.", "AbortError"));
+
+    window.addEventListener("message", onMessage);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    timeoutHandle = setTimeout(() => settle(new Error("El catálogo tardó demasiado en responder. Revisá la conexión e intentá de nuevo.")), Math.max(1000, Math.min(30000, Number(timeoutMs) || JSONP_TIMEOUT_MS)));
+    frame.addEventListener("load", () => {
+      if (settled) return;
+      frame.contentWindow?.postMessage({ type: "ritmo-itunes-search", id, url: parsed.href }, "*");
+    }, { once: true });
+    frame.srcdoc = buildSandboxedItunesJsonpDocument();
+    document.body.appendChild(frame);
+  });
 }
 
 /**
@@ -98,17 +222,30 @@ export function normalizeItunesGenreSuggestions(payload, expected = {}, limit = 
 }
 
 /** Search the metadata catalog only when explicitly called by the user. */
-export async function searchItunesGenreSuggestions({ title, artist, country = "AR", fetchImpl = globalThis.fetch, signal } = {}) {
+export async function searchItunesGenreSuggestions({
+  title, artist, country = "AR", fetchImpl = globalThis.fetch,
+  jsonpImpl = searchItunesViaSandboxedJsonp, signal
+} = {}) {
   if (typeof fetchImpl !== "function") throw new Error("Este entorno no puede consultar el catálogo musical.");
   const url = buildItunesGenreSearchUrl(title, artist, country);
-  const response = await fetchImpl(url, {
-    method: "GET",
-    mode: "cors",
-    credentials: "omit",
-    cache: "no-store",
-    ...(signal ? { signal } : {})
-  });
-  if (!response?.ok) throw new Error("El catálogo musical respondió con un error HTTP " + Number(response?.status || 0) + ".");
-  const payload = await response.json();
+  let payload;
+  try {
+    const response = await fetchImpl(url, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
+      ...(signal ? { signal } : {})
+    });
+    if (!response?.ok) throw new Error("El catálogo musical respondió con el estado HTTP " + Number(response?.status || 0) + ".");
+    payload = await response.json();
+  } catch (error) {
+    if (signal?.aborted || error?.name === "AbortError") throw error;
+    if (error instanceof TypeError || error?.name === "TypeError") {
+      payload = await jsonpImpl(url, { signal });
+    } else {
+      throw error;
+    }
+  }
   return normalizeItunesGenreSuggestions(payload, { title, artist });
 }
