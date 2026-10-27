@@ -812,6 +812,7 @@ function openTrackMetadataEditor(trackIds) {
   if (!tracks.length) { toast("Seleccioná al menos una canción para editar."); return; }
   metadataEditingTrackIds = tracks.map(track => String(track.id));
   metadataTouchedFields = new Set();
+  clearGenreSuggestionResults();
   const bulk = tracks.length > 1;
   const titleRow = $("#metadata-title-row");
   const titleInput = $("#metadata-title");
@@ -909,8 +910,16 @@ function bindLibraryManagementEvents() {
   });
   $("#library-bulk-edit")?.addEventListener("click", () => openTrackMetadataEditor([...selectedLibraryTrackIds]));
   $("#track-metadata-form")?.addEventListener("submit", saveTrackMetadata);
+  $("#metadata-genre-suggest")?.addEventListener("click", suggestTrackGenreFromCatalog);
   for (const field of ["title", "artist", "album", "genre"]) {
-    $("#metadata-" + field)?.addEventListener("input", () => metadataTouchedFields.add(field));
+    $("#metadata-" + field)?.addEventListener("input", () => {
+      metadataTouchedFields.add(field);
+      if (field === "title" || field === "artist" || field === "genre") {
+        clearGenreSuggestionResults();
+        const status = $("#metadata-editor-status");
+        if (status) status.textContent = "";
+      }
+    });
   }
   $("#metadata-cancel")?.addEventListener("click", () => $("#metadata-dialog")?.close());
   $("#metadata-close")?.addEventListener("click", () => $("#metadata-dialog")?.close());
