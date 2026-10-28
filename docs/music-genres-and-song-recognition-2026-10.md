@@ -37,7 +37,7 @@ Al devolver varias pistas con el mismo género, la sugerencia conserva la coinci
 
 ## Primera clasificación acústica local (octubre de 2026)
 
-Se añadió una opción explícita **Analizar audio local** en el editor de metadatos. Usa [Musical-genres-Classification-Hubert-V1-ONNX](https://huggingface.co/onnx-community/Musical-genres-Classification-Hubert-V1-ONNX), basado en DistilHuBERT y publicado con licencia Apache-2.0. La versión de Transformers.js y la revisión del modelo están fijadas en el código; el worker ejecuta inferencia con WebAssembly en CPU y limita los hilos a dos.
+Se añadió una opción explícita **Analizar audio local** en el editor de metadatos. Usa la conversión ONNX de [Musical-genres-Classification-Hubert-V1](https://huggingface.co/SeyedAli/Musical-genres-Classification-Hubert-V1) (licencia Apache-2.0; modelo original ajustado sobre GTZAN) disponible como [versión ONNX para Transformers.js](https://huggingface.co/onnx-community/Musical-genres-Classification-Hubert-V1-ONNX). La versión de Transformers.js y la revisión de los pesos ONNX están fijadas en el código; el worker ejecuta inferencia con WebAssembly en CPU y limita los hilos a dos.
 
 - **Qué hace:** decodifica una pista importada y analiza una ventana central de hasta 12 segundos, remuestreada a 16 kHz mono. Acepta archivos locales de hasta 40 MB y presenta hasta tres sugerencias acústicas.
 - **Privacidad:** la pista no se envía a un servidor ni se sube a Apple/AudD. La primera ejecución requiere conexión para descargar el runtime y los pesos cuantizados (aprox. 24 MB); el modelo se configura para usar la caché del navegador.
