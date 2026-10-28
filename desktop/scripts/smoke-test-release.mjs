@@ -23,6 +23,8 @@ const installerProfileDir = path.join(workDir, "installer-user-data");
 async function launchPhase(phase, { executable, resultId, trackId, profileDir }) {
   const phaseId = resultId + "-" + phase;
   const resultPath = path.join(os.tmpdir(), "ritmo-desktop-smoke-" + phaseId + ".json");
+  const testsAcousticModel = process.env.RITMO_TEST_ACOUSTIC_CLASSIFIER === "1" &&
+    phase === "write" && /portable-user-data/i.test(profileDir);
   let child;
   try {
     child = spawn(executable, [], {
@@ -39,7 +41,7 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
       }
     });
     const childExit = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => resolve({ timedOut: true }), 60000);
+      const timeout = setTimeout(() => resolve({ timedOut: true }), testsAcousticModel ? 240000 : 60000);
       child.once("error", error => {
         clearTimeout(timeout);
         reject(error);
@@ -51,7 +53,7 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
     });
     if (childExit.timedOut) {
       child.kill();
-      throw new Error("Ritmo Portable no terminó la fase " + phase + " en 60 segundos.");
+      throw new Error("Ritmo no terminó la fase " + phase + " dentro del plazo de " + (testsAcousticModel ? "240" : "60") + " segundos.");
     }
     assert.equal(childExit.code, 0,
       "La fase " + phase + " terminó con código " + childExit.code +
@@ -83,7 +85,12 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
     assert.equal(result.details.converterIntegration?.passed, true,
       "La integración del conversor, la biblioteca y el motor de audio debe aprobar.");
     assert.equal(result.details.convertedTrackPersistence?.passed, true,
-      "La prueba de persistencia del WAV convertido debe aprobar.");
+      "La prueba de persistencia del WAV convertido debe aprobar.");    if (testsAcousticModel) {
+      assert.equal(result.details.acousticGenreClassifier?.passed, true,
+        "La inferencia real del modelo acústico debe devolver géneros válidos: " + JSON.stringify(result.details.acousticGenreClassifier));
+      assert.equal(result.details.acousticGenreClassifier?.localAudioOnly, true,
+        "La prueba debe clasificar una muestra local sin subirla.");
+    }
     if (phase === "write") {
       assert.equal(result.details.converterIntegration.conversion?.converted, true,
         "El conversor no produjo un WAV desde la interfaz real.");

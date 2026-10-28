@@ -23,6 +23,7 @@ const smokeTestId = String(process.env.RITMO_DESKTOP_SMOKE_TEST_ID || "")
   .slice(0, 64);
 const smokeUserDataDir = String(process.env.RITMO_DESKTOP_SMOKE_USER_DATA_DIR || "").trim();
 const smokePhase = String(process.env.RITMO_DESKTOP_SMOKE_PHASE || "write");
+const smokeTestAcousticClassifier = process.env.RITMO_TEST_ACOUSTIC_CLASSIFIER === "1" && smokePhase === "write" && /portable-user-data/i.test(smokeUserDataDir);
 const smokeTrackId = String(process.env.RITMO_DESKTOP_SMOKE_TRACK_ID || "");
 // Isolate automated persistence tests from the desktop user's real profile.
 if (smokeTest && smokeUserDataDir) app.setPath("userData", path.resolve(smokeUserDataDir));
@@ -155,12 +156,13 @@ async function createMainWindow() {
           }
                     const smokePhase = ${JSON.stringify(smokePhase)};
           const smokeTrackId = ${JSON.stringify(smokeTrackId)};
+          const smokeTestAcousticClassifier = ${JSON.stringify(smokeTestAcousticClassifier)};
 
           const smokeAudioFilename = "RITMO-CI-CONVERTER-INTEGRATION.wav";
           const smokeAudioStem = smokeAudioFilename.replace(/\\.wav$/i, "");
-          function createSmokeWav() {
+          function createSmokeWav(durationSeconds = 1.25) {
             const sampleRate = 44100;
-            const frames = Math.floor(sampleRate * 1.25);
+            const frames = Math.floor(sampleRate * durationSeconds);
             const dataBytes = frames * 2;
             const buffer = new ArrayBuffer(44 + dataBytes);
             const view = new DataView(buffer);
@@ -425,6 +427,31 @@ async function createMainWindow() {
             db.close();
             throw new Error("Fase de prueba de persistencia desconocida: " + smokePhase);
           }
+          async function testAcousticGenreClassifier() {
+            const { classifyLocalAudioTrack, AUDIO_GENRE_MODEL_ID, AUDIO_GENRE_MODEL_REVISION } =
+              await import("./src/music-genre-classifier.js");
+            const progressMessages = [];
+            const predictions = await classifyLocalAudioTrack({
+              id: "RITMO-ACOUSTIC-MODEL-SMOKE",
+              name: "RITMO-synthetic-test.wav",
+              blob: createSmokeWav(4)
+            }, { onProgress: message => progressMessages.push(message) });
+            const supported = new Set(["Blues", "Clásica", "Country", "Disco", "Hip-Hop", "Jazz", "Metal", "Pop", "Reggae", "Rock"]);
+            if (!predictions.length || predictions.some(item => !supported.has(item.label) ||
+                !Number.isFinite(item.score) || item.score < 0 || item.score > 1)) {
+              throw new Error("El modelo acústico no devolvió etiquetas y puntajes válidos.");
+            }
+            return {
+              passed: true,
+              modelId: AUDIO_GENRE_MODEL_ID,
+              modelRevision: AUDIO_GENRE_MODEL_REVISION,
+              localAudioOnly: true,
+              sampleSeconds: 4,
+              predictions: predictions.map(item => ({ label: item.label, score: item.score })),
+              progressEvents: progressMessages.length
+            };
+          }
+
           async function testDesktopMicrophonePermission() {
             const consent = document.getElementById("music-recognition-consent");
             const identifyButton = document.getElementById("music-recognition-start");
@@ -513,6 +540,9 @@ async function createMainWindow() {
             : { passed: true, skipped: true, reason: "La conversión e importación se comprueban en la primera ejecución." };
           const convertedTrackPersistence = await testConvertedTrackPersistence();
           const persistentLibrary = await testLibraryPersistence();
+          const acousticGenreClassifier = smokeTestAcousticClassifier
+            ? await testAcousticGenreClassifier()
+            : { passed: true, skipped: true };
           return {
             ready: window.__ritmoAppReady === true,
             title: document.title,
@@ -523,12 +553,14 @@ async function createMainWindow() {
             desktopMicrophone,
             converterIntegration,
             convertedTrackPersistence,
-            persistentLibrary
+            persistentLibrary,
+            acousticGenreClassifier
           };
         })()`, true);
         const passed = result.ready && result.missing.length === 0 && result.audioIdle &&
           result.persistentLibrary?.passed === true && result.desktopMicrophone?.passed === true &&
-          result.converterIntegration?.passed === true && result.convertedTrackPersistence?.passed === true;
+          result.converterIntegration?.passed === true && result.convertedTrackPersistence?.passed === true &&
+          result.acousticGenreClassifier?.passed === true;
         await finishSmokeTest(passed ? 0 : 1, result);
       } catch (error) {
         console.error("La prueba de inicio de Ritmo para PC falló:", error);
