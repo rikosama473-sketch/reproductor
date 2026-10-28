@@ -22,8 +22,8 @@ const smokeTestId = String(process.env.RITMO_DESKTOP_SMOKE_TEST_ID || "")
   .replace(/[^a-zA-Z0-9-]/g, "")
   .slice(0, 64);
 const smokeUserDataDir = String(process.env.RITMO_DESKTOP_SMOKE_USER_DATA_DIR || "").trim();
-const smokeTestAcousticClassifier = process.env.RITMO_TEST_ACOUSTIC_CLASSIFIER === "1" && smokePhase === "write" && /portable-user-data/i.test(smokeUserDataDir);
 const smokePhase = String(process.env.RITMO_DESKTOP_SMOKE_PHASE || "write");
+const smokeTestAcousticClassifier = process.env.RITMO_TEST_ACOUSTIC_CLASSIFIER === "1" && smokePhase === "write" && /portable-user-data/i.test(smokeUserDataDir);
 const smokeTrackId = String(process.env.RITMO_DESKTOP_SMOKE_TRACK_ID || "");
 // Isolate automated persistence tests from the desktop user's real profile.
 if (smokeTest && smokeUserDataDir) app.setPath("userData", path.resolve(smokeUserDataDir));
