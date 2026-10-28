@@ -44,6 +44,15 @@ assert.equal(suggestions[0].source, "Catálogo Apple/iTunes");
 assert.equal(suggestions[0].sourceUrl, "https://music.apple.com/us/album/warriors/1");
 assert.equal(suggestions[0].trackId, 11);
 assert.equal(suggestions[1].sourceUrl, "", "External catalog URLs outside the Apple domains must not be linked.");
+
+const strongestDuplicate = normalizeItunesGenreSuggestions({ results: [
+  { trackId: 21, trackName: "Warriors (From League of Legends)", artistName: "Imagine Dragons", primaryGenreName: "Alternative", trackViewUrl: "https://music.apple.com/us/album/warriors/21" },
+  { trackId: 22, trackName: "Warriors", artistName: "Imagine Dragons", primaryGenreName: "Alternative", trackViewUrl: "https://music.apple.com/us/album/warriors/22" }
+] }, { title: "Warriors", artist: "Imagine Dragons" });
+assert.equal(strongestDuplicate.length, 1, "Keep one proposal per genre.");
+assert.equal(strongestDuplicate[0].confidence, 100, "A later exact title/artist match must replace an earlier weaker duplicate.");
+assert.equal(strongestDuplicate[0].trackId, 22, "The displayed catalog source must belong to the strongest match.");
+assert.equal(strongestDuplicate[0].title, "Warriors");
 assert.deepEqual(normalizeItunesGenreSuggestions(null, { title: "Warriors", artist: "Imagine Dragons" }), []);
 assert.deepEqual(normalizeItunesGenreSuggestions({ results: [] }, { title: "Warriors" }), []);
 assert.deepEqual(normalizeItunesGenreSuggestions(payload, { title: "", artist: "Imagine Dragons" }), []);
