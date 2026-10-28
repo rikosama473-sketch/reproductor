@@ -95,7 +95,7 @@ assert.match(htmlSource, /solo 10 géneros amplios/i, "Explain model scope befor
 assert.match(appSource, /classifyLocalAudioTrack\(track/, "Only the selected local track should be passed to acoustic classification.");
 assert.match(appSource, /todavía no cambió ningún metadato guardado/, "Predictions must require user confirmation.");
 assert.match(workerSource, /https:\/\/cdn\.jsdelivr\.net\/npm\/@huggingface\/transformers@3\.7\.2/, "Pin the runtime version.");
-assert.match(workerSource, new RegExp(AUDIO_GENRE_MODEL_REVISION), "Pin the model revision.");
+assert.match(workerSource, /revision:\s*AUDIO_GENRE_MODEL_REVISION/, "Pass the pinned model revision into the Transformers.js loader.");
 assert.match(workerSource, /numThreads = 2/, "Limit CPU inference concurrency.");
 assert.doesNotMatch(workerSource, /fetch\s*\([^)]*(?:samples|audio|blob)/i, "Never send audio samples to a remote endpoint.");
 
