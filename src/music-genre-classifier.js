@@ -82,7 +82,8 @@ export function extractCenteredMonoSamples(audioBuffer, targetSampleRate = AUDIO
 }
 
 export async function decodeLocalAudioBlob(blob, {
-  AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext
+  AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext,
+  decodeTimeoutMs = 30_000
 } = {}) {
   if (typeof Blob === "undefined" || !(blob instanceof Blob) || blob.size <= 0) {
     throw new TypeError("Seleccioná una canción importada como archivo local para analizarla.");
@@ -94,13 +95,24 @@ export async function decodeLocalAudioBlob(blob, {
     throw new Error("Este navegador no ofrece decodificación de audio compatible.");
   }
   const context = new AudioContextClass();
+  let timeoutId = null;
+  const timeoutMs = Number.isFinite(decodeTimeoutMs)
+    ? Math.max(50, Math.min(120_000, decodeTimeoutMs))
+    : 30_000;
   try {
-    const decoded = await context.decodeAudioData(await blob.arrayBuffer());
+    const encoded = await blob.arrayBuffer();
+    const decoded = await Promise.race([
+      context.decodeAudioData(encoded),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("La decodificación del audio tardó demasiado. Probá otro archivo compatible; no se cambió la ficha.")), timeoutMs);
+      })
+    ]);
     if (!decoded || decoded.duration < 3) {
       throw new Error("La muestra es demasiado corta. El análisis necesita al menos 3 segundos de audio.");
     }
     return extractCenteredMonoSamples(decoded);
   } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
     if (typeof context.close === "function") await context.close().catch(() => {});
   }
 }
