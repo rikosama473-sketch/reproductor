@@ -56,6 +56,20 @@ await assert.rejects(
 );
 await assert.rejects(classifyLocalAudioTrack({ title: "Remote stream" }), /archivos locales/);
 
+let timedOutDecoderClosed = false;
+await assert.rejects(
+  decodeLocalAudioBlob(new Blob([new Uint8Array([1, 2, 3])]), {
+    AudioContextClass: class {
+      async decodeAudioData() { return await new Promise(() => {}); }
+      async close() { timedOutDecoderClosed = true; }
+    },
+    decodeTimeoutMs: 50
+  }),
+  /decodificación del audio tardó demasiado/,
+  "Audio decoding must reject instead of leaving the metadata editor waiting indefinitely."
+);
+assert.equal(timedOutDecoderClosed, true, "Close the AudioContext after decode timeout.");
+
 let workerTerminated = false;
 let transferredSamplesLength = 0;
 const fakeWorker = {
