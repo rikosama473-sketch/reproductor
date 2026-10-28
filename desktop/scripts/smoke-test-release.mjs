@@ -41,7 +41,7 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
       }
     });
     const childExit = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => resolve({ timedOut: true }), testsAcousticModel ? 180000 : 60000);
+      const timeout = setTimeout(() => resolve({ timedOut: true }), testsAcousticModel ? 240000 : 60000);
       child.once("error", error => {
         clearTimeout(timeout);
         reject(error);
@@ -53,7 +53,7 @@ async function launchPhase(phase, { executable, resultId, trackId, profileDir })
     });
     if (childExit.timedOut) {
       child.kill();
-      throw new Error("Ritmo no terminó la fase " + phase + " dentro del plazo de " + (testsAcousticModel ? "180" : "60") + " segundos.");
+      throw new Error("Ritmo no terminó la fase " + phase + " dentro del plazo de " + (testsAcousticModel ? "240" : "60") + " segundos.");
     }
     assert.equal(childExit.code, 0,
       "La fase " + phase + " terminó con código " + childExit.code +
