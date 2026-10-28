@@ -192,7 +192,9 @@ export function normalizeItunesGenreSuggestions(payload, expected = {}, limit = 
   const wantedArtist = cleanText(expected.artist, 120);
   if (!wantedTitle) return [];
   const safeLimit = Number.isInteger(limit) ? Math.max(1, Math.min(8, limit)) : 5;
-  const suggestions = [];
+  // Catalog order is relevance-ranked but not guaranteed to put the best textual
+  // match for each genre first. Keep the strongest track match per genre.
+  const suggestionsByGenre = new Map();
   for (const result of payload.results.slice(0, 50)) {
     if (!result || typeof result !== "object") continue;
     const title = cleanText(result.trackName, 180);
@@ -206,8 +208,7 @@ export function normalizeItunesGenreSuggestions(payload, expected = {}, limit = 
     const confidence = Math.round((titleScore * 0.68 + artistScore * 0.32) * 100);
     const sourceUrl = normalizeAppleMusicUrl(result.trackViewUrl);
     const key = searchKey(genre);
-    if (suggestions.some(item => searchKey(item.genre) === key)) continue;
-    suggestions.push({
+    const suggestion = {
       title,
       artist,
       genre,
@@ -215,8 +216,15 @@ export function normalizeItunesGenreSuggestions(payload, expected = {}, limit = 
       sourceUrl,
       source: "Catálogo Apple/iTunes",
       trackId: Number.isSafeInteger(result.trackId) && result.trackId > 0 ? result.trackId : null
-    });
+    };
+    const existing = suggestionsByGenre.get(key);
+    if (!existing ||
+        suggestion.confidence > existing.confidence ||
+        (suggestion.confidence === existing.confidence && !existing.sourceUrl && suggestion.sourceUrl)) {
+      suggestionsByGenre.set(key, suggestion);
+    }
   }
+  const suggestions = [...suggestionsByGenre.values()];
   suggestions.sort((a, b) => b.confidence - a.confidence || a.genre.localeCompare(b.genre, "es"));
   return suggestions.slice(0, safeLimit);
 }
