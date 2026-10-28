@@ -35,4 +35,14 @@ La fuente del catálogo puede tener un género amplio o distinto al que el usuar
 
 Al devolver varias pistas con el mismo género, la sugerencia conserva la coincidencia título/artista con mayor puntuación textual, aunque aparezca después en la respuesta del catálogo. Antes se conservaba simplemente la primera aparición, que podía mostrar una versión menos exacta como fuente del mismo género. La puntuación sigue siendo **similitud textual**; no es una predicción del sonido.
 
-**Estado del clasificador acústico:** pendiente de integrar y validar. La normalización de etiquetas y el catálogo no escuchan el audio y no deben presentarse como un modelo acústico. Para introducir un modelo local hace falta comprobar el modelo, sus condiciones de licencia, el coste de descarga/memoria y la inferencia real con archivos de prueba antes de habilitarlo como función estable.
+## Primera clasificación acústica local (octubre de 2026)
+
+Se añadió una opción explícita **Analizar audio local** en el editor de metadatos. Usa [Musical-genres-Classification-Hubert-V1-ONNX](https://huggingface.co/onnx-community/Musical-genres-Classification-Hubert-V1-ONNX), basado en DistilHuBERT y publicado con licencia Apache-2.0. La versión de Transformers.js y la revisión del modelo están fijadas en el código; el worker ejecuta inferencia con WebAssembly en CPU y limita los hilos a dos.
+
+- **Qué hace:** decodifica una pista importada y analiza una ventana central de hasta 12 segundos, remuestreada a 16 kHz mono. Acepta archivos locales de hasta 40 MB y presenta hasta tres sugerencias acústicas.
+- **Privacidad:** la pista no se envía a un servidor ni se sube a Apple/AudD. La primera ejecución requiere conexión para descargar el runtime y los pesos cuantizados (aprox. 24 MB); el modelo se configura para usar la caché del navegador.
+- **Límites importantes:** el clasificador solo dispone de diez categorías amplias (Blues, Clásica, Country, Disco, Hip-Hop, Jazz, Metal, Pop, Reggae y Rock). No puede clasificar directamente subgéneros como Cumbia, J-Pop, City Pop o Synthwave. Su tarjeta reporta una exactitud de evaluación de 0,84 en GTZAN, un conjunto limitado; no es una garantía para toda la música. Los puntajes no se muestran como probabilidades calibradas.
+- **No destructivo:** el análisis solo propone etiquetas. La persona elige «Usar género» y después «Guardar cambios»; nunca se altera el archivo de audio ni se sustituye silenciosamente su género existente.
+- **Separación de funciones:** clasificación acústica ≠ catalogación por título/artista ≠ identificación de una canción al estilo Shazam/AudD. La identificación de canciones sigue siendo una función distinta y requiere conexión, permiso de micrófono y token válido del servicio.
+
+Este primer modelo es un avance real, pero no equivale a un clasificador amplio de cientos de estilos. Se conserva la búsqueda por metadatos y la edición manual como alternativas para géneros regionales o ausentes.
