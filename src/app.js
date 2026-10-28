@@ -23,6 +23,7 @@ import { filterAndSortLibraryTracks, getLibraryFacetOptions, hasActiveLibraryFil
 import { mergeNativeTrackMetadata } from "./native-track-metadata.js";
 import { normalizeId3Genre } from "./music-genres.js";
 import { searchItunesGenreSuggestions } from "./music-genre-suggestions.js";
+import { classifyLocalAudioTrack } from "./music-genre-classifier.js";
 import { preserveKnownScanNumber } from "./native-track-scan.js";
 
 const $ = selector => document.querySelector(selector);
@@ -121,6 +122,8 @@ let metadataEditingTrackIds = [];
 let metadataTouchedFields = new Set();
 let genreSuggestionRequestId = 0;
 let genreSuggestionAbortController = null;
+let genreAudioClassificationRequestId = 0;
+let genreAudioClassificationAbortController = null;
 
 
 const viewNames = { home: "Inicio", library: "Mi biblioteca", favorites: "Favoritos", history: "Historial", playlists: "Mis listas", offline: "Sin conexión", finder: "Encontrar música", online: "Música online", voices: "Estudio de voces", converter: "Convertir audio" };
@@ -697,6 +700,121 @@ function clearGenreSuggestionResults() {
   }
 }
 
+function clearGenreAudioResults() {
+  genreAudioClassificationRequestId++;
+  genreAudioClassificationAbortController?.abort();
+  genreAudioClassificationAbortController = null;
+  const root = $("#metadata-genre-audio-results");
+  if (root) {
+    root.replaceChildren();
+    root.hidden = true;
+  }
+  const button = $("#metadata-genre-audio-classify");
+  const track = metadataEditingTrackIds.length === 1
+    ? state.tracks.find(item => String(item.id) === metadataEditingTrackIds[0])
+    : null;
+  if (button) {
+    button.disabled = !(track?.blob instanceof Blob);
+    button.textContent = "Analizar audio local";
+  }
+}
+
+function renderGenreAudioResults(predictions) {
+  const root = $("#metadata-genre-audio-results");
+  if (!root) return;
+  root.replaceChildren();
+  root.hidden = false;
+  const intro = document.createElement("p");
+  intro.className = "metadata-genre-suggestions-intro";
+  intro.textContent = "Predicción acústica local (10 categorías amplias). El puntaje es orientativo, no una probabilidad calibrada. El audio no se sube; revisá el resultado antes de guardar.";
+  root.append(intro);
+  for (const prediction of predictions) {
+    const row = document.createElement("div");
+    row.className = "metadata-genre-option";
+    const copy = document.createElement("div");
+    copy.className = "metadata-genre-option-copy";
+    const genre = document.createElement("strong");
+    genre.textContent = prediction.label;
+    const score = document.createElement("span");
+    score.textContent = "Puntaje del modelo: " + Math.round(prediction.score * 100) + " %";
+    copy.append(genre, score);
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "button button-primary";
+    apply.textContent = "Usar género";
+    apply.addEventListener("click", () => {
+      const input = $("#metadata-genre");
+      if (!input || metadataEditingTrackIds.length !== 1) return;
+      input.value = prediction.label;
+      metadataTouchedFields.add("genre");
+      clearGenreAudioResults();
+      const status = $("#metadata-editor-status");
+      if (status) status.textContent = "Predicción aplicada al formulario. Revisala y tocá «Guardar cambios» para actualizar solo la ficha local; el archivo de audio no se modifica.";
+    });
+    row.append(copy, apply);
+    root.append(row);
+  }
+}
+
+async function classifyGenreFromLocalAudio() {
+  const button = $("#metadata-genre-audio-classify");
+  const status = $("#metadata-editor-status");
+  const root = $("#metadata-genre-audio-results");
+  if (metadataEditingTrackIds.length !== 1) {
+    if (status) status.textContent = "El análisis acústico funciona con una canción local por vez, no con la edición por lote.";
+    return;
+  }
+  const track = state.tracks.find(item => String(item.id) === metadataEditingTrackIds[0]);
+  if (!track || !(track.blob instanceof Blob)) {
+    if (status) status.textContent = "Esta entrada no tiene un archivo de audio local disponible; el análisis no procesa streaming.";
+    return;
+  }
+  genreAudioClassificationAbortController?.abort();
+  const requestId = ++genreAudioClassificationRequestId;
+  const controller = new AbortController();
+  genreAudioClassificationAbortController = controller;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Analizando…";
+  }
+  if (root) {
+    root.replaceChildren();
+    root.hidden = false;
+    const intro = document.createElement("p");
+    intro.className = "metadata-genre-suggestions-intro";
+    intro.textContent = "Preparando análisis acústico en este dispositivo…";
+    root.append(intro);
+  }
+  if (status) status.textContent = "La primera ejecución necesita conexión para descargar el motor y el modelo cuantizado (unos 24 MB). El fragmento de audio se procesa localmente.";
+  try {
+    const predictions = await classifyLocalAudioTrack(track, {
+      signal: controller.signal,
+      onProgress(message) {
+        if (requestId === genreAudioClassificationRequestId && status) status.textContent = message;
+      }
+    });
+    if (requestId !== genreAudioClassificationRequestId) return;
+    renderGenreAudioResults(predictions);
+    if (status) status.textContent = "Análisis terminado. Elegí una propuesta si te sirve; todavía no cambió ningún metadato guardado.";
+  } catch (error) {
+    if (requestId !== genreAudioClassificationRequestId || error?.name === "AbortError") return;
+    if (root) {
+      root.replaceChildren();
+      root.hidden = true;
+    }
+    if (status) status.textContent = error?.message || "No se pudo analizar el audio. La ficha quedó sin cambios.";
+  } finally {
+    if (requestId === genreAudioClassificationRequestId) {
+      genreAudioClassificationAbortController = null;
+      const current = state.tracks.find(item => String(item.id) === metadataEditingTrackIds[0]);
+      if (button) {
+        button.disabled = !(metadataEditingTrackIds.length === 1 && current?.blob instanceof Blob);
+        button.textContent = "Analizar audio local";
+      }
+    }
+  }
+}
+
 function renderGenreSuggestionResults(suggestions) {
   const root = $("#metadata-genre-suggestions");
   if (!root) return;
@@ -813,6 +931,7 @@ function openTrackMetadataEditor(trackIds) {
   metadataEditingTrackIds = tracks.map(track => String(track.id));
   metadataTouchedFields = new Set();
   clearGenreSuggestionResults();
+  clearGenreAudioResults();
   const bulk = tracks.length > 1;
   const titleRow = $("#metadata-title-row");
   const titleInput = $("#metadata-title");
@@ -911,6 +1030,8 @@ function bindLibraryManagementEvents() {
   $("#library-bulk-edit")?.addEventListener("click", () => openTrackMetadataEditor([...selectedLibraryTrackIds]));
   $("#track-metadata-form")?.addEventListener("submit", saveTrackMetadata);
   $("#metadata-genre-suggest")?.addEventListener("click", suggestTrackGenreFromCatalog);
+  $("#metadata-genre-audio-classify")?.addEventListener("click", classifyGenreFromLocalAudio);
+  $("#metadata-dialog")?.addEventListener("close", clearGenreAudioResults);
   for (const field of ["title", "artist", "album", "genre"]) {
     $("#metadata-" + field)?.addEventListener("input", () => {
       metadataTouchedFields.add(field);
