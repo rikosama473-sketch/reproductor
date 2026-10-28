@@ -29,3 +29,10 @@ El editor de metadatos puede consultar, solo cuando el usuario pulsa **Buscar su
 La petición usa metadatos de texto y no envía el archivo ni un fragmento de audio al catálogo. Requiere conexión y Modo Internet. La respuesta procede de [iTunes Search API de Apple](https://performance-partners.apple.com/search-api), que documenta \`primaryGenreName\` en los resultados de canción y el parámetro de callback para búsquedas entre sitios. Si el navegador bloquea \`fetch()\` por CORS, Ritmo usa el callback dentro de un iframe con origen opaco y sin acceso al almacenamiento de la aplicación. Si el catálogo no responde, la ficha queda sin cambios.
 
 La fuente del catálogo puede tener un género amplio o distinto al que el usuario considera correcto. Para estilos minoritarios, lanzamientos regionales o metadatos ausentes, debe prevalecer la revisión humana; no se debe presentar una etiqueta como verdad acústica.
+
+
+## Corrección de selección de coincidencias (octubre de 2026)
+
+Al devolver varias pistas con el mismo género, la sugerencia conserva la coincidencia título/artista con mayor puntuación textual, aunque aparezca después en la respuesta del catálogo. Antes se conservaba simplemente la primera aparición, que podía mostrar una versión menos exacta como fuente del mismo género. La puntuación sigue siendo **similitud textual**; no es una predicción del sonido.
+
+**Estado del clasificador acústico:** pendiente de integrar y validar. La normalización de etiquetas y el catálogo no escuchan el audio y no deben presentarse como un modelo acústico. Para introducir un modelo local hace falta comprobar el modelo, sus condiciones de licencia, el coste de descarga/memoria y la inferencia real con archivos de prueba antes de habilitarlo como función estable.
