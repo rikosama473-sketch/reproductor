@@ -21,7 +21,7 @@ assert.equal(MAX_AUDIO_GENRE_FILE_BYTES, 40 * 1024 * 1024);
 assert.deepEqual(normalizeAcousticGenrePredictions([
   { label: "rock", score: 0.5 },
   { label: "pop", score: 0.8 },
-  { label: "hip-hop", score: 0.6 },
+  { label: "hiphop", score: 0.6 },
   { label: "jazz", score: 0.4 },
   { label: "rock", score: 0.7 },
   { label: "synthwave", score: 0.99 },
