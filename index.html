@@ -633,6 +633,11 @@
           <p class="metadata-genre-note">Consulta título y artista en un catálogo externo. No analiza ni envía el audio; vos confirmás antes de guardar.</p>
         </div>
         <div id="metadata-genre-suggestions" class="metadata-genre-suggestions" aria-live="polite" hidden></div>
+        <div class="metadata-genre-audio">
+          <button class="button button-soft" id="metadata-genre-audio-classify" type="button" disabled>Analizar audio local</button>
+          <p class="metadata-genre-note">Clasificación acústica opcional en este dispositivo. La primera vez descarga unos 24 MB; analiza hasta 12 segundos y reconoce solo 10 géneros amplios. Puede equivocarse y requiere confirmación antes de guardar.</p>
+        </div>
+        <div id="metadata-genre-audio-results" class="metadata-genre-suggestions" aria-live="polite" hidden></div>
       </div>
       <p id="metadata-editor-status" class="settings-note" role="status" aria-live="polite"></p>
       <div class="settings-actions"><button class="button button-primary" id="metadata-save" type="submit">Guardar cambios</button><button class="button button-soft" id="metadata-cancel" type="button">Cancelar</button></div>
