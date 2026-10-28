@@ -11,6 +11,7 @@ const GENRE_LABELS = Object.freeze({
   classical: "Clásica",
   country: "Country",
   disco: "Disco",
+  hiphop: "Hip-Hop",
   "hip-hop": "Hip-Hop",
   jazz: "Jazz",
   metal: "Metal",
