@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   AUDIO_GENRE_MODEL_ID,
   AUDIO_GENRE_MODEL_REVISION,
@@ -85,6 +86,17 @@ assert.deepEqual(results.map(item => item.label), ["Jazz", "Pop"]);
 assert.equal(transferredSamplesLength, AUDIO_GENRE_SAMPLE_RATE * 4);
 assert.ok(workerTerminated, "The temporary worker must terminate after a result.");
 assert.deepEqual(progress, ["Test de progreso"]);
-assert.ok(!("audio" in ({})), "No audio field or upload endpoint is added to the catalog-search payload.");
+const appSource = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+const htmlSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const workerSource = await readFile(new URL("../src/music-genre-classifier-worker.js", import.meta.url), "utf8");
+assert.match(htmlSource, /id="metadata-genre-audio-classify"/, "Expose the local acoustic classifier from the metadata editor.");
+assert.match(htmlSource, /id="metadata-genre-audio-results"/, "Provide a dedicated accessible result region.");
+assert.match(htmlSource, /solo 10 géneros amplios/i, "Explain model scope before the user starts.");
+assert.match(appSource, /classifyLocalAudioTrack\(track/, "Only the selected local track should be passed to acoustic classification.");
+assert.match(appSource, /todavía no cambió ningún metadato guardado/, "Predictions must require user confirmation.");
+assert.match(workerSource, /https:\/\/cdn\.jsdelivr\.net\/npm\/@huggingface\/transformers@3\.7\.2/, "Pin the runtime version.");
+assert.match(workerSource, new RegExp(AUDIO_GENRE_MODEL_REVISION), "Pin the model revision.");
+assert.match(workerSource, /numThreads = 2/, "Limit CPU inference concurrency.");
+assert.doesNotMatch(workerSource, /fetch\s*\([^)]*(?:samples|audio|blob)/i, "Never send audio samples to a remote endpoint.");
 
 console.log("Local acoustic genre classifier checks passed.");
