@@ -31,7 +31,7 @@ export function normalizeAcousticGenrePredictions(predictions, limit = 3) {
   const bestByLabel = new Map();
   for (const prediction of predictions) {
     if (!prediction || typeof prediction !== "object") continue;
-    const key = String(prediction.label ?? "").trim().toLowerCase().replace(/[_\\s]+/g, "-");
+    const key = String(prediction.label ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-");
     const label = GENRE_LABELS[key];
     const score = Number(prediction.score);
     if (!label || !Number.isFinite(score) || score < 0 || score > 1) continue;
