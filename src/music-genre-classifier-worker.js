@@ -1,4 +1,8 @@
-import { AUDIO_GENRE_MODEL_ID, AUDIO_GENRE_MODEL_REVISION } from "./music-genre-classifier.js";
+import {
+  AUDIO_GENRE_MODEL_ID,
+  AUDIO_GENRE_MODEL_REVISION,
+  AUDIO_GENRE_MAX_SEGMENTS
+} from "./music-genre-classifier.js";
 
 let busy = false;
 
@@ -10,10 +14,12 @@ self.addEventListener("message", async event => {
   if (busy || event.data?.type !== "classify") return;
   busy = true;
   try {
-    const samples = event.data.samples instanceof Float32Array
-      ? event.data.samples
-      : new Float32Array(event.data.samples || []);
-    if (samples.length < 16000 * 3) throw new Error("La muestra de audio es demasiado corta.");
+    const rawSamples = event.data.samples;
+    const samples = rawSamples instanceof Float32Array ? [rawSamples] : rawSamples;
+    if (!Array.isArray(samples) || !samples.length || samples.length > AUDIO_GENRE_MAX_SEGMENTS ||
+        samples.some(segment => !(segment instanceof Float32Array) || segment.length < 16000 * 3)) {
+      throw new Error("Los fragmentos de audio no tienen un formato compatible.");
+    }
 
     postProgress("Cargando el motor acústico local; en el primer uso descarga unos 24 MB.");
     // Pin a known Transformers.js release and model revision. Inference runs in
@@ -36,14 +42,21 @@ self.addEventListener("message", async event => {
         }
       }
     });
-    postProgress("Analizando una muestra central de hasta 12 segundos en este dispositivo…");
-    const predictions = await classifier(samples, { top_k: 10 });
-    self.postMessage({
-      type: "result",
-      predictions: Array.isArray(predictions)
-        ? predictions.map(item => ({ label: item?.label, score: item?.score }))
-        : []
-    });
+
+    const segmentPredictions = [];
+    for (let index = 0; index < samples.length; index++) {
+      postProgress("Analizando fragmento " + (index + 1) + " de " + samples.length + " localmente…");
+      const predictions = await classifier(samples[index], { top_k: 10 });
+      if (!Array.isArray(predictions) || !predictions.length) {
+        throw new Error("El modelo no devolvió resultados para uno de los fragmentos.");
+      }
+      segmentPredictions.push(predictions.map(item => ({
+        label: item?.label,
+        score: item?.score
+      })));
+    }
+
+    self.postMessage({ type: "result", segmentPredictions });
   } catch (error) {
     self.postMessage({
       type: "error",
