@@ -2,47 +2,48 @@
 
 ## Qué hace Ritmo hoy
 
-Ritmo no ejecuta actualmente un clasificador acústico de géneros. El campo **Género** se obtiene principalmente de etiquetas incorporadas al archivo o facilitadas por el proveedor nativo. Los lectores ID3, Vorbis/FLAC/Opus, WAV y metadatos nativos comparten la normalización de etiquetas en `src/music-genres.js`.
+Ritmo separa cuatro conceptos que no deben mezclarse:
 
-La normalización convierte códigos numéricos ID3 conocidos en sus etiquetas, conserva las etiquetas compuestas admitidas y no inventa un género cuando el código es desconocido. Los campos ausentes permanecen vacíos: no se deben adivinar a partir del nombre del archivo o del artista.
+- **Género guardado:** procede de etiquetas del archivo o de metadatos nativos. Los lectores ID3, Vorbis/FLAC/Opus, WAV y metadatos nativos comparten la normalización en `src/music-genres.js`.
+- **Sugerencias de catálogo:** consulta Apple/iTunes por título y artista solo cuando el usuario la solicita. Usa coincidencia textual y el género primario publicado por el catálogo; no escucha la canción.
+- **Clasificación acústica local:** analiza una pista importada en el dispositivo con el modelo descrito abajo.
+- **Identificación de canción:** intenta reconocer una grabación por un servicio independiente, como AudD. No es una clasificación de género.
 
-## Sonidos de interfaz automáticos
+Los campos de género ausentes permanecen vacíos hasta que exista una fuente verificable o el usuario los complete. No se deben inventar etiquetas a partir del nombre del archivo o del artista.
 
-`inferUiSoundRhythm()` **no clasifica el género musical**. Solo decide el ritmo de los sonidos opcionales de la interfaz a partir de etiquetas conocidas: actualmente devuelve una familia de comportamiento como `pop`, `rock` o `cyber`; para estilos que no reconoce devuelve `null` y el sistema usa el perfil neutro. Esta regla no modifica ni ecualiza el audio de la canción. El modo de sonidos de interfaz está desactivado por defecto.
+## Normalización de etiquetas y sonidos de interfaz
 
-No debe presentarse esta función como reconocimiento de géneros basado en el audio ni ampliarse con equivalencias arbitrarias que etiqueten, por ejemplo, jazz, cumbia, rap o música clásica como pop/rock/electrónica.
+La normalización convierte códigos ID3 conocidos en sus etiquetas, conserva las etiquetas compuestas admitidas y no inventa un género cuando el código es desconocido. Los modificadores ID3 `(RX)` (remix) y `(CR)` (cover) se eliminan antes de interpretar códigos adyacentes, por ejemplo `(RX)(17)` → `Rock` y `(CR)(13)` → `Pop`.
 
-## Reconocimiento de una canción
-
-Es una función separada del género. La captura breve del micrófono se envía, cuando el usuario la activa y configura su token, al servicio de reconocimiento; la respuesta puede devolver título, artista, álbum y enlaces. Requiere conexión y credenciales válidas. No es exclusiva de teléfonos: la app de escritorio también puede usarla si Windows concede permiso de **micrófono**. La búsqueda manual de canciones no necesita ese reconocimiento por micrófono.
-
-Esta integración tampoco equivale a un clasificador de género acústico. Para detectar automáticamente el estilo a partir del sonido se necesita una fuente de metadatos fiable o un modelo acústico dedicado y probado; no debe sustituirse por conjeturas de palabras clave.
-
-## Regresión ID3 cubierta
-
-Los modificadores ID3 `(RX)` (remix) y `(CR)` (cover) deben eliminarse antes de interpretar códigos adyacentes, por ejemplo `(RX)(17)` → `Rock` y `(CR)(13)` → `Pop`. Un código numérico desconocido sigue sin convertirse en una etiqueta inventada.
+`inferUiSoundRhythm()` **no clasifica el género musical**. Solo decide el ritmo de los sonidos opcionales de la interfaz a partir de etiquetas conocidas; para estilos que no reconoce devuelve `null` y usa el perfil neutro. Esta regla no modifica ni ecualiza el audio de la canción. Los sonidos de interfaz están desactivados por defecto.
 
 ## Sugerencias de género desde un catálogo
 
-El editor de metadatos puede consultar, solo cuando el usuario pulsa **Buscar sugerencias**, el catálogo de Apple/iTunes por título y artista. La respuesta incluye un género primario catalogado, no una predicción acústica. La interfaz muestra la pista que coincidió y un indicador de similitud textual; ese porcentaje no expresa la confianza de la clasificación musical. La persona elige una propuesta y todavía debe pulsar **Guardar cambios**. La búsqueda no modifica el archivo fuente, no analiza el audio y no ejecuta cambios por lotes.
+El editor puede consultar el catálogo de Apple/iTunes por título y artista. La respuesta incluye un género primario catalogado, no una predicción acústica. La interfaz muestra la pista que coincidió y un indicador de similitud textual; ese porcentaje no expresa confianza musical. La persona elige una propuesta y todavía debe pulsar **Guardar cambios**. La búsqueda no modifica el archivo fuente, no analiza el audio y no ejecuta cambios por lotes.
 
-La petición usa metadatos de texto y no envía el archivo ni un fragmento de audio al catálogo. Requiere conexión y Modo Internet. La respuesta procede de [iTunes Search API de Apple](https://performance-partners.apple.com/search-api), que documenta \`primaryGenreName\` en los resultados de canción y el parámetro de callback para búsquedas entre sitios. Si el navegador bloquea \`fetch()\` por CORS, Ritmo usa el callback dentro de un iframe con origen opaco y sin acceso al almacenamiento de la aplicación. Si el catálogo no responde, la ficha queda sin cambios.
+La consulta usa metadatos de texto y no envía el archivo ni un fragmento de audio. Requiere conexión y Modo Internet. La fuente es la [iTunes Search API de Apple](https://performance-partners.apple.com/search-api), que documenta `primaryGenreName` en los resultados de canción. Si el navegador bloquea `fetch()` por CORS, Ritmo usa un callback dentro de un iframe con origen opaco y sin acceso al almacenamiento de la aplicación. Si el catálogo no responde, la ficha queda sin cambios.
 
-La fuente del catálogo puede tener un género amplio o distinto al que el usuario considera correcto. Para estilos minoritarios, lanzamientos regionales o metadatos ausentes, debe prevalecer la revisión humana; no se debe presentar una etiqueta como verdad acústica.
+Cuando hay varias pistas con el mismo género, la sugerencia conserva la coincidencia título/artista con mayor puntuación textual. Aun así, el catálogo puede ofrecer un género amplio o distinto al que el usuario considera correcto; para estilos minoritarios, lanzamientos regionales o metadatos ausentes, prevalece la revisión humana.
 
+## Clasificador acústico local actual
 
-## Corrección de selección de coincidencias (octubre de 2026)
+La opción **Analizar audio local** usa la conversión ONNX de [Musical-genres-Classification-Hubert-V1](https://huggingface.co/SeyedAli/Musical-genres-Classification-Hubert-V1), distribuida en formato compatible con Transformers.js como [ONNX cuantizado](https://huggingface.co/onnx-community/Musical-genres-Classification-Hubert-V1-ONNX). El modelo se ajustó sobre GTZAN y su ficha publica una exactitud de evaluación de 0,84 en ese conjunto; ese dato es autodeclarado por el modelo y Ritmo no lo ha reproducido como una medición independiente ([ficha del modelo](https://huggingface.co/SeyedAli/Musical-genres-Classification-Hubert-V1)). GTZAN cubre solo diez categorías amplias, por lo que esa cifra no garantiza resultados con cualquier catálogo musical.
 
-Al devolver varias pistas con el mismo género, la sugerencia conserva la coincidencia título/artista con mayor puntuación textual, aunque aparezca después en la respuesta del catálogo. Antes se conservaba simplemente la primera aparición, que podía mostrar una versión menos exacta como fuente del mismo género. La puntuación sigue siendo **similitud textual**; no es una predicción del sonido.
+- **Entrada:** una canción importada localmente, de hasta 40 MB. No admite streaming ni edición por lote.
+- **Análisis:** decodifica el audio a mono y 16 kHz. En pistas cortas usa una ventana central de hasta 12 segundos; en pistas suficientemente largas analiza dos fragmentos separados, de hasta 12 segundos cada uno (máximo aproximado de 24 segundos de audio).
+- **Agregación:** promedia las puntuaciones de cada etiqueta entre los fragmentos. También muestra en cuántos fragmentos una etiqueta quedó en primer lugar, para que el usuario pueda detectar desacuerdo temporal. Este consenso es una señal de estabilidad entre muestras; **no es una exactitud medida ni una probabilidad calibrada**.
+- **Categorías:** Blues, Clásica, Country, Disco, Hip-Hop, Jazz, Metal, Pop, Reggae y Rock. No clasifica directamente subgéneros como Cumbia, J-Pop, City Pop o Synthwave, ni variantes regionales.
+- **Privacidad:** la canción no se envía a un servidor ni se sube a Apple/AudD. La primera ejecución requiere conexión para descargar el runtime y los pesos cuantizados (aprox. 24 MB); el procesamiento de las muestras se hace en el worker local con WebAssembly/CPU y máximo dos hilos.
+- **No destructivo:** el análisis solo propone etiquetas. La persona elige «Usar género» y después «Guardar cambios»; nunca se altera el archivo de audio ni se sustituye silenciosamente el género existente.
 
-## Primera clasificación acústica local (octubre de 2026)
+El análisis por fragmentos ayuda a reducir la dependencia de una única parte de la canción, pero no añade conocimiento de subgéneros al modelo. No debe describirse como una solución definitiva para géneros regionales ni como una mejora de precisión probada hasta contrastarlo con una colección autorizada de canciones reales y etiquetas de referencia.
 
-Se añadió una opción explícita **Analizar audio local** en el editor de metadatos. Usa la conversión ONNX de [Musical-genres-Classification-Hubert-V1](https://huggingface.co/SeyedAli/Musical-genres-Classification-Hubert-V1) (licencia Apache-2.0; modelo original ajustado sobre GTZAN) disponible como [versión ONNX para Transformers.js](https://huggingface.co/onnx-community/Musical-genres-Classification-Hubert-V1-ONNX). La versión de Transformers.js y la revisión de los pesos ONNX están fijadas en el código; el worker ejecuta inferencia con WebAssembly en CPU y limita los hilos a dos.
+## Reconocimiento de canciones al estilo Shazam/AudD
 
-- **Qué hace:** decodifica una pista importada y analiza una ventana central de hasta 12 segundos, remuestreada a 16 kHz mono. Acepta archivos locales de hasta 40 MB y presenta hasta tres sugerencias acústicas.
-- **Privacidad:** la pista no se envía a un servidor ni se sube a Apple/AudD. La primera ejecución requiere conexión para descargar el runtime y los pesos cuantizados (aprox. 24 MB); el modelo se configura para usar la caché del navegador.
-- **Límites importantes:** el clasificador solo dispone de diez categorías amplias (Blues, Clásica, Country, Disco, Hip-Hop, Jazz, Metal, Pop, Reggae y Rock). No puede clasificar directamente subgéneros como Cumbia, J-Pop, City Pop o Synthwave. Su tarjeta reporta una exactitud de evaluación de 0,84 en GTZAN, un conjunto limitado; no es una garantía para toda la música. Los puntajes no se muestran como probabilidades calibradas.
-- **No destructivo:** el análisis solo propone etiquetas. La persona elige «Usar género» y después «Guardar cambios»; nunca se altera el archivo de audio ni se sustituye silenciosamente su género existente.
-- **Separación de funciones:** clasificación acústica ≠ catalogación por título/artista ≠ identificación de una canción al estilo Shazam/AudD. La identificación de canciones sigue siendo una función distinta y requiere conexión, permiso de micrófono y token válido del servicio.
+La identificación de canciones es una función diferente. Ritmo puede capturar un fragmento breve por micrófono y consultar AudD si el usuario habilita Modo Internet, concede permiso de micrófono y configura un token válido. No es exclusiva de teléfonos: también está disponible en la aplicación de escritorio Windows. La solicitud usa audio de la captura con el consentimiento del usuario; no es la misma operación que clasificar localmente una pista de la biblioteca.
 
-Este primer modelo es un avance real, pero no equivale a un clasificador amplio de cientos de estilos. Se conserva la búsqueda por metadatos y la edición manual como alternativas para géneros regionales o ausentes.
+La prueba automatizada de escritorio comprueba permisos, consentimiento y empaquetado, pero no sustituye una identificación real con token válido y una canción comercial reproducible. Esa prueba en vivo debe verificarse por separado.
+
+## Próximo criterio de evaluación
+
+Antes de sustituir el modelo o afirmar una mejora de aciertos, Ritmo necesita un conjunto de prueba reproducible con permiso de uso, diversidad regional y etiquetas revisadas por personas. Debe informar al menos exactitud por clase, macro-F1, matriz de confusión, tasa de desacuerdo entre fragmentos, tiempo de inferencia y memoria consumida. Una puntuación global aislada sobre GTZAN no basta para validar Cumbia, J-Pop, City Pop, Synthwave ni otros subgéneros.

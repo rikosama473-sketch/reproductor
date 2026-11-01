@@ -56,7 +56,7 @@ jobs:
 
       - name: Launch the packaged Windows app and check key screens
         env:
-          RITMO_TEST_ACOUSTIC_CLASSIFIER: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/local-audio-genre-classifier-2026-10' && '1' || '0' }}
+          RITMO_TEST_ACOUSTIC_CLASSIFIER: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.head.ref, 'genre') && '1' || '0' }}
         run: npm --prefix desktop run smoke:release
 
       - name: Upload Windows installer, portable executable and checksums

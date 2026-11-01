@@ -726,7 +726,7 @@ function renderGenreAudioResults(predictions) {
   root.hidden = false;
   const intro = document.createElement("p");
   intro.className = "metadata-genre-suggestions-intro";
-  intro.textContent = "Predicción acústica local (10 categorías amplias). El puntaje es orientativo, no una probabilidad calibrada. El audio no se sube; revisá el resultado antes de guardar.";
+  intro.textContent = "Predicción acústica local (10 categorías amplias). Se promedian hasta dos fragmentos separados. El puntaje es orientativo, no una probabilidad calibrada; el audio no se sube.";
   root.append(intro);
   for (const prediction of predictions) {
     const row = document.createElement("div");
@@ -736,8 +736,12 @@ function renderGenreAudioResults(predictions) {
     const genre = document.createElement("strong");
     genre.textContent = prediction.label;
     const score = document.createElement("span");
-    score.textContent = "Puntaje del modelo: " + Math.round(prediction.score * 100) + " %";
-    copy.append(genre, score);
+    score.textContent = "Puntaje medio del modelo: " + Math.round(prediction.score * 100) + " %";
+    const agreement = document.createElement("span");
+    const segmentCount = Number(prediction.segmentCount) || 1;
+    const segmentWord = segmentCount === 1 ? "fragmento" : "fragmentos";
+    agreement.textContent = "Primera opción en " + (Number(prediction.topRankVotes) || 0) + " de " + segmentCount + " " + segmentWord;
+    copy.append(genre, score, agreement);
     const apply = document.createElement("button");
     apply.type = "button";
     apply.className = "button button-primary";
@@ -785,7 +789,7 @@ async function classifyGenreFromLocalAudio() {
     intro.textContent = "Preparando análisis acústico en este dispositivo…";
     root.append(intro);
   }
-  if (status) status.textContent = "La primera ejecución necesita conexión para descargar el motor y el modelo cuantizado (unos 24 MB). El fragmento de audio se procesa localmente.";
+  if (status) status.textContent = "La primera ejecución necesita conexión para descargar el motor y el modelo cuantizado (unos 24 MB). Los fragmentos de audio se procesan localmente.";
   try {
     const predictions = await classifyLocalAudioTrack(track, {
       signal: controller.signal,
