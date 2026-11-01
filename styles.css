@@ -763,6 +763,9 @@ button.track-index:hover{color:#f2c4a7}
 @media(max-width:580px){.library-filters{gap:9px;padding:11px}.library-filters select{min-height:38px;font-size:10px}.library-selection-tools{align-items:stretch}.library-selection-tools .button{flex:1}.library-selection-tools #library-selection-status{width:100%;margin-left:0}.metadata-fields{grid-template-columns:1fr}.metadata-fields label,#metadata-title-row{grid-column:auto}}
 /* Explicit, non-destructive metadata genre suggestions. */
 .metadata-genre-lookup{display:grid;gap:8px;align-content:start;min-width:0}
+.metadata-genre-audio{grid-column:1/-1;display:grid;gap:8px;min-width:0}
+.metadata-genre-audio .button{min-height:34px;justify-content:center}
+.metadata-genre-audio .metadata-genre-note{max-width:72ch}
 .metadata-genre-lookup .button{width:100%;min-height:34px;justify-content:center}
 .metadata-genre-note{font-size:9px!important;line-height:1.55!important;color:#96909b!important;margin:0!important}
 .metadata-genre-suggestions{grid-column:1/-1;display:grid;gap:8px;min-width:0;margin-top:2px}

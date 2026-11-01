@@ -49,7 +49,7 @@ assert.match(mobileWorker, /capacitor\.js/, "Mobile offline shell must include t
 assert.doesNotMatch(desktopWorker, /capacitor\.js/, "PC shell must not require an Android-only file");
 assert.notEqual(path.join(mobileRoot, "www"), path.join(desktopRoot, "dist"), "Mobile and desktop build outputs must be separate");
 
-for (const name of ["src/app.js", "src/storage.js", "src/playlist-editing.js", "src/vorbis-comments.js", "src/wav-info-tags.js", "src/audio-converter.js", "src/equalizer-presets.js", "src/playback-position.js", "src/audio-preferences.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/backup.js", "src/backup-ui.js", "src/library-search.js", "src/library-filters.js", "src/music-genre-suggestions.js"]) {
+for (const name of ["src/app.js", "src/storage.js", "src/playlist-editing.js", "src/vorbis-comments.js", "src/wav-info-tags.js", "src/audio-converter.js", "src/equalizer-presets.js", "src/playback-position.js", "src/audio-preferences.js", "src/music-recognition.js", "src/music-finder-ui.js", "src/backup.js", "src/backup-ui.js", "src/library-search.js", "src/library-filters.js", "src/music-genre-suggestions.js", "src/music-genre-classifier.js", "src/music-genre-classifier-worker.js"]) {
   const source = await readFile(path.join(root, name), "utf8");
   const mobile = await readFile(path.join(mobileRoot, "www", name), "utf8");
   const desktop = await readFile(path.join(desktopRoot, "dist", name), "utf8");

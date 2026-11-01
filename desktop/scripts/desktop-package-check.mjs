@@ -76,7 +76,7 @@ const prepared = spawnSync(process.execPath, [path.join(desktopRoot, "scripts", 
 });
 assert.equal(prepared.status, 0,
   "Desktop static bundle preparation must succeed: " + (prepared.stderr || prepared.stdout || ""));
-for (const file of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "src/app.js", "src/concurrent-map.js", "src/music-genre-suggestions.js", "assets/icon.svg"]) {
+for (const file of ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "src/app.js", "src/concurrent-map.js", "src/music-genre-suggestions.js", "src/music-genre-classifier.js", "src/music-genre-classifier-worker.js", "assets/icon.svg"]) {
   const info = await stat(path.join(distRoot, file)).catch(() => null);
   assert.ok(info?.isFile(), "Prepared PC bundle must include " + file);
 }
