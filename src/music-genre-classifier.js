@@ -3,6 +3,7 @@ export const AUDIO_GENRE_MODEL_REVISION = "10d98fbaa40c0d007dd249155a553ff6b292a
 export const AUDIO_GENRE_MODEL_ESTIMATED_DOWNLOAD_BYTES = 24_000_000;
 export const AUDIO_GENRE_SAMPLE_RATE = 16000;
 export const AUDIO_GENRE_ANALYSIS_SECONDS = 12;
+export const AUDIO_GENRE_MAX_SEGMENTS = 2;
 export const MAX_AUDIO_GENRE_FILE_BYTES = 40 * 1024 * 1024;
 export const AUDIO_GENRE_CLASSIFICATION_TIMEOUT_MS = 180_000;
 
@@ -30,14 +31,48 @@ export function normalizeAcousticGenrePredictions(predictions, limit = 3) {
   const bestByLabel = new Map();
   for (const prediction of predictions) {
     if (!prediction || typeof prediction !== "object") continue;
-    const key = String(prediction.label ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+    const key = String(prediction.label ?? "").trim().toLowerCase().replace(/[_\\s]+/g, "-");
     const label = GENRE_LABELS[key];
     const score = Number(prediction.score);
     if (!label || !Number.isFinite(score) || score < 0 || score > 1) continue;
-    const previous = bestByLabel.get(key);
-    if (!previous || score > previous.score) bestByLabel.set(key, { label, score });
+    const previous = bestByLabel.get(label);
+    if (!previous || score > previous.score) bestByLabel.set(label, { label, score });
   }
   return [...bestByLabel.values()]
+    .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, "es"))
+    .slice(0, safeLimit);
+}
+
+/**
+ * Average the model scores from independent audio windows. topRankVotes is
+ * deliberately separate from score: it shows whether each window independently
+ * ranked that genre first, not a calibrated probability or accuracy measure.
+ */
+export function aggregateAcousticGenrePredictions(segmentPredictions, limit = 3) {
+  if (!Array.isArray(segmentPredictions)) return [];
+  const normalizedSegments = segmentPredictions
+    .filter(Array.isArray)
+    .map(predictions => normalizeAcousticGenrePredictions(predictions, 10))
+    .filter(predictions => predictions.length > 0);
+  if (!normalizedSegments.length) return [];
+
+  const scoreTotals = new Map();
+  const topRankVotes = new Map();
+  for (const predictions of normalizedSegments) {
+    const firstLabel = predictions[0]?.label;
+    if (firstLabel) topRankVotes.set(firstLabel, (topRankVotes.get(firstLabel) || 0) + 1);
+    for (const prediction of predictions) {
+      scoreTotals.set(prediction.label, (scoreTotals.get(prediction.label) || 0) + prediction.score);
+    }
+  }
+  const safeLimit = Number.isInteger(limit) ? Math.max(1, Math.min(10, limit)) : 3;
+  return [...scoreTotals.entries()]
+    .map(([label, total]) => ({
+      label,
+      score: total / normalizedSegments.length,
+      segmentCount: normalizedSegments.length,
+      topRankVotes: topRankVotes.get(label) || 0
+    }))
     .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, "es"))
     .slice(0, safeLimit);
 }
@@ -81,6 +116,63 @@ export function extractCenteredMonoSamples(audioBuffer, targetSampleRate = AUDIO
   return output;
 }
 
+/**
+ * Extract one or two separated windows. Tracks shorter than roughly 27 seconds
+ * keep a single centered sample to avoid spending CPU on near-identical audio.
+ */
+export function extractDistributedMonoSamples(
+  audioBuffer,
+  targetSampleRate = AUDIO_GENRE_SAMPLE_RATE,
+  maxSeconds = AUDIO_GENRE_ANALYSIS_SECONDS,
+  maxSegments = AUDIO_GENRE_MAX_SEGMENTS
+) {
+  const sampleRate = Number(audioBuffer?.sampleRate);
+  const frameCount = Number(audioBuffer?.length);
+  const channels = Number(audioBuffer?.numberOfChannels);
+  if (!Number.isFinite(sampleRate) || sampleRate <= 0 ||
+      !Number.isSafeInteger(frameCount) || frameCount <= 0 ||
+      !Number.isSafeInteger(channels) || channels <= 0 ||
+      typeof audioBuffer.getChannelData !== "function" ||
+      !Number.isFinite(targetSampleRate) || targetSampleRate < 8000 ||
+      !Number.isFinite(maxSeconds) || maxSeconds <= 0) {
+    throw new TypeError("El audio decodificado no tiene un formato compatible para analizar el género.");
+  }
+  const windowFrames = Math.min(frameCount, Math.max(1, Math.floor(sampleRate * maxSeconds)));
+  const safeMaxSegments = Number.isInteger(maxSegments)
+    ? Math.max(1, Math.min(AUDIO_GENRE_MAX_SEGMENTS, maxSegments))
+    : AUDIO_GENRE_MAX_SEGMENTS;
+  const centered = () => [extractCenteredMonoSamples(audioBuffer, targetSampleRate, maxSeconds)];
+  const maxStart = frameCount - windowFrames;
+  if (safeMaxSegments < 2 || maxStart < Math.floor(windowFrames * 1.25)) return centered();
+
+  const channelData = [];
+  for (let channel = 0; channel < channels; channel++) {
+    const data = audioBuffer.getChannelData(channel);
+    if (!data || data.length < frameCount || typeof data.subarray !== "function") {
+      throw new TypeError("No se pudieron leer los canales del archivo de audio.");
+    }
+    channelData.push(data);
+  }
+
+  const starts = [
+    Math.floor(maxStart * 0.15),
+    Math.floor(maxStart * 0.75)
+  ];
+  if (starts[1] - starts[0] < Math.floor(windowFrames * 0.6)) return centered();
+
+  return starts.map(startFrame => {
+    const windowBuffer = {
+      sampleRate,
+      length: windowFrames,
+      numberOfChannels: channels,
+      getChannelData(channel) {
+        return channelData[channel].subarray(startFrame, startFrame + windowFrames);
+      }
+    };
+    return extractCenteredMonoSamples(windowBuffer, targetSampleRate, maxSeconds);
+  });
+}
+
 export async function decodeLocalAudioBlob(blob, {
   AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext,
   decodeTimeoutMs = 30_000
@@ -110,7 +202,7 @@ export async function decodeLocalAudioBlob(blob, {
     if (!decoded || decoded.duration < 3) {
       throw new Error("La muestra es demasiado corta. El análisis necesita al menos 3 segundos de audio.");
     }
-    return extractCenteredMonoSamples(decoded);
+    return extractDistributedMonoSamples(decoded);
   } finally {
     if (timeoutId !== null) clearTimeout(timeoutId);
     if (typeof context.close === "function") await context.close().catch(() => {});
@@ -139,10 +231,14 @@ export async function classifyLocalAudioTrack(track, {
   if (!track || typeof Blob === "undefined" || !(track.blob instanceof Blob)) {
     throw new TypeError("El análisis acústico solo funciona con canciones importadas como archivos locales; no analiza streaming.");
   }
-  const samples = await decodeAudio(track.blob);
+  const decodedSamples = await decodeAudio(track.blob);
   if (signal?.aborted) throw abortError();
-  if (!(samples instanceof Float32Array) || samples.length < AUDIO_GENRE_SAMPLE_RATE * 3) {
-    throw new TypeError("No se pudo preparar una muestra de audio suficiente para clasificar el género.");
+  const samples = decodedSamples instanceof Float32Array
+    ? [decodedSamples]
+    : Array.isArray(decodedSamples) ? decodedSamples : null;
+  if (!samples?.length || samples.length > AUDIO_GENRE_MAX_SEGMENTS ||
+      samples.some(segment => !(segment instanceof Float32Array) || segment.length < AUDIO_GENRE_SAMPLE_RATE * 3)) {
+    throw new TypeError("No se pudieron preparar fragmentos de audio suficientes para clasificar el género.");
   }
 
   const worker = workerFactory();
@@ -171,7 +267,10 @@ export async function classifyLocalAudioTrack(track, {
       if (message.type === "progress") {
         try { onProgress(String(message.message || "Preparando el modelo local…")); } catch {}
       } else if (message.type === "result") {
-        const predictions = normalizeAcousticGenrePredictions(message.predictions, 3);
+        const segmentPredictions = Array.isArray(message.segmentPredictions)
+          ? message.segmentPredictions
+          : (Array.isArray(message.predictions) ? [message.predictions] : []);
+        const predictions = aggregateAcousticGenrePredictions(segmentPredictions, 3);
         if (!predictions.length) finish(new Error("El modelo no devolvió una categoría reconocible. No se cambió el género guardado."));
         else finish(null, predictions);
       } else if (message.type === "error") {
@@ -184,7 +283,8 @@ export async function classifyLocalAudioTrack(track, {
       if (signal.aborted) { handleAbort(); return; }
     }
     try {
-      worker.postMessage({ type: "classify", samples }, [samples.buffer]);
+      const transfer = [...new Set(samples.map(segment => segment.buffer))];
+      worker.postMessage({ type: "classify", samples }, transfer);
     } catch (error) {
       finish(error instanceof Error ? error : new Error("No se pudo iniciar el clasificador acústico."));
     }
