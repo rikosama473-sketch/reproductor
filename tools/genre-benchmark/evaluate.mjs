@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { readFile, realpath, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import {
   AUDIO_GENRE_MODEL_ID,
@@ -108,7 +107,6 @@ async function run() {
   const { pipeline, env } = await import("@huggingface/transformers");
   env.allowRemoteModels = true;
   env.allowLocalModels = true;
-  env.backends.onnx.wasm.numThreads = 2;
 
   const modelLoadStart = performance.now();
   const classifier = await pipeline("audio-classification", AUDIO_GENRE_MODEL_ID, {
