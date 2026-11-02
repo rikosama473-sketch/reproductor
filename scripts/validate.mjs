@@ -16,6 +16,7 @@ const syntaxChecks = [
   "src/music-genre-classifier-worker.js",
   "tools/genre-benchmark/core.mjs",
   "tools/genre-benchmark/evaluate.mjs",
+  "tools/genre-benchmark/runtime-check.mjs",
   "src/ui-sounds.js",
   "src/voice-studio.js",
   "src/youtube-history.js",
