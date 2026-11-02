@@ -75,7 +75,7 @@ export function validateBenchmarkManifest(manifest) {
 
     const file = typeof track.file === "string" ? track.file.trim() : "";
     if (!file) errors.push(`${prefix}.file es obligatorio.`);
-    else if (path.isAbsolute(file) || file.includes("\\\\") ||
+    else if (path.isAbsolute(file) || file.includes("\\") ||
       file.split("/").some(part => part === ".." || part === "." || part === "")) {
       errors.push(`${prefix}.file debe ser una ruta WAV relativa, sin segmentos . o ...`);
     } else if (!file.toLowerCase().endsWith(".wav")) {
