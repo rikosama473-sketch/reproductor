@@ -110,7 +110,7 @@ export function validateBenchmarkManifest(manifest) {
 
 export function resolveManifestTrackPath(manifestDirectory, relativeFile) {
   if (typeof relativeFile !== "string" || !relativeFile.trim() ||
-      path.isAbsolute(relativeFile) || relativeFile.includes("\\\\") ||
+      path.isAbsolute(relativeFile) || relativeFile.includes("\\") ||
       relativeFile.split("/").some(part => part === ".." || part === "." || part === "")) {
     throw new TypeError("La ruta de audio debe ser relativa al manifiesto y no puede salir de su carpeta.");
   }
