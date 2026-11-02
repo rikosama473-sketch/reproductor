@@ -57,7 +57,7 @@ function printHelp() {
 
 function assertInsideRoot(root, candidate) {
   const relative = path.relative(root, candidate);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+  if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
     throw new Error("La ruta de un audio sale de la carpeta del manifiesto.");
   }
 }
