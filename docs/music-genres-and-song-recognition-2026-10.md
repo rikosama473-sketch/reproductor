@@ -47,3 +47,18 @@ La prueba automatizada de escritorio comprueba permisos, consentimiento y empaqu
 ## Próximo criterio de evaluación
 
 Antes de sustituir el modelo o afirmar una mejora de aciertos, Ritmo necesita un conjunto de prueba reproducible con permiso de uso, diversidad regional y etiquetas revisadas por personas. Debe informar al menos exactitud por clase, macro-F1, matriz de confusión, tasa de desacuerdo entre fragmentos, tiempo de inferencia y memoria consumida. Una puntuación global aislada sobre GTZAN no basta para validar Cumbia, J-Pop, City Pop, Synthwave ni otros subgéneros.
+
+
+## Herramienta local de evaluación (noviembre de 2026)
+
+Se añadió `tools/genre-benchmark/` como herramienta de desarrollo independiente. No se descarga ni ejecuta durante la reproducción normal y no agrega canciones al repositorio.
+
+- Acepta un manifiesto JSON de pistas WAV PCM16 locales, una etiqueta principal revisada por pista, un identificador seudónimo de artista y una declaración de derechos/procedencia.
+- Ejecuta exactamente el modelo actual y su revisión fijada; limita la sesión ONNX de CPU a dos hilos intra-op y uno inter-op.
+- Informa top-1, top-3, macro-F1, macro-recall, métricas por clase, matriz de confusión, estabilidad entre fragmentos, latencia y memoria RSS observada.
+- Rechaza rutas fuera de la carpeta de datos, enlaces simbólicos que escapen de ella, formatos WAV no compatibles y pistas superiores al límite de 40 MiB.
+- El JSON de resultados no almacena rutas locales, audio ni nombres reales; solo IDs seudónimos, etiquetas y métricas.
+
+La herramienta mide únicamente las diez clases del modelo actual. No demuestra calidad en subgéneros. Para evaluar taxonomías multi-etiqueta como Discogs 400 o MTG-Jamendo se necesitará un adaptador de modelo y un protocolo multi-etiqueta separado, además de resolver previamente las licencias.
+
+Instrucciones y plantilla: [`tools/genre-benchmark/README.md`](../tools/genre-benchmark/README.md) y [`manifest.example.json`](../tools/genre-benchmark/manifest.example.json).

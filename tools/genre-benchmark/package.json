@@ -1,0 +1,16 @@
+{
+  "name": "ritmo-genre-benchmark",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "evaluate": "node evaluate.mjs",
+    "check:runtime": "node runtime-check.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.7.2"
+  }
+}

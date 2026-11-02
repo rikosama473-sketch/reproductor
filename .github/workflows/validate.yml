@@ -20,5 +20,9 @@ jobs:
           node-version: 22
       - name: Install the pinned mobile Capacitor dependencies
         run: npm install --prefix mobile --no-audit --no-fund
+      - name: Install the pinned local genre benchmark runtime
+        run: npm install --prefix tools/genre-benchmark --no-audit --no-fund
+      - name: Verify the local genre benchmark runtime
+        run: npm --prefix tools/genre-benchmark run check:runtime
       - name: Run shared validation and both platform package checks
         run: npm run validate
