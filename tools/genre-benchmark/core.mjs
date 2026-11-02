@@ -117,7 +117,7 @@ export function resolveManifestTrackPath(manifestDirectory, relativeFile) {
   const root = path.resolve(manifestDirectory);
   const resolved = path.resolve(root, relativeFile);
   const relative = path.relative(root, resolved);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+  if (!relative || relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
     throw new TypeError("La ruta de audio queda fuera de la carpeta del manifiesto.");
   }
   return resolved;
@@ -286,6 +286,10 @@ export function calculateGenreMetrics(trackResults, labels = BENCHMARK_GENRES) {
 export function percentile(values, fraction) {
   const sorted = values.filter(value => Number.isFinite(value)).sort((a, b) => a - b);
   if (!sorted.length) return null;
-  const position = Math.min(sorted.length - 1, Math.max(0, Math.ceil(fraction * sorted.length) - 1));
-  return sorted[position];
+  const safeFraction = Math.min(1, Math.max(0, Number(fraction) || 0));
+  const position = (sorted.length - 1) * safeFraction;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const weight = position - lowerIndex;
+  return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * weight;
 }
