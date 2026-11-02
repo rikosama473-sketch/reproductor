@@ -225,8 +225,20 @@ async function run() {
     tracks: trackResults
   };
 
-  const outputPath = path.resolve(options.output || options.manifest.replace(/\.json$/i, ".results.json"));
-  await writeFile(outputPath, JSON.stringify(report, null, 2) + "\n", { flag: "w" });
+  const outputPath = path.resolve(options.output || (options.manifest + ".results.json"));
+  const protectedPaths = [
+    path.resolve(options.manifest),
+    ...audioFiles.map(item => item.path)
+  ];
+  if (protectedPaths.includes(outputPath)) {
+    throw new Error("El informe no puede sobrescribir el manifiesto ni una pista de audio.");
+  }
+  await writeFile(outputPath, JSON.stringify(report, null, 2) + "\n", { flag: "wx" }).catch(error => {
+    if (error?.code === "EEXIST") {
+      throw new Error("El archivo de resultados ya existe; indicá otro --output para no sobrescribirlo.");
+    }
+    throw error;
+  });
 
   console.log("");
   console.log(`Exactitud top-1: ${metrics.accuracy === null ? "n/d" : (metrics.accuracy * 100).toFixed(1) + " %"}`);
