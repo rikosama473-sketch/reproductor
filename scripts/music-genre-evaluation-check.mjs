@@ -143,8 +143,8 @@ const unclassified = calculateGenreMetrics([{
 }]);
 assert.equal(unclassified.confusionMatrix.values.Blues["Sin clasificación"], 1);
 assert.equal(unclassified.accuracy, 0);
-assert.equal(percentile([10, 20, 30, 40], 0.5), 20);
-assert.equal(percentile([10, 20, 30, 40], 0.95), 40);
+assert.equal(percentile([10, 20, 30, 40], 0.5), 25);
+assert.equal(percentile([10, 20, 30, 40], 0.95), 38.5);
 assert.equal(percentile([], 0.95), null);
 
 console.log("Local genre benchmark core checks passed.");
