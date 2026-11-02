@@ -6,7 +6,7 @@ Esta herramienta mide el clasificador acústico que ya utiliza Ritmo. No modific
 
 El benchmark mide las diez etiquetas del modelo actual: Blues, Clásica, Country, Disco, Hip-Hop, Jazz, Metal, Pop, Reggae y Rock. **No evalúa Cumbia, J-Pop, City Pop, Synthwave ni otras subetiquetas** porque el modelo no las predice.
 
-Usa el mismo ID y revisión del modelo, el mismo preprocesamiento mono a 16 kHz y la misma selección de una o dos ventanas que la aplicación. La inferencia usa Transformers.js 3.7.2, ONNX Runtime CPU, dos hilos intra-op y uno inter-op. La primera ejecución necesita Internet para descargar el runtime y los pesos; las canciones de la prueba permanecen locales.
+Usa el mismo ID/revisión del modelo y comparte con Ritmo la selección, normalización y agregación de las ventanas. Decodifica directamente WAV PCM16 y convierte a mono 16 kHz; la app decodifica mediante AudioContext, por lo que esa etapa no es bit a bit idéntica. La inferencia usa Transformers.js 3.7.2, ONNX Runtime CPU, dos hilos intra-op y uno inter-op. La primera ejecución necesita Internet para descargar el runtime y los pesos; las canciones de la prueba permanecen locales.
 
 ## Preparar un conjunto de prueba
 
