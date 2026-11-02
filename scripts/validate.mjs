@@ -108,6 +108,7 @@ const regressionSuites = [
   "scripts/equalizer-presets-check.mjs",
   "scripts/music-genre-suggestions-check.mjs",
   "scripts/music-genre-classifier-check.mjs",
+  "scripts/music-genre-evaluation-check.mjs",
   "scripts/music-genres-check.mjs",
   "scripts/ui-sounds-check.mjs",
   "scripts/id3-tags-check.mjs",
