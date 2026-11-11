@@ -62,3 +62,49 @@ Se añadió `tools/genre-benchmark/` como herramienta de desarrollo independient
 La herramienta mide únicamente las diez clases del modelo actual. No demuestra calidad en subgéneros. Para evaluar taxonomías multi-etiqueta como Discogs 400 o MTG-Jamendo se necesitará un adaptador de modelo y un protocolo multi-etiqueta separado, además de resolver previamente las licencias.
 
 Instrucciones y plantilla: [`tools/genre-benchmark/README.md`](../tools/genre-benchmark/README.md) y [`manifest.example.json`](../tools/genre-benchmark/manifest.example.json).
+
+## Estado verificado de CI y benchmark (11 de noviembre de 2026)
+
+- La rama `main` incorpora el benchmark local mediante `cbc7f6c2e4a97ef4a647ef4de19257155879c2d7`.
+- Windows #149 y el build posterior #176 quedaron aprobados sobre sus respectivos SHA. En particular, Windows #177 (run `42961804735`) aprobó el smoke test del paquete de `main` con `RITMO_TEST_ACOUSTIC_CLASSIFIER=1`: la prueba ejecutó la inferencia local real en el portable y el instalador NSIS, además de comprobar instalación, persistencia, conversión y desinstalación. Artefacto: `Ritmo-Windows-177-a0ebd4159919aa50a44b88b6fe24fb2104c0a541`, SHA-256 del ZIP `7e36d997a39f9543c656a1cd049c4943f231d86487aafc0cade189dd3301c341`.
+- Cambio de workflow integrado directamente en `main`: `a0ebd4159919aa50a44b88b6fe24fb2104c0a541`. Desde ese commit, las compilaciones Windows de `push` a `main` activan la prueba de inferencia acústica, no solo los PRs de ramas con `genre`.
+- Android #395 y Validate #883 aprobaron sobre el mismo SHA. Validate ejecutó `check:runtime`, las pruebas del núcleo del benchmark y las regresiones del clasificador.
+- Pages #213 no quedó aprobado: la acción subió correctamente `github-pages-1` y, en el reintento, `github-pages-2`; ambos artefactos aparecen en la API de GitHub. Sin embargo, `actions/deploy-pages@v5` terminó informando que no encontraba el artefacto por nombre. Reintentar solo el job no lo resolvió. Tratarlo como bloqueo de despliegue de Pages / resolución de artefactos hasta que un nuevo run publique correctamente; no declarar CI global verde.
+
+## Investigación de modelo para subgéneros
+
+### Candidato de laboratorio: Discogs-EffNet
+
+La documentación oficial de Essentia describe Discogs-EffNet como un modelo multi-etiqueta con 400 estilos Discogs. La taxonomía oficial incluye etiquetas cercanas a los objetivos de Ritmo: `Latin---Cumbia`, `Electronic---Synthwave`, `Pop---City Pop`, `Pop---J-pop`, y numerosos estilos de Rock y Metal. Esto lo hace un candidato más adecuado para experimentar con subgéneros que el modelo actual de diez clases.
+
+El índice oficial publica `discogs-effnet-bsdynamic-1.onnx` (18.027.718 bytes) como parte del extractor EffNet. **Ese tamaño corresponde al archivo ONNX del extractor listado allí; no se debe presentar todavía como tamaño total de un pipeline listo para clasificar los 400 estilos.** Antes de implementar hay que confirmar el artefacto de clasificación completo, su entrada mel-espectrograma, el preprocesado exacto y la forma de inferencia ONNX/CPU.
+
+La metadata del modelo informa 400 salidas sigmoid y métricas ROC-AUC 0,95417 / PR-AUC 0,20629 sobre Discogs-4M. Esos números son del entorno/dataset del modelo; no predicen la precisión de Ritmo en una colección independiente y no se deben comparar directamente con el top-1 del modelo actual.
+
+**Licencia:** Essentia declara CC BY-NC-SA 4.0 para los modelos MTG, con alternativa propietaria bajo solicitud. No empaquetar el modelo en Ritmo ni distribuirlo dentro del instalador antes de comprobar que la licencia cubre el uso, distribución y cualquier modalidad de monetización prevista.
+
+### Alternativa más pesada: MAEST
+
+Essentia ofrece variantes MAEST multi-etiqueta de 400/519 estilos. Sus archivos ONNX principales se sitúan aproximadamente entre 344 y 348 MB, antes de contar cabezas y runtime. Por tamaño y objetivo de bajo consumo, queda como referencia comparativa, no como primera integración para el equipo objetivo de Ritmo.
+
+### Dataset auxiliar: MTG-Jamendo
+
+MTG-Jamendo proporciona más de 55.000 pistas completas y splits de investigación con 87 etiquetas de género, además de etiquetas de instrumentos y estados/temas. Su audio usa licencias Creative Commons individuales; la metadata tiene CC BY-NC-SA 4.0 y el proyecto restringe el dataset a investigación académica no comercial salvo autorización escrita de Jamendo. No descargar ni redistribuir el conjunto completo (el propio repositorio informa cientos de GB de audio) ni asumir que todas sus pistas son reutilizables de la misma forma.
+
+### Protocolo necesario antes de elegir un modelo
+
+1. Mantener dos evaluaciones separadas: el benchmark single-label de las diez clases actuales y un benchmark multi-label para los candidatos de 400 estilos.
+2. Separar artistas entre `validation` y `test`; revisar etiquetas con personas y documentar fuentes/licencias por pista. Los tags comunitarios sirven como anotación inicial, no como verdad infalible.
+3. Para el modelo multi-label informar mAP / PR-AUC, micro y macro precision-recall-F1 a umbrales declarados, top-k y estabilidad entre fragmentos. Agregar categorías padre/hijas solo después de fijar una taxonomía y reglas de evaluación.
+4. Comparar en el mismo equipo: peso descargado/instalado, RSS pico, RAM adicional, CPU, hilos, latencia fría/caliente y precisión por estilo.
+5. No añadir etiquetas a Ritmo por la mera salida del modelo. Incorporar un estilo solo si tiene soporte suficiente en el conjunto de prueba y se documenta su tasa de falsos positivos.
+
+## Datos reales todavía pendientes
+
+El benchmark actual ya es ejecutable, pero `manifest.example.json` está vacío y no se han registrado canciones etiquetadas ni resultados de precisión reales. No hay base para afirmar que el modelo actual acierta mejor o peor con música real. Para producir métricas válidas hace falta una carpeta local con pistas autorizadas y un manifiesto completado; los archivos de audio no deben añadirse al repositorio. Hasta entonces, estado: **herramienta y pruebas sintéticas validadas; benchmark real pendiente**.
+
+Referencias primarias:
+- Essentia models: https://essentia.upf.edu/models.html
+- Discogs-EffNet metadata: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bs64-1.json
+- Essentia ONNX index: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/
+- MTG-Jamendo dataset and licenses: https://github.com/MTG/mtg-jamendo-dataset
