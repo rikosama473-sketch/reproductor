@@ -77,7 +77,7 @@ Instrucciones y plantilla: [`tools/genre-benchmark/README.md`](../tools/genre-be
 
 La documentación oficial de Essentia describe Discogs-EffNet como un modelo multi-etiqueta con 400 estilos Discogs. La taxonomía oficial incluye etiquetas cercanas a los objetivos de Ritmo: `Latin---Cumbia`, `Electronic---Synthwave`, `Pop---City Pop`, `Pop---J-pop`, y numerosos estilos de Rock y Metal. Esto lo hace un candidato más adecuado para experimentar con subgéneros que el modelo actual de diez clases.
 
-El índice oficial publica `discogs-effnet-bsdynamic-1.onnx` (18.027.718 bytes) como parte del extractor EffNet. **Ese tamaño corresponde al archivo ONNX del extractor listado allí; no se debe presentar todavía como tamaño total de un pipeline listo para clasificar los 400 estilos.** Antes de implementar hay que confirmar el artefacto de clasificación completo, su entrada mel-espectrograma, el preprocesado exacto y la forma de inferencia ONNX/CPU.
+El índice oficial publica discogs-effnet-bsdynamic-1.onnx (18.027.718 bytes). La metadata oficial confirma que el propio ONNX devuelve tanto 400 scores de estilo (salida Sigmoid) como embeddings de 1280 dimensiones. Su entrada no es audio PCM directo: es un mel-espectrograma con forma [batch, 128, 96], a partir de audio mono de 16 kHz. Por tanto, el ONNX ya incluye la cabeza de predicción multi-etiqueta; el trabajo técnico pendiente es reproducir exactamente el preprocesado de mel-espectrograma y comprobar la inferencia CPU con las mismas ventanas de audio. Essentia publica además una cabeza de clasificación separada de unos 2,06 MB que acepta embeddings de 1280 dimensiones y devuelve las mismas 400 salidas; esa ruta sirve si se usa un extractor de embeddings, no es requisito para usar la salida de predicción incluida en el ONNX.
 
 La metadata del modelo informa 400 salidas sigmoid y métricas ROC-AUC 0,95417 / PR-AUC 0,20629 sobre Discogs-4M. Esos números son del entorno/dataset del modelo; no predicen la precisión de Ritmo en una colección independiente y no se deben comparar directamente con el top-1 del modelo actual.
 
@@ -108,3 +108,23 @@ Referencias primarias:
 - Discogs-EffNet metadata: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bs64-1.json
 - Essentia ONNX index: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/
 - MTG-Jamendo dataset and licenses: https://github.com/MTG/mtg-jamendo-dataset
+
+
+## Evaluador multi-etiqueta independiente (12 de noviembre de 2026)
+
+Se añadió un evaluador puro de métricas para recibir los scores ya calculados por un adaptador de modelo. No ejecuta ni descarga EffNet y no contiene canciones.
+
+- Acepta un vector de scores entre 0 y 1 para cada una de las etiquetas del modelo por pista, además de una lista de expectedLabels confirmadas por una persona.
+- Calcula mAP con empates agrupados, micro/macro precision-recall-F1 a umbrales explícitos, métricas por etiqueta y top-k precision/recall.
+- Exige ID de modelo/revisión, split validation o test, artista seudónimo y declaración de procedencia/derechos.
+- Rechaza etiquetas duplicadas/desconocidas, scores ausentes o fuera de rango, pistas sin etiqueta esperada y manifiestos incompletos.
+- El informe conserva IDs seudónimos, etiquetas y top-5 sugeridos; no guarda WAV, rutas locales ni los 400 scores completos por pista.
+
+La plantilla manifest.multilabel.example.json usa datos sintéticos y está marcada como tal: no sirve como benchmark musical ni como evidencia de exactitud. El evaluador es infraestructura validada por pruebas unitarias; sigue pendiente crear el adaptador de inferencia EffNet con preprocesado equivalente a Essentia, y después medirlo con pistas autorizadas.
+
+La metadata oficial del ONNX discogs-effnet-bsdynamic-1 identifica 400 etiquetas, entrada mel-espectrograma [batch,128,96], salida sigmoid [batch,400] y embeddings [batch,1280]. Por ello, el ONNX dinámico de EffNet contiene directamente las predicciones de estilo; la cabeza separada genre_discogs400-discogs-effnet-1.pb es una vía alternativa sobre embeddings. No basta con pasar audio PCM al ONNX: hay que igualar su preprocesado de mel-espectrograma.
+
+Referencias de modelo:
+- Metadata ONNX: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.json
+- Metadata de la cabeza alternativa: https://essentia.upf.edu/models/classification-heads/genre_discogs400/genre_discogs400-discogs-effnet-1.json
+- Índice de pesos ONNX: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/

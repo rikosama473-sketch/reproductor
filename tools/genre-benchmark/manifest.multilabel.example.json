@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "datasetName": "Fixture sintético; no usar como evidencia de precisión",
+  "split": "validation",
+  "model": {
+    "id": "synthetic-fixture-only",
+    "revision": "fixture-v1",
+    "runtime": "no-model"
+  },
+  "labels": [
+    "Electronic---Synthwave",
+    "Pop---City Pop",
+    "Latin---Cumbia"
+  ],
+  "tracks": [
+    {
+      "id": "fixture-001",
+      "artistKey": "artist-001",
+      "expectedLabels": [
+        "Electronic---Synthwave",
+        "Pop---City Pop"
+      ],
+      "scores": {
+        "Electronic---Synthwave": 0.9,
+        "Pop---City Pop": 0.8,
+        "Latin---Cumbia": 0.1
+      },
+      "rights": {
+        "basis": "owned",
+        "reference": "Datos sintéticos sin audio"
+      }
+    },
+    {
+      "id": "fixture-002",
+      "artistKey": "artist-002",
+      "expectedLabels": [
+        "Pop---City Pop"
+      ],
+      "scores": {
+        "Electronic---Synthwave": 0.4,
+        "Pop---City Pop": 0.6,
+        "Latin---Cumbia": 0.2
+      },
+      "rights": {
+        "basis": "owned",
+        "reference": "Datos sintéticos sin audio"
+      }
+    },
+    {
+      "id": "fixture-003",
+      "artistKey": "artist-003",
+      "expectedLabels": [
+        "Latin---Cumbia"
+      ],
+      "scores": {
+        "Electronic---Synthwave": 0.3,
+        "Pop---City Pop": 0.3,
+        "Latin---Cumbia": 0.5
+      },
+      "rights": {
+        "basis": "owned",
+        "reference": "Datos sintéticos sin audio"
+      }
+    }
+  ]
+}

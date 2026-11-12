@@ -8,7 +8,9 @@
   },
   "scripts": {
     "evaluate": "node evaluate.mjs",
-    "check:runtime": "node runtime-check.mjs"
+    "check:runtime": "node runtime-check.mjs",
+    "evaluate:multilabel": "node evaluate-multilabel.mjs",
+    "check:multilabel": "node ../../scripts/music-genre-multilabel-check.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.7.2"

@@ -70,3 +70,52 @@ Referencias:
 - https://essentia.upf.edu/models.html
 - https://github.com/MTG/mtg-jamendo-dataset
 - https://huggingface.co/SeyedAli/Musical-genres-Classification-Hubert-V1
+
+
+## Evaluación multi-etiqueta para modelos de estilos
+
+El evaluador multi-etiqueta es independiente del motor de inferencia. Consume un JSON con las puntuaciones ya calculadas por un adaptador; **no descarga ni ejecuta EffNet** y no convierte sus métricas publicadas en resultados de Ritmo.
+
+1. El adaptador debe producir una puntuación entre 0 y 1 para cada etiqueta de labels y cada pista. Para EffNet, conserva las etiquetas exactas de Discogs, por ejemplo Latin---Cumbia o Pop---City Pop; no traduzcas ni unas categorías padre/hija durante la medición.
+2. Registra expectedLabels revisadas por una persona, artistKey seudónimo y procedencia/derechos por pista. No reutilices un artista entre validation y test.
+3. Ejecuta primero validation para elegir los umbrales; fija la política antes de abrir el resultado test.
+
+Ejemplo del documento de predicciones:
+
+```json
+{
+  "schemaVersion": 1,
+  "datasetName": "Colección autorizada",
+  "split": "validation",
+  "model": { "id": "modelo-candidato", "revision": "sha-o-versión" },
+  "labels": ["Electronic---Synthwave", "Pop---City Pop", "Latin---Cumbia"],
+  "tracks": [{
+    "id": "clip-001",
+    "artistKey": "artist-001",
+    "expectedLabels": ["Electronic---Synthwave", "Pop---City Pop"],
+    "scores": {
+      "Electronic---Synthwave": 0.81,
+      "Pop---City Pop": 0.42,
+      "Latin---Cumbia": 0.03
+    },
+    "rights": { "basis": "owned", "reference": "Grabación propia" }
+  }]
+}
+```
+
+El documento manifest.multilabel.example.json contiene solo datos sintéticos, no audio ni una estimación de rendimiento.
+
+Ejecutar en Windows, desde la raíz del repositorio:
+
+```powershell
+npm --prefix tools/genre-benchmark run evaluate:multilabel -- --input "D:/Ritmo-Genre-Test/predictions.json" --thresholds 0.25,0.5 --top-k 3,5
+```
+
+El informe incluye:
+
+- mAP (mean average precision) calculada por ranking de las puntuaciones, agrupando empates;
+- precision, recall y F1 micro/macro a cada umbral explícito;
+- precision/recall por etiqueta y soporte, con clases sin ejemplos marcadas como tales;
+- precision y recall top-k, independientes del umbral.
+
+No trates los scores sigmoid como probabilidades calibradas. mAP no usa un umbral; F1 sí. No elijas un umbral mirando el conjunto final test. Con 400 estilos, una métrica agregada no sustituye la revisión de soporte y falsos positivos de cada etiqueta.
