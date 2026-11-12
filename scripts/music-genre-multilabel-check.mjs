@@ -1,4 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import {
   calculateMultiLabelMetrics,
   normalizeMultiLabelName,
@@ -115,3 +120,66 @@ assert.throws(
 );
 
 console.log("Multi-label genre evaluation checks passed: mAP, threshold micro/macro-F1, top-k and manifest safeguards.");
+
+
+const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "ritmo-multilabel-cli-check-"));
+try {
+  const inputPath = fileURLToPath(new URL(
+    "../tools/genre-benchmark/manifest.multilabel.example.json",
+    import.meta.url
+  ));
+  const outputPath = path.join(tempDirectory, "metrics.json");
+  const evaluatorPath = fileURLToPath(new URL(
+    "../tools/genre-benchmark/evaluate-multilabel.mjs",
+    import.meta.url
+  ));
+  const originalInput = await readFile(inputPath, "utf8");
+  const args = [
+    evaluatorPath,
+    "--input", inputPath,
+    "--output", outputPath,
+    "--thresholds", "0.25,0.5",
+    "--top-k", "1,2"
+  ];
+  const run = spawnSync(process.execPath, args, {
+    encoding: "utf8",
+    timeout: 30000
+  });
+  assert.equal(run.error, undefined, "The multi-label CLI should launch.");
+  assert.equal(run.status, 0, "CLI failed:\n" + run.stdout + "\n" + run.stderr);
+  assert.match(run.stdout, /Métricas multi-etiqueta calculadas/);
+
+  const report = JSON.parse(await readFile(outputPath, "utf8"));
+  assert.equal(report.dataset.trackCount, 3);
+  assert.equal(report.dataset.labelCount, 3);
+  assert.equal(report.model.id, "synthetic-fixture-only");
+  assert.equal(report.metrics.sampleCount, 3);
+  assert.equal(report.tracks.length, 3);
+  assert.ok(Array.isArray(report.metrics.thresholdMetrics));
+  assert.ok(Array.isArray(report.metrics.topK));
+  assert.equal(await readFile(inputPath, "utf8"), originalInput,
+    "The CLI must not modify the prediction document.");
+
+  const overwrite = spawnSync(process.execPath, args, {
+    encoding: "utf8",
+    timeout: 30000
+  });
+  assert.notEqual(overwrite.status, 0, "An existing metrics report must never be overwritten.");
+  assert.match(overwrite.stderr, /El informe ya existe/);
+  const afterOverwriteAttempt = JSON.parse(await readFile(outputPath, "utf8"));
+  assert.equal(afterOverwriteAttempt.dataset.trackCount, 3);
+
+  const sameInputOutput = spawnSync(process.execPath, [
+    evaluatorPath, "--input", inputPath, "--output", inputPath
+  ], {
+    encoding: "utf8",
+    timeout: 30000
+  });
+  assert.notEqual(sameInputOutput.status, 0,
+    "The CLI must reject an output path that would replace its input document.");
+  assert.equal(await readFile(inputPath, "utf8"), originalInput);
+} finally {
+  await rm(tempDirectory, { recursive: true, force: true });
+}
+
+console.log("Multi-label CLI integration checks passed: report generation, input preservation and no-overwrite protection.");

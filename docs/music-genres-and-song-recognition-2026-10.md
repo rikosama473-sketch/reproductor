@@ -124,7 +124,14 @@ La plantilla manifest.multilabel.example.json usa datos sintéticos y está marc
 
 La metadata oficial del ONNX discogs-effnet-bsdynamic-1 identifica 400 etiquetas, entrada mel-espectrograma [batch,128,96], salida sigmoid [batch,400] y embeddings [batch,1280]. Por ello, el ONNX dinámico de EffNet contiene directamente las predicciones de estilo; la cabeza separada genre_discogs400-discogs-effnet-1.pb es una vía alternativa sobre embeddings. No basta con pasar audio PCM al ONNX: hay que igualar su preprocesado de mel-espectrograma.
 
+El preprocesado documentado por Essentia para TensorflowInputMusiCNN usa frames de 512 muestras a 16 kHz (ventana Hann, sin normalización de ventana), espectro de 257 bins, 96 bandas mel, warping Slaney, weighting linear, normalización unit_tri y compresión log10 después de sumar 1 a 10.000 veces la energía mel. TensorflowPredictEffnetDiscogs agrupa 128 frames por parche; el salto predeterminado es 62 frames (aprox. 1,008 predicciones por segundo), aunque permite configurar otro salto. El ONNX espera el tensor [batch,128,96]. Para que las métricas sean comparables, el adaptador debe fijar y registrar frame hop, política de padding del último frame/parche y agregación de scores entre parches; no basta con igualar solo la forma del tensor.
+
 Referencias de modelo:
 - Metadata ONNX: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.json
 - Metadata de la cabeza alternativa: https://essentia.upf.edu/models/classification-heads/genre_discogs400/genre_discogs400-discogs-effnet-1.json
 - Índice de pesos ONNX: https://essentia.upf.edu/models/feature-extractors/discogs-effnet/
+
+
+### Preprocesamiento confirmado y límite de licencia
+
+La documentación oficial de Essentia confirma una cadena concreta para EffNet: audio mono a 16 kHz; extracción MusiCNN con frames de 512 muestras, ventana Hann no normalizada, 96 bandas mel Slaney/unit_tri y compresión log10; los frames se agrupan en parches de 128 × 96. El salto predeterminado entre parches es 62 frames. La implementación de referencia de Essentia se publica bajo AGPLv3, mientras que los pesos MTG siguen CC BY-NC-SA 4.0. El evaluador multi-etiqueta de Ritmo no depende de Essentia ni contiene esos pesos. Antes de crear un adaptador autónomo habrá que validar numéricamente sus mel features contra vectores de referencia de Essentia y revisar qué licencia/ruta de distribución es aceptable; no se está copiando ni empaquetando la biblioteca de referencia.
