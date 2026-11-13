@@ -135,3 +135,18 @@ Referencias de modelo:
 ### Preprocesamiento confirmado y límite de licencia
 
 La documentación oficial de Essentia confirma una cadena concreta para EffNet: audio mono a 16 kHz; extracción MusiCNN con frames de 512 muestras, ventana Hann no normalizada, 96 bandas mel Slaney/unit_tri y compresión log10; los frames se agrupan en parches de 128 × 96. El salto predeterminado entre parches es 62 frames. La implementación de referencia de Essentia se publica bajo AGPLv3, mientras que los pesos MTG siguen CC BY-NC-SA 4.0. El evaluador multi-etiqueta de Ritmo no depende de Essentia ni contiene esos pesos. Antes de crear un adaptador autónomo habrá que validar numéricamente sus mel features contra vectores de referencia de Essentia y revisar qué licencia/ruta de distribución es aceptable; no se está copiando ni empaquetando la biblioteca de referencia.
+
+
+## Preprocesador EffNet: primer prototipo aislado (13 de noviembre de 2026)
+
+Se añadió \`tools/genre-benchmark/effnet-preprocess.mjs\`, independiente del reproductor y sin dependencias externas. Implementa el transform de características documentado por Essentia a partir de sus parámetros: frame de 512, hop de 256, ventana Hann sin normalización, 96 bandas Mel Slaney, filtros unit-triangle, potencia y compresión \`log10(1 + 10000 × energía)\`. Agrupa 128 frames por parche con hop 62 y devuelve el tensor \`[n,128,96]\` que declara el ONNX.
+
+La implementación no contiene código de Essentia ni descarga sus binarios. El test unitario comprueba framing centrado, número de parches, dimensiones, silencio y datos no finitos. **Estado: prototipo de preprocesamiento y pruebas estructurales aprobados; paridad numérica con Essentia pendiente.** No conectar el ONNX ni considerar equivalentes sus scores hasta comparar los mel frames contra una salida de referencia de Essentia (tolerancia objetivo inicial 1e-3, según la reproducción publicada por un colaborador de MTG).
+
+El modelo sigue fuera de Ritmo por licencia pendiente: CC BY-NC-SA 4.0 según la página de licencias de MTG. Essentia como biblioteca usa AGPLv3 para aplicaciones no comerciales; este prototipo no depende de la biblioteca.
+
+Referencias:
+- https://essentia.upf.edu/reference/std_TensorflowInputMusiCNN.html
+- https://essentia.upf.edu/reference/streaming_TensorflowPredictEffnetDiscogs.html
+- https://essentia.upf.edu/licensing_information.html
+- https://github.com/MTG/essentia/issues/1471

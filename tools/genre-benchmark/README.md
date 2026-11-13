@@ -119,3 +119,24 @@ El informe incluye:
 - precision y recall top-k, independientes del umbral.
 
 No trates los scores sigmoid como probabilidades calibradas. mAP no usa un umbral; F1 sí. No elijas un umbral mirando el conjunto final test. Con 400 estilos, una métrica agregada no sustituye la revisión de soporte y falsos positivos de cada etiqueta.
+
+
+## Preprocesamiento local candidato para Discogs-EffNet
+
+Se añadió un preprocesador de desarrollo, sin dependencia de Essentia y sin incluir el modelo. Recibe muestras **mono Float32/Float64 ya remuestreadas a 16 kHz** y produce un tensor ONNX de forma \`[patches, 128, 96]\`.
+
+La configuración implementada es:
+- frames centrados de 512 muestras, salto 256 y padding cero en los bordes;
+- ventana Hann simétrica sin normalización;
+- espectro de potencia;
+- 96 bandas con centros espaciados en escala Slaney, filtros triangulares lineales normalizados por su área;
+- compresión \`log10(1 + 10000 × energía)\`;
+- parches de 128 frames con salto 62; los frames finales que no forman un parche completo se descartan, igual que el modo predeterminado documentado.
+
+Comprobación local:
+
+\`\`\`powershell
+node scripts/music-genre-effnet-preprocess-check.mjs
+\`\`\`
+
+La prueba confirma dimensiones, conteo de frames/parches, silencio, valores finitos y errores de entrada. **No demuestra todavía equivalencia numérica con Essentia**: antes de conectar el ONNX debemos comparar los 96 valores de varios frames reales contra \`TensorflowInputMusiCNN\` de referencia, con tolerancia declarada (la discusión de MTG sugiere 1e-3 para una reproducción con Librosa). Tampoco se ha probado inferencia ONNX ni precisión musical.
