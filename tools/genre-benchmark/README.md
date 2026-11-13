@@ -126,7 +126,7 @@ No trates los scores sigmoid como probabilidades calibradas. mAP no usa un umbra
 Se añadió un preprocesador de desarrollo, sin dependencia de Essentia y sin incluir el modelo. Recibe muestras **mono Float32/Float64 ya remuestreadas a 16 kHz** y produce un tensor ONNX de forma \`[patches, 128, 96]\`.
 
 La configuración implementada es:
-- frames centrados de 512 muestras, salto 256 y padding cero en los bordes;
+- frames centrados de 512 muestras, salto 256 y padding cero en los bordes; conserva el último frame cuando su inicio queda dentro de la señal, incluso si su centro cae justo en el final;
 - ventana Hann simétrica sin normalización;
 - espectro de potencia;
 - 96 bandas con centros espaciados en escala Slaney, filtros triangulares lineales normalizados por su área;

@@ -165,9 +165,9 @@ export function extractMusiCNNMelFrames(samples) {
   if (samples.length === 0) return [];
 
   // Essentia's default FrameCutter starts with a frame centered at sample 0,
-  // advances 256 samples, zero-pads frame edges, and stops before a center
-  // reaches or passes the end of the signal.
-  const frameCount = Math.ceil(samples.length / MUSICNN_HOP_SIZE);
+  // advances 256 samples, and retains the final frame whose start is still
+  // inside the signal, even when that frame's center reaches/passes its end.
+  const frameCount = Math.floor(samples.length / MUSICNN_HOP_SIZE) + 1;
   const frames = new Array(frameCount);
   for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
     const center = frameIndex * MUSICNN_HOP_SIZE;

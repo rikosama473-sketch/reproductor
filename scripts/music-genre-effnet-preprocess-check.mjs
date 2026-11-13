@@ -21,7 +21,7 @@ assert.deepEqual(extractMusiCNNMelFrames(new Float32Array(0)), []);
 
 const silence12s = new Float32Array(EFFNET_SAMPLE_RATE * 12);
 const silenceMel = extractMusiCNNMelFrames(silence12s);
-assert.equal(silenceMel.length, 750,
+assert.equal(silenceMel.length, 751,
   "A 12-second signal at 16 kHz produces 750 centered frames with a 256-sample hop.");
 assert.equal(silenceMel[0].length, MUSICNN_MEL_BANDS);
 assert.ok(silenceMel.every(frame => frame.every(value => value === 0)),
@@ -31,7 +31,7 @@ const silenceTensor = buildEffnetPatchTensor(silenceMel);
 assert.deepEqual(silenceTensor.dims, [11, 128, 96]);
 assert.equal(silenceTensor.patchCount, 11);
 assert.equal(silenceTensor.data.length, 11 * 128 * 96);
-assert.equal(silenceTensor.discardedTailFrames, 2);
+assert.equal(silenceTensor.discardedTailFrames, 3);
 assert.ok(silenceTensor.data.every(value => value === 0));
 
 const shortFrames = extractMusiCNNMelFrames(new Float32Array(16000));
@@ -40,8 +40,8 @@ assert.equal(buildEffnetPatchTensor(shortFrames).patchCount, 0,
   "A 1-second clip is too short to fill a 128-frame EffNet patch.");
 
 const exactHop = extractMusiCNNMelFrames(new Float32Array(256));
-assert.equal(exactHop.length, 1,
-  "The frame centered exactly at the signal end must not be emitted.");
+assert.equal(exactHop.length, 2,
+  "Essentia retains the final zero-padded frame when the center reaches the signal end.");
 
 const sampleCount = EFFNET_SAMPLE_RATE * 3;
 const tone = new Float32Array(sampleCount);
@@ -49,7 +49,7 @@ for (let index = 0; index < sampleCount; index++) {
   tone[index] = 0.5 * Math.sin(2 * Math.PI * 440 * index / EFFNET_SAMPLE_RATE);
 }
 const toneMel = extractMusiCNNMelFrames(tone);
-assert.equal(toneMel.length, Math.ceil(sampleCount / MUSICNN_HOP_SIZE));
+assert.equal(toneMel.length, Math.floor(sampleCount / MUSICNN_HOP_SIZE) + 1);
 assert.ok(toneMel.some(frame => frame.some(value => value > 0)),
   "A non-silent sinusoid should produce non-zero log-mel values.");
 assert.ok(toneMel.every(frame =>
