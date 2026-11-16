@@ -140,3 +140,54 @@ node scripts/music-genre-effnet-preprocess-check.mjs
 \`\`\`
 
 La prueba confirma dimensiones, conteo de frames/parches, silencio, valores finitos y errores de entrada. **No demuestra todavía equivalencia numérica con Essentia**: antes de conectar el ONNX debemos comparar los 96 valores de varios frames reales contra \`TensorflowInputMusiCNN\` de referencia, con tolerancia declarada (la discusión de MTG sugiere 1e-3 para una reproducción con Librosa). Tampoco se ha probado inferencia ONNX ni precisión musical.
+
+
+## Comparación numérica contra Essentia (sin integrar el modelo)
+
+El prototipo EffNet ahora incluye una prueba de paridad para comparar los 96 valores de cada frame local contra una exportación de TensorflowInputMusiCNN generada por Essentia. Esta herramienta es opcional, está fuera del reproductor y no descarga el modelo Discogs-EffNet.
+
+### 1. Preparar un WAV de referencia
+
+Prepara una copia **PCM16, mono y exactamente a 16 kHz**. No uses un WAV estéreo ni dependas de que cada herramienta remuestree de forma distinta: el comparador exige el mismo archivo binario y verifica su SHA-256.
+
+En un entorno Python donde esté disponible el algoritmo essentia.standard.TensorflowInputMusiCNN (distribución Essentia con soporte TensorFlow), ejecuta:
+
+\`\`\`powershell
+python tools/genre-benchmark/export-essentia-reference.py --audio "D:/Ritmo-EffNet-Test/tone-16k-mono.wav" --output "D:/Ritmo-EffNet-Test/tone-essentia.json"
+\`\`\`
+
+El exportador usa el FrameGenerator estándar de Essentia con frameSize=512, hopSize=256, startFromZero=False y padding de frames incompletos, y aplica TensorflowInputMusiCNN a cada frame. El JSON guarda la versión de Essentia, configuración, frames de 96 bandas y hash del WAV; no guarda audio ni rutas locales.
+
+### 2. Comparar los frames
+
+Desde la raíz del repositorio:
+
+\`\`\`powershell
+node tools/genre-benchmark/compare-effnet-reference.mjs --audio "D:/Ritmo-EffNet-Test/tone-16k-mono.wav" --reference "D:/Ritmo-EffNet-Test/tone-essentia.json" --atol 0.001 --rtol 0.001
+\`\`\`
+
+El programa genera tone-essentia.json.comparison.json (no sobrescribe archivos existentes) y muestra:
+- cantidad de frames y valores comparados;
+- error absoluto máximo, MAE y RMSE;
+- correlación de Pearson cuando la varianza permite calcularla;
+- porcentaje de valores dentro de abs(local-reference) <= atol + rtol * abs(reference);
+- coordenadas del peor valor y las diez bandas con mayor MAE.
+
+El comando termina con código 0 solo si coinciden las cantidades de frames y **todos** los valores cumplen la tolerancia; usa código 2 cuando hay divergencias medibles. Un resultado favorable es evidencia de paridad del preprocesado para ese WAV/configuración, no de precisión de géneros ni de calidad general del modelo. Repite con silencio, impulso y tonos de distintas frecuencias antes de usar música real.
+
+El exportador usa el modo estándar FrameGenerator/TensorflowInputMusiCNN; no es el camino streaming. El FrameCutter streaming tiene una opción silentFrames=noise por defecto, que no debe mezclarse con esta referencia estándar al interpretar pruebas de silencio.
+
+### 3. Verificación automática del comparador
+
+\`\`\`powershell
+node scripts/music-genre-effnet-reference-check.mjs
+\`\`\`
+
+O desde el paquete del benchmark:
+
+\`\`\`powershell
+npm --prefix tools/genre-benchmark run check:effnet-reference
+\`\`\`
+
+La prueba usa matrices sintéticas para verificar el esquema, la forma de los frames, tolerancias absolutas/relativas, MAE/RMSE, correlación y tratamiento de diferencias de tamaño. **No simula datos Essentia ni marca la paridad real como aprobada.**
+

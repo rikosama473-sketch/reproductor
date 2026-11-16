@@ -10,7 +10,9 @@
     "evaluate": "node evaluate.mjs",
     "check:runtime": "node runtime-check.mjs",
     "evaluate:multilabel": "node evaluate-multilabel.mjs",
-    "check:multilabel": "node ../../scripts/music-genre-multilabel-check.mjs"
+    "check:multilabel": "node ../../scripts/music-genre-multilabel-check.mjs",
+    "compare:effnet-reference": "node compare-effnet-reference.mjs",
+    "check:effnet-reference": "node ../../scripts/music-genre-effnet-reference-check.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.7.2"

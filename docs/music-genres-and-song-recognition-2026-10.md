@@ -150,3 +150,23 @@ Referencias:
 - https://essentia.upf.edu/reference/streaming_TensorflowPredictEffnetDiscogs.html
 - https://essentia.upf.edu/licensing_information.html
 - https://github.com/MTG/essentia/issues/1471
+
+
+## Comparador de referencia Essentia (16 de noviembre de 2026)
+
+Se añadió infraestructura de comparación numérica, sin integrar ONNX ni descargar pesos:
+
+- export-essentia-reference.py exporta los frames de 96 bandas desde essentia.standard.TensorflowInputMusiCNN, para un WAV PCM16 mono a 16 kHz.
+- effnet-reference.mjs valida el esquema de referencia y calcula error absoluto máximo, MAE, RMSE, correlación de Pearson, tasa dentro de tolerancia y bandas con mayor error.
+- compare-effnet-reference.mjs ejecuta el preprocesador JS sobre el mismo WAV y comprueba su SHA-256 antes de comparar. No remuestrea ni sube audio. El código de salida distingue equivalencia dentro de tolerancia de divergencias.
+- Se registró el test sintético en scripts/validate.mjs y en los comandos del paquete del benchmark.
+
+La referencia se genera mediante el modo **estándar** de Essentia (FrameGenerator + TensorflowInputMusiCNN). Esto importa: el FrameCutter del modo streaming expone silentFrames=noise por defecto, mientras que la ruta estándar usada por el exportador no tiene esa opción. No hay que interpretar el ruido de piso del modo streaming como parámetro universal de la comparación.
+
+**Estado:** infraestructura y pruebas sintéticas integradas; comparación contra una exportación real de Essentia pendiente. No se afirma paridad numérica hasta ejecutar el exportador sobre un WAV de referencia y obtener un informe con todos los valores dentro de la tolerancia declarada (por defecto atol=1e-3 y rtol=1e-3). Tampoco se ha evaluado precisión musical ni inferencia ONNX. La licencia del modelo EffNet sigue sin resolverse.
+
+Referencias técnicas actuales:
+- TensorflowInputMusiCNN: https://essentia.upf.edu/reference/std_TensorflowInputMusiCNN.html
+- FrameGenerator: https://essentia.upf.edu/reference/std_FrameGenerator.html
+- FrameCutter estándar: https://essentia.upf.edu/reference/std_FrameCutter.html
+- FrameCutter streaming: https://essentia.upf.edu/reference/streaming_FrameCutter.html
