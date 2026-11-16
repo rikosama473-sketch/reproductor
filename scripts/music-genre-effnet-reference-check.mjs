@@ -52,7 +52,7 @@ assert.equal(mismatchedFrames.comparedValueCount, 0);
 
 assert.throws(() => compareEffnetMelFrames(actual, referenceFrames, {
   absoluteTolerance: -1
-}), /non-negativos/);
+}), /no negativos/);
 assert.throws(() => compareEffnetMelFrames(
   [new Float32Array([Number.NaN, ...new Array(95).fill(0)])],
   [new Array(96).fill(0)]
